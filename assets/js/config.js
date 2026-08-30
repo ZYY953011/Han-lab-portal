@@ -79,5 +79,5 @@ window.SEARCH_CONFIG = [
  * 现在先填占位的 https 链接，等你建好飞书表格后，
  * 把下面两个值换成真实链接即可（上传到 GitHub 后全站生效）。
  * ========================================================= */
-window.EXPENSE_FORM_URL = "https://your-feishu-table-link-here";   // <- 改成你的飞书“提交”视图链接
-window.EXPENSE_VIEW_URL  = "https://your-feishu-view-link-here";   // <- 改成你的飞书“全部记录”视图链接
+window.EXPENSE_FORM_URL = "https://my.feishu.cn/wiki/PZoSwAUDqi7mVDk3V9ocaiTGnzf?table=tblNhs3TiapsXbHr&view=vewMnc0ole";   // 飞书报账明细表（组员打开后筛选"报销人=自己"，可直接新增/上传凭证）
+window.EXPENSE_VIEW_URL  = "https://my.feishu.cn/wiki/PZoSwAUDqi7mVDk3V9ocaiTGnzf?table=tblNhs3TiapsXbHr&view=vewMnc0ole";   // 飞书报账明细表（所有人看全量）
