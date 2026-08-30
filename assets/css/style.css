@@ -242,3 +242,33 @@ td a { color: var(--primary); }
   .grid-4, .grid-3 { grid-template-columns: 1fr; }
   .page-title { font-size: 21px; }
 }
+
+/* ===================== 网站访问口令门 ===================== */
+/* 锁定状态：藏起正文，只保留口令浮层 */
+html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
+
+#gate-overlay {
+  position: fixed; inset: 0; z-index: 99999;
+  background: #eef3f8;
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
+}
+.gate-box {
+  background: #fff; padding: 34px 30px; border-radius: 14px;
+  box-shadow: 0 8px 30px rgba(31, 79, 121, .15);
+  width: 320px; max-width: 90vw; text-align: center;
+}
+.gate-logo { font-size: 34px; }
+.gate-title { font-size: 19px; font-weight: 700; color: #1f4e79; margin: 8px 0 4px; }
+.gate-sub { font-size: 13px; color: #666; margin-bottom: 18px; line-height: 1.5; }
+.gate-input {
+  width: 100%; box-sizing: border-box; padding: 11px 12px;
+  border: 1px solid #cdd9e5; border-radius: 8px; font-size: 15px; outline: none;
+}
+.gate-input:focus { border-color: #2f7cc0; }
+.gate-btn {
+  width: 100%; margin-top: 12px; padding: 11px; border: none; border-radius: 8px;
+  background: #2f7cc0; color: #fff; font-size: 15px; cursor: pointer;
+}
+.gate-btn:hover { background: #1f5fa8; }
+.gate-err { color: #c0392b; font-size: 13px; min-height: 18px; margin-top: 10px; }

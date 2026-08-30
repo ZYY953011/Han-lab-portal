@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>首页 · 课题组科研与学生培养管理平台</title>
   <link rel="stylesheet" href="assets/css/style.css">
+<script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
   <main class="container">
@@ -94,5 +95,6 @@
     document.getElementById("quick-links").innerHTML = links.map(l =>
       `<li><a class="t" href="${esc(l.u)}" target="_blank">${esc(l.t)} ↗</a></li>`).join("");
   </script>
+<script src="assets/js/gate.js"></script>
 </body>
 </html>
