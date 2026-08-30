@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>样品管理 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <div id="head"></div>
+    <div class="toolbar">
+      <input class="grow" id="kw" placeholder="搜索样品编号 / 名称 / 负责人…">
+      <select id="proj"></select>
+      <select id="loc"></select>
+      <label style="font-size:13px; color:var(--muted);"><input type="checkbox" id="warnOnly"> 仅看库存预警</label>
+    </div>
+    <div id="warnBox"></div>
+    <div class="table-wrap" style="margin-top:8px;">
+      <table>
+        <thead><tr>
+          <th>编号</th><th>名称</th><th>类型</th><th>所属项目</th><th>负责人</th>
+          <th>位置</th><th>剩余</th><th>状态</th><th>操作</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="../assets/js/data/samples.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("样品");
+    document.getElementById("head").innerHTML = pageHead(
+      "样品管理", "解决“样品在哪里、属于哪个项目、还有多少、谁用过”的问题。",
+      [{name:"首页", url:"../index.html"}, {name:"样品管理"}]
+    );
+
+    // 项目筛选 & 位置（楼栋+房间）筛选
+    var projs = [...new Set((window.DATA.samples||[]).map(s=>s.project))];
+    document.getElementById("proj").innerHTML = `<option value="">全部项目</option>` + projs.map(p=>`<option>${esc(p)}</option>`).join("");
+    var locs = [...new Set((window.DATA.samples||[]).map(s=>s.building+" "+s.room))];
+    document.getElementById("loc").innerHTML = `<option value="">全部位置</option>` + locs.map(l=>`<option>${esc(l)}</option>`).join("");
+
+    function render(){
+      var kw = document.getElementById("kw").value.trim().toLowerCase();
+      var proj = document.getElementById("proj").value;
+      var loc = document.getElementById("loc").value;
+      var warnOnly = document.getElementById("warnOnly").checked;
+
+      var list = (window.DATA.samples||[]).filter(s=>{
+        var ok1 = !kw || (s.code+s.name+s.owner).toLowerCase().includes(kw);
+        var ok2 = !proj || s.project===proj;
+        var ok3 = !loc || (s.building+" "+s.room)===loc;
+        var ok4 = !warnOnly || (s.status==="已耗尽" || (s.remain/s.total < 0.2));
+        return ok1 && ok2 && ok3 && ok4;
+      });
+      document.getElementById("rows").innerHTML = list.length ? list.map(s=>`
+        <tr>
+          <td>${esc(s.code)}</td>
+          <td><a href="sample-detail.html?id=${esc(s.id)}">${esc(s.name)}</a></td>
+          <td>${esc(s.type)}</td><td>${esc(s.project)}</td><td>${esc(s.owner)}</td>
+          <td>${esc(s.location)}</td>
+          <td>${s.remain} ${esc(s.unit)}</td>
+          <td>${badge(s.status)}</td>
+          <td><a class="btn btn-sm" href="sample-detail.html?id=${esc(s.id)}">详情</a></td>
+        </tr>`).join("") : `<tr><td colspan="9">${emptyTip("没有匹配的样品")}</td></tr>`;
+
+      // 库存预警提示
+      var low = (window.DATA.samples||[]).filter(s=> s.status==="已耗尽" || (s.remain/s.total < 0.2));
+      document.getElementById("warnBox").innerHTML = low.length
+        ? `<div class="warn-box" style="margin-bottom:10px;">⚠ 库存预警（${low.length} 项）：` +
+          low.map(s=>`${esc(s.name)}（剩余 ${s.remain}${esc(s.unit)}）`).join("；") + `</div>`
+        : "";
+    }
+    ["kw","proj","loc","warnOnly"].forEach(id=>{
+      document.getElementById(id).addEventListener(id==="kw"?"input":"change", render);
+    });
+    render();
+  </script>
+</body>
+</html>

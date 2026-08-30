@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>项目管理 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <div id="head"></div>
+    <div class="toolbar">
+      <input class="grow" id="kw" placeholder="搜索项目名称 / 负责人 / 编号…">
+      <select id="statusFilter">
+        <option value="">全部状态</option>
+        <option>准备中</option><option>进行中</option><option>暂停</option>
+        <option>结题中</option><option>已结题</option>
+      </select>
+    </div>
+    <div class="grid grid-2" id="list"></div>
+  </main>
+
+  <script src="../assets/js/data/projects.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("项目");
+    document.getElementById("head").innerHTML = pageHead(
+      "项目管理", "让所有成员知道：组里有哪些项目、谁负责、做到哪一步。",
+      [{name:"首页", url:"../index.html"}, {name:"项目管理"}]
+    );
+
+    function card(p){
+      return `<div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <h3 style="font-size:17px; color:var(--primary-dark);"><a href="project-detail.html?id=${esc(p.id)}">${esc(p.name)}</a></h3>
+          ${badge(p.status)}
+        </div>
+        <div style="color:var(--muted); font-size:13px; margin:6px 0;">负责人：${esc(p.leader)} ｜ 来源：${esc(p.source)} ｜ 编号：${esc(p.code)}</div>
+        <div style="margin:10px 0 4px; font-size:13px; color:#44505f;">当前阶段：<b>${esc(p.stage)}</b></div>
+        <div class="progress" style="margin-bottom:4px;"><span style="width:${p.progress}%"></span></div>
+        <div style="font-size:12.5px; color:var(--muted);">进度 ${p.progress}% ｜ 周期 ${esc(p.start)} ~ ${esc(p.end)} ｜ 经费 ${esc(p.budget)}</div>
+        <div style="margin-top:10px;"><a class="btn btn-sm" href="project-detail.html?id=${esc(p.id)}">查看详情 →</a></div>
+      </div>`;
+    }
+    function render(){
+      var kw = document.getElementById("kw").value.trim().toLowerCase();
+      var sf = document.getElementById("statusFilter").value;
+      var list = (window.DATA.projects||[]).filter(p=>{
+        var ok1 = !kw || (p.name+p.leader+p.code).toLowerCase().includes(kw);
+        var ok2 = !sf || p.status===sf;
+        return ok1 && ok2;
+      });
+      document.getElementById("list").innerHTML = list.length ? list.map(card).join("") : emptyTip("没有匹配的项目");
+    }
+    document.getElementById("kw").addEventListener("input", render);
+    document.getElementById("statusFilter").addEventListener("change", render);
+    render();
+  </script>
+</body>
+</html>

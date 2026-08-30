@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>样品详情 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <main class="container" id="main"></main>
+
+  <script src="../assets/js/data/samples.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("样品");
+    var id = getParam("id");
+    var s = (window.DATA.samples||[]).find(x=>x.id===id);
+    if(!s){ document.getElementById("main").innerHTML = emptyTip("未找到该样品"); }
+    else {
+      var ratio = (s.remain/s.total*100).toFixed(0);
+      document.getElementById("main").innerHTML = `
+        <div class="breadcrumb"><a href="../index.html">首页</a> / <a href="samples.html">样品管理</a> / 样品详情</div>
+        <div class="detail-head">
+          <h1>${esc(s.name)} <span style="font-size:15px;opacity:.9;">（${esc(s.code)}）</span></h1>
+          <div class="meta">
+            <span><b>类型：</b>${esc(s.type)}</span>
+            <span><b>所属项目：</b>${esc(s.project)}</span>
+            <span><b>负责人：</b>${esc(s.owner)}</span>
+            ${badge(s.status)}
+          </div>
+          <div style="margin-top:10px;"><b>位置：</b>${esc(s.location)}</div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="section-title" style="margin-top:0;">库存</div>
+          <div style="display:flex; gap:30px; flex-wrap:wrap; align-items:center;">
+            <div><div style="font-size:13px;color:var(--muted);">剩余 / 总量</div>
+              <div style="font-size:20px;font-weight:700;color:var(--primary);">${s.remain} / ${s.total} ${esc(s.unit)}</div></div>
+            <div style="flex:1; min-width:220px;">
+              <div class="progress"><span style="width:${ratio}%"></span></div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px;">剩余 ${ratio}%</div>
+            </div>
+            <!-- 未来扫码入口预留 -->
+            <button class="btn btn-outline" onclick="alert('二维码扫码功能将在后续版本接入（预留入口）。')">📷 扫码 / 二维码占位</button>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="section-title" style="margin-top:0;">位置信息</div>
+            <dl class="kv">
+              <dt>楼栋</dt><dd>${esc(s.building)}</dd>
+              <dt>房间</dt><dd>${esc(s.room)}</dd>
+              <dt>冰箱/柜子</dt><dd>${esc(s.fridge)}</dd>
+              <dt>层</dt><dd>${esc(s.layer)}</dd>
+              <dt>盒号</dt><dd>${esc(s.box)}</dd>
+              <dt>具体位置</dt><dd>${esc(s.location)}</dd>
+              <dt>保存条件</dt><dd>${esc(s.storage)}</dd>
+            </dl>
+          </div>
+          <div class="card">
+            <div class="section-title" style="margin-top:0;">来源与使用</div>
+            <dl class="kv">
+              <dt>来源</dt><dd>${esc(s.source)}</dd>
+              <dt>制备/采样日期</dt><dd>${esc(s.prepDate)}</dd>
+              <dt>最近使用人</dt><dd>${esc(s.lastUser)}</dd>
+              <dt>最近使用时间</dt><dd>${esc(s.lastUse)}</dd>
+              <dt>二维码编号</dt><dd>${esc(s.qr)}</dd>
+              <dt>备注</dt><dd>${esc(s.remark)}</dd>
+            </dl>
+          </div>
+        </div>
+        <p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="samples.html">← 返回样品列表</a></p>
+      `;
+    }
+  </script>
+</body>
+</html>
