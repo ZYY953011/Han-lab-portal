@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>研究成果 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <div id="head"></div>
+    <div class="toolbar">
+      <select id="type">
+        <option value="">全部类型</option>
+        <option>论文</option><option>专利</option><option>软件著作权</option>
+        <option>获奖</option><option>基金</option><option>品种</option><option>标准</option><option>数据集</option><option>学术会议</option><option>学生竞赛</option>
+      </select>
+      <select id="year"></select>
+    </div>
+    <div class="table-wrap" style="margin-top:8px;">
+      <table>
+        <thead><tr><th>类型</th><th>标题</th><th>作者</th><th>期刊/来源</th><th>年份</th><th>分区/IF</th><th>所属项目</th><th>链接</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="../assets/js/data/members.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("成果");
+    document.getElementById("head").innerHTML = pageHead(
+      "研究成果", "论文、专利、软著、获奖、基金等。支持按年份、类型、项目筛选（成员筛选可在数据中查看作者）。",
+      [{name:"首页", url:"../index.html"}, {name:"研究成果"}]
+    );
+
+    var years = [...new Set((window.DATA.achievements||[]).map(a=>a.year))].sort((a,b)=>b-a);
+    document.getElementById("year").innerHTML = `<option value="">全部年份</option>` + years.map(y=>`<option>${y}</option>`).join("");
+
+    function render(){
+      var t = document.getElementById("type").value;
+      var y = document.getElementById("year").value;
+      var list = (window.DATA.achievements||[]).filter(a=>{
+        var ok1 = !t || a.type===t;
+        var ok2 = !y || String(a.year)===y;
+        return ok1 && ok2;
+      });
+      document.getElementById("rows").innerHTML = list.length ? list.map(a=>`
+        <tr>
+          <td>${badge(a.type,"purple")}</td>
+          <td>${esc(a.title)}</td>
+          <td>${esc(a.authors.join("、"))}${a.corresponding?`<br><span style="font-size:12px;color:var(--muted);">通讯：${esc(a.corresponding)}</span>`:""}</td>
+          <td>${esc(a.journal)}</td>
+          <td>${esc(a.year)}</td>
+          <td>${a.zone||"—"}${a.if?` / IF ${a.if}`:""}</td>
+          <td>${esc(a.project)}</td>
+          <td>
+            ${a.paperUrl?`<a href="${esc(a.paperUrl)}" target="_blank">原文</a> `:""}
+            ${a.pdfUrl?`<a href="${esc(a.pdfUrl)}" target="_blank">PDF</a>`:""}
+            ${(!a.paperUrl&&!a.pdfUrl)?"—":""}
+          </td>
+        </tr>`).join("") : `<tr><td colspan="8">${emptyTip("没有匹配的成果")}</td></tr>`;
+    }
+    document.getElementById("type").addEventListener("change", render);
+    document.getElementById("year").addEventListener("change", render);
+    render();
+  </script>
+</body>
+</html>

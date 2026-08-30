@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>首页 · 课题组科研与学生培养管理平台</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <!-- 欢迎区 -->
+    <section class="card" style="margin-bottom:22px; background:linear-gradient(120deg,#1f5fa8,#2f7cc0); color:#fff; border:none;">
+      <h1 style="font-size:26px; margin-bottom:8px;">欢迎进入课题组科研与学生培养管理平台</h1>
+      <p style="opacity:.95; max-width:760px;">这里集中管理项目、实验、样品、数据、报账、组会、学生培养与研究成果。信息找得到、过程可追踪、经验能继承、资源可共享。</p>
+    </section>
+
+    <!-- 8 个常用入口卡片 -->
+    <div class="section-title">常用入口</div>
+    <div class="grid grid-4" id="entry-cards"><!-- JS 渲染 --></div>
+
+    <!-- 下方四块 -->
+    <div class="grid grid-2" style="margin-top:34px;">
+      <div>
+        <div class="section-title">最近更新</div>
+        <div class="card"><ul class="mini-list" id="recent-updates"></ul></div>
+      </div>
+      <div>
+        <div class="section-title">本周提醒</div>
+        <div class="card"><ul class="mini-list" id="weekly-reminders"></ul></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:18px;">
+      <div>
+        <div class="section-title">常用资源</div>
+        <div class="card"><ul class="mini-list" id="common-resources"></ul></div>
+      </div>
+      <div>
+        <div class="section-title">快速链接</div>
+        <div class="card"><ul class="mini-list" id="quick-links"></ul></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 数据（第一版：本地示例数据，后续可替换为 API） -->
+  <script src="assets/js/data/projects.js"></script>
+  <script src="assets/js/data/methods.js"></script>
+  <script src="assets/js/data/samples.js"></script>
+  <script src="assets/js/data/datasets.js"></script>
+  <script src="assets/js/data/expenses.js"></script>
+  <script src="assets/js/data/meetings.js"></script>
+  <script src="assets/js/data/students.js"></script>
+  <script src="assets/js/data/members.js"></script>
+  <script src="assets/js/data/resources.js"></script>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    injectHeader("首页");
+    renderEntryCards();
+
+    // 最近更新：合并会议/数据/项目，按日期取最新几条
+    var updates = [];
+    (window.DATA.meetings||[]).forEach(m => updates.push({t:"组会："+m.topic, d:m.date, u:P()+"meetings.html"}));
+    (window.DATA.datasets||[]).forEach(d => updates.push({t:"数据："+d.name, d:d.updated, u:P()+"datasets.html"}));
+    (window.DATA.projects||[]).forEach(p => updates.push({t:"项目："+p.name, d:p.start, u:P()+"projects.html"}));
+    updates.sort((a,b)=> b.d.localeCompare(a.d));
+    document.getElementById("recent-updates").innerHTML = updates.slice(0,6).map(u =>
+      `<li><a class="t" href="${u.u}">${esc(u.t)}</a><span class="d">${esc(u.d)}</span></li>`).join("");
+
+    // 本周提醒（第一版静态示例，未来可由数据自动生成）
+    var reminds = [
+      {t:"陈思 中期考核（准备中）", d:"计划 2024-04"},
+      {t:"赵磊 VIGS 载体构建截止", d:"2024-04-10"},
+      {t:"刘洋 催齐示范县数据", d:"2024-03-25"},
+      {t:"下一周组会：陈思汇报", d:"2024-03-29"},
+      {t:"王芳 横向课题材料采购重提", d:"退回修改"},
+    ];
+    document.getElementById("weekly-reminders").innerHTML = reminds.map(r =>
+      `<li><span class="t">${esc(r.t)}</span><span class="d">${esc(r.d)}</span></li>`).join("");
+
+    // 常用资源（取推荐最高的几条）
+    var res = (window.DATA.resources||[]).filter(r=>r.recommend.indexOf("5")>=0).slice(0,6);
+    document.getElementById("common-resources").innerHTML = res.map(r =>
+      `<li><a class="t" href="${esc(r.url)}" target="_blank">${esc(r.title)}</a><span class="d">${esc(r.category)}</span></li>`).join("");
+
+    // 快速链接（外部系统占位）
+    var links = [
+      {t:"飞书多维表格（项目看板）", u:"https://www.feishu.cn/"},
+      {t:"腾讯文档（共享文档）", u:"https://docs.qq.com/"},
+      {t:"学校 NAS 数据服务器", u:"https://nas.example.edu.cn/"},
+      {t:"OneDrive 课题组空间", u:"https://onedrive.live.com/"},
+      {t:"对象存储 OSS（原始数据）", u:"https://www.aliyun.com/product/oss"},
+    ];
+    document.getElementById("quick-links").innerHTML = links.map(l =>
+      `<li><a class="t" href="${esc(l.u)}" target="_blank">${esc(l.t)} ↗</a></li>`).join("");
+  </script>
+</body>
+</html>

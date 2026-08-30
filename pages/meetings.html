@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>组会安排与记录 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <div id="head"></div>
+    <div class="note-box" style="margin-bottom:14px;">💡 让“组会”变成连续积累：每次汇报的进展、问题、老师建议与<b>行动事项（Action Items）</b>都被记录下来并跟踪。</div>
+
+    <div class="section-title">组会日历（最近 / 即将）</div>
+    <div class="card" id="cal"></div>
+
+    <div class="section-title">组会历史记录</div>
+    <div class="table-wrap" style="margin-top:8px;">
+      <table>
+        <thead><tr><th>日期</th><th>地点</th><th>汇报人</th><th>主题</th><th>所属项目</th><th>操作</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="../assets/js/data/meetings.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("组会");
+    document.getElementById("head").innerHTML = pageHead(
+      "组会安排与记录", "组会日历、历史记录与行动事项（Action Items）跟踪。",
+      [{name:"首页", url:"../index.html"}, {name:"组会安排与记录"}]
+    );
+
+    var list = (window.DATA.meetings||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+
+    // 日历：按月分组列出
+    document.getElementById("cal").innerHTML = list.map(m=>`
+      <div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px dashed var(--border);">
+        <div style="min-width:64px; text-align:center;">
+          <div style="font-size:22px; font-weight:700; color:var(--primary);">${esc(m.date.slice(8))}</div>
+          <div style="font-size:12px; color:var(--muted);">${esc(m.date.slice(0,7))}</div>
+        </div>
+        <div>
+          <div><b>${esc(m.topic)}</b> ｜ ${esc(m.reporter)} 汇报 ｜ ${esc(m.place)}</div>
+          <div style="font-size:13px; color:var(--muted);">行动事项：${(m.actions||[]).length} 项</div>
+        </div>
+      </div>`).join("");
+
+    // 历史列表
+    document.getElementById("rows").innerHTML = list.map(m=>`
+      <tr>
+        <td>${esc(m.date)}</td><td>${esc(m.place)}</td><td>${esc(m.reporter)}</td>
+        <td><a href="#${esc(m.id)}" onclick="showDetail('${esc(m.id)}')">${esc(m.topic)}</a></td>
+        <td>${esc(m.project)}</td>
+        <td><button class="btn btn-sm" onclick="showDetail('${esc(m.id)}')">查看</button></td>
+      </tr>`).join("");
+
+    // 详情弹层（用占位 div 显示）
+    var box = document.createElement("div");
+    box.id = "detailBox";
+    document.querySelector(".container").appendChild(box);
+
+    function showDetail(id){
+      var m = (window.DATA.meetings||[]).find(x=>x.id===id);
+      if(!m) return;
+      box.innerHTML = `<div class="card" style="margin-top:18px; border-color:var(--primary);">
+        <div class="section-title" style="margin-top:0;">${esc(m.topic)}（${esc(m.date)}）</div>
+        <dl class="kv">
+          <dt>地点</dt><dd>${esc(m.place)}</dd>
+          <dt>主持人</dt><dd>${esc(m.host)}</dd>
+          <dt>汇报人</dt><dd>${esc(m.reporter)}</dd>
+          <dt>所属项目</dt><dd>${esc(m.project)}</dd>
+          <dt>主要进展</dt><dd>${esc(m.progress)}</dd>
+          <dt>当前问题</dt><dd>${esc(m.problems)}</dd>
+          <dt>讨论内容</dt><dd>${esc(m.discussion)}</dd>
+          <dt>老师建议</dt><dd>${esc(m.advice)}</dd>
+        </dl>
+        <div style="margin:8px 0;">
+          ${m.pptUrl?`<a class="btn btn-sm btn-outline" href="${esc(m.pptUrl)}" target="_blank">📊 PPT</a> `:""}
+          ${m.docUrl?`<a class="btn btn-sm btn-outline" href="${esc(m.docUrl)}" target="_blank">📄 文档</a>`:""}
+        </div>
+        <div class="section-title" style="font-size:15px; color:var(--warn);">行动事项 Action Items</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>任务</th><th>负责人</th><th>截止日期</th><th>下次检查</th></tr></thead>
+          <tbody>${(m.actions||[]).map(a=>`<tr><td>${esc(a.task)}</td><td>${esc(a.owner)}</td><td>${esc(a.due)}</td><td>${esc(a.check)}</td></tr>`).join("")||"<tr><td colspan=4>无</td></tr>"}</tbody>
+        </table></div>
+        <p style="margin-top:10px;"><a class="btn btn-outline btn-sm" href="javascript:void(0)" onclick="document.getElementById('detailBox').innerHTML=''">收起</a></p>
+      </div>`;
+      box.scrollIntoView({behavior:"smooth"});
+    }
+    window.showDetail = showDetail;
+  </script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>报账与采购 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <main class="container">
+    <div id="head"></div>
+
+    <div class="section-title">A. 报账流程说明</div>
+    <div class="grid grid-2" id="flows"></div>
+
+    <div class="section-title">B. 报账记录</div>
+    <div class="toolbar">
+      <input class="grow" id="kw" placeholder="搜索报账人 / 用途 / 项目…">
+      <select id="cat"></select>
+    </div>
+
+    <!-- 费用统计占位 -->
+    <div class="stat-row" id="stats" style="margin-bottom:14px;"></div>
+
+    <div class="table-wrap" style="margin-top:8px;">
+      <table>
+        <thead><tr>
+          <th>编号</th><th>日期</th><th>报账人</th><th>项目</th><th>类别</th>
+          <th>金额(元)</th><th>用途</th><th>状态</th><th>完成日期</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p class="placeholder" style="margin-top:12px;">
+      未来可升级：Excel 导入、重复报账检查、按项目/人员/类别/月度自动统计图表、API 接口对接财务系统。
+    </p>
+  </main>
+
+  <script src="../assets/js/data/expenses.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("报账");
+    document.getElementById("head").innerHTML = pageHead(
+      "报账与采购", "A. 报账流程说明（需要什么材料、注意事项）；B. 报账记录与费用统计。",
+      [{name:"首页", url:"../index.html"}, {name:"报账与采购"}]
+    );
+
+    // A. 流程说明卡片
+    document.getElementById("flows").innerHTML = (window.DATA.expenseFlows||[]).map(f=>`
+      <div class="card">
+        <h3 style="font-size:16px; color:var(--primary-dark); margin-bottom:6px;">${esc(f.type)}</h3>
+        <div style="font-size:13.5px; color:#44505f;"><b>需准备材料：</b>${(f.materials||[]).join("、")}</div>
+        <div style="font-size:13.5px; color:#44505f; margin-top:4px;"><b>常见问题：</b>${(f.faq||[]).join("；")}</div>
+        <div class="note-box" style="margin-top:8px; font-size:13px;">⚠ 注意：${esc(f.note)}</div>
+        <a class="btn btn-sm btn-outline" href="${esc(f.template)}" target="_blank">📥 下载模板</a>
+      </div>`).join("");
+
+    // B. 筛选下拉
+    var cats = [...new Set((window.DATA.expenses||[]).map(e=>e.category))];
+    document.getElementById("cat").innerHTML = `<option value="">全部类别</option>` + cats.map(c=>`<option>${esc(c)}</option>`).join("");
+
+    function fmt(n){ return Number(n).toLocaleString("zh-CN"); }
+    function render(){
+      var kw = document.getElementById("kw").value.trim().toLowerCase();
+      var cat = document.getElementById("cat").value;
+      var list = (window.DATA.expenses||[]).filter(e=>{
+        var ok1 = !kw || (e.reporter+e.purpose+e.project).toLowerCase().includes(kw);
+        var ok2 = !cat || e.category===cat;
+        return ok1 && ok2;
+      });
+      document.getElementById("rows").innerHTML = list.length ? list.map(e=>`
+        <tr>
+          <td>${esc(e.id)}</td><td>${esc(e.date)}</td><td>${esc(e.reporter)}</td>
+          <td>${esc(e.project)}</td><td>${esc(e.category)}</td>
+          <td>${fmt(e.amount)}</td><td>${esc(e.purpose)}</td>
+          <td>${badge(e.status)}</td><td>${esc(e.doneDate||"—")}</td>
+        </tr>`).join("") : `<tr><td colspan="9">${emptyTip("没有匹配的报账记录")}</td></tr>`;
+
+      // 统计：总额 / 已报销 / 类别 Top
+      var all = window.DATA.expenses||[];
+      var total = all.reduce((s,e)=>s+e.amount,0);
+      var done = all.filter(e=>e.status==="已报销").reduce((s,e)=>s+e.amount,0);
+      var byCat = {};
+      all.forEach(e=> byCat[e.category]=(byCat[e.category]||0)+e.amount);
+      var topCat = Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0] || ["—",0];
+      document.getElementById("stats").innerHTML = `
+        <div class="stat"><div class="num">¥${fmt(total)}</div><div class="lab">报账总额</div></div>
+        <div class="stat"><div class="num">¥${fmt(done)}</div><div class="lab">已报销金额</div></div>
+        <div class="stat"><div class="num">${all.length}</div><div class="lab">记录条数</div></div>
+        <div class="stat"><div class="num">${esc(topCat[0])}</div><div class="lab">最高类别 ¥${fmt(topCat[1])}</div></div>`;
+    }
+    document.getElementById("kw").addEventListener("input", render);
+    document.getElementById("cat").addEventListener("change", render);
+    render();
+  </script>
+</body>
+</html>
