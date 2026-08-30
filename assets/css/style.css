@@ -272,3 +272,17 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
 }
 .gate-btn:hover { background: #1f5fa8; }
 .gate-err { color: #c0392b; font-size: 13px; min-height: 18px; margin-top: 10px; }
+
+/* ===================== 报账页·飞书在线报账入口 ===================== */
+.expense-entry {
+  background: linear-gradient(135deg, #eaf2fb, #f5f9fd);
+  border: 1px solid #cfe0f0; border-radius: 12px;
+  padding: 16px 18px; margin-bottom: 18px;
+}
+.expense-entry-hd { font-size: 14px; color: #36465a; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.expense-entry-tag {
+  background: #2f7cc0; color: #fff; font-size: 12.5px; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+}
+.expense-entry-btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.expense-entry-btns .btn { text-decoration: none; }

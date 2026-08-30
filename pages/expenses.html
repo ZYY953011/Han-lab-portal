@@ -11,6 +11,18 @@
   <main class="container">
     <div id="head"></div>
 
+    <!-- 飞书在线报账入口（链接在 assets/js/config.js 的 EXPENSE_FORM_URL / EXPENSE_VIEW_URL 配置） -->
+    <div class="expense-entry">
+      <div class="expense-entry-hd">
+        <span class="expense-entry-tag">在线报账</span>
+        <span>每 2–3 个月集中一轮：先在这里提交花费明细与凭证，再依次由审核人、下单人、导师处理。</span>
+      </div>
+      <div class="expense-entry-btns">
+        <a class="btn btn-primary" id="expenseFormBtn" target="_blank">📝 在线提交报账（飞书表格）</a>
+        <a class="btn btn-outline" id="expenseViewBtn" target="_blank">👀 查看当前周期全部记录</a>
+      </div>
+    </div>
+
     <div class="section-title">A. 报账流程说明</div>
     <div class="grid grid-2" id="flows"></div>
 
@@ -42,6 +54,10 @@
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("报账");
+
+    // 飞书在线报账入口按钮（链接来自 config.js）
+    document.getElementById("expenseFormBtn").href = window.EXPENSE_FORM_URL || "#";
+    document.getElementById("expenseViewBtn").href  = window.EXPENSE_VIEW_URL  || "#";
     document.getElementById("head").innerHTML = pageHead(
       "报账与采购", "A. 报账流程说明（需要什么材料、注意事项）；B. 报账记录与费用统计。",
       [{name:"首页", url:"../index.html"}, {name:"报账与采购"}]

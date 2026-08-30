@@ -70,3 +70,14 @@ window.SEARCH_CONFIG = [
   { key: "achievements",  title: "title",   sub: "type",      url: "achievements.html",    param: "",  typeName: "成果" },
   { key: "resources",     title: "title",   sub: "category",  url: "resources.html",       param: "",  typeName: "学习资源" },
 ];
+
+/* =========================================================
+ * 报账模块接入：飞书多维表格（或腾讯文档/Airtable）链接
+ * 用法：报账页顶部会有两个按钮——
+ *   - 在线提交报账 -> EXPENSE_FORM_URL（你建好的飞书“提交”视图/表单）
+ *   - 查看当前周期全部记录 -> EXPENSE_VIEW_URL（你分享给全组的视图）
+ * 现在先填占位的 https 链接，等你建好飞书表格后，
+ * 把下面两个值换成真实链接即可（上传到 GitHub 后全站生效）。
+ * ========================================================= */
+window.EXPENSE_FORM_URL = "https://your-feishu-table-link-here";   // <- 改成你的飞书“提交”视图链接
+window.EXPENSE_VIEW_URL  = "https://your-feishu-view-link-here";   // <- 改成你的飞书“全部记录”视图链接
