@@ -81,3 +81,13 @@ window.SEARCH_CONFIG = [
  * ========================================================= */
 window.EXPENSE_FORM_URL = "https://my.feishu.cn/wiki/PZoSwAUDqi7mVDk3V9ocaiTGnzf?table=tblNhs3TiapsXbHr&view=vewMnc0ole";   // 飞书报账明细表（组员打开后筛选"报销人=自己"，可直接新增/上传凭证）
 window.EXPENSE_VIEW_URL  = "https://my.feishu.cn/wiki/PZoSwAUDqi7mVDk3V9ocaiTGnzf?table=tblNhs3TiapsXbHr&view=vewMnc0ole";   // 飞书报账明细表（所有人看全量）
+
+/* =========================================================
+ * 项目实验资料库（飞书云空间文件夹链接）
+ * 用法：项目详情页底部有「📤 上传新资料」按钮 → 跳到这个飞书文件夹
+ *   - 建议在飞书云空间建一个"项目实验资料"总文件夹，下面按项目名建子文件夹
+ *   - 子文件夹里再按 PPT / 实验方案 / 讨论记录 分类
+ *   - 上传后，把文件信息登记到 assets/js/data/projects.js 里对应项目的 materials 数组
+ * 填好后这里的按钮才会工作；空着则按钮点了没反应。
+ * ========================================================= */
+window.PROJECT_MATERIALS_FOLDER = "https://my.feishu.cn/drive/folder/BmabfxTa8lur81dlQa8cwNkPnmf";   // 飞书云盘「项目实验资料」文件夹（组员共享·可编辑），点项目页「上传新资料」按钮跳到这里

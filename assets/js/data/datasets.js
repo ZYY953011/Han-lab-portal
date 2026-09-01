@@ -53,7 +53,7 @@ window.DATA.datasets = [
   {
     id: "D3",
     name: "玉米示范方测产数据",
-    project: "P2",
+    project: "P1",
     experiment: "田间测产",
     date: "2023-10-01",
     material: "玉米籽粒",
@@ -76,7 +76,7 @@ window.DATA.datasets = [
   {
     id: "D4",
     name: "水稻高温叶绿素荧光数据",
-    project: "P3",
+    project: "P1",
     experiment: "高温胁迫",
     date: "2024-02-28",
     material: "水稻叶片",

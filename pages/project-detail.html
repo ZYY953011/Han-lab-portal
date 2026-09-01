@@ -71,6 +71,40 @@
             <dt>关联成果</dt><dd>${nameOf("relatedAchievements","achievements","title")} <a class="btn btn-sm btn-outline" href="achievements.html">去成果</a></dd>
           </dl>
         </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="section-title" style="margin-top:0;">实验设置与资料库</div>
+          <dl class="kv">
+            <dt>初始实验设置</dt><dd>${esc(p.setup||"尚未填写，可在 assets/js/data/projects.js 中补充")}</dd>
+            <dt>实验布置细节</dt><dd>${esc(p.design||"尚未填写，可在 assets/js/data/projects.js 中补充")}</dd>
+          </dl>
+          <div class="section-title">实验资料（PPT / 文档等）</div>
+          ${(p.materials&&p.materials.length) ? `
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>资料名称</th><th>类型</th><th>日期</th><th>上传人</th><th>查看</th></tr></thead>
+              <tbody>
+                ${p.materials.map(m=>`<tr>
+                  <td>${esc(m.name)}</td>
+                  <td>${esc(m.type||"—")}</td>
+                  <td>${esc(m.date||"—")}</td>
+                  <td>${esc(m.uploader||"—")}</td>
+                  <td>${m.url?`<a class="btn btn-sm btn-outline" href="${esc(m.url)}" target="_blank">📥 打开</a>`:'<span style="color:#999;">未上传</span>'}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+          ` : `<p class="placeholder">该项目暂无实验资料。</p>`}
+          <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+            <a class="btn btn-primary" href="${esc(window.PROJECT_MATERIALS_FOLDER||"#")}" target="_blank">📤 上传新资料（飞书云空间）</a>
+            <a class="btn btn-outline" href="https://my.feishu.cn/wiki/PZoSwAUDqi7mVDk3V9ocaiTGnzf?table=tblNhs3TiapsXbHr&view=vewMnc0ole" target="_blank">📋 查看报账明细</a>
+          </div>
+          <p style="margin-top:10px; font-size:12.5px; color:#666;">
+            📌 <b>使用流程</b>：① 点上面"上传新资料"跳到飞书文件夹 → 上传 PPT/文档；
+            ② 把刚上传的文件信息（名称、类型、日期、上传人、链接）按格式登记到
+            <code>assets/js/data/projects.js</code> 对应项目的 <code>materials</code> 数组里，
+            网站项目页就能看到这条资料。后接手实验的人直接点"打开"查看。
+          </p>
+        </div>
         <p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="projects.html">← 返回项目列表</a></p>
       `;
     }

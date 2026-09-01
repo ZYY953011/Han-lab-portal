@@ -5,19 +5,19 @@ window.DATA = window.DATA || {};
 window.DATA.members = [
   {
     id: "MB1", name: "张明远", role: "教师", join: "2015-03", grad: "",
-    research: "作物生理生态与产量形成", project: "P1, P2", skills: ["课题设计", "栽培生理", "论文指导"],
+    research: "作物生理生态与产量形成", project: "P1", skills: ["课题设计", "栽培生理", "论文指导"],
     help: "可指导实验设计、论文框架与投稿", contact: "zhangmy@univ.edu.cn", seat: "农科楼 B402",
     status: "在职", after: "",
   },
   {
     id: "MB2", name: "李文", role: "教师", join: "2018-09", grad: "",
-    research: "水稻逆境生理", project: "P3", skills: ["光合生理", "数据分析"],
+    research: "水稻逆境生理", project: "P1", skills: ["光合生理", "数据分析"],
     help: "可协助荧光、气体交换测定", contact: "liwen@univ.edu.cn", seat: "农科楼 B405",
     status: "在职", after: "",
   },
   {
     id: "MB3", name: "王芳", role: "讲师", join: "2020-07", grad: "",
-    research: "大豆固氮与栽培", project: "P4", skills: ["田间试验", "统计"],
+    research: "大豆固氮与栽培", project: "P1", skills: ["田间试验", "统计"],
     help: "可协助田间设计", contact: "wangf@univ.edu.cn", seat: "农科楼 B406",
     status: "在职", after: "",
   },
@@ -35,19 +35,19 @@ window.DATA.members = [
   },
   {
     id: "MB6", name: "周婷", role: "硕士生", join: "2023-09", grad: "2026-06（预计）",
-    research: "水稻高温胁迫", project: "P3", skills: ["荧光测定", "文献调研"],
+    research: "水稻高温胁迫", project: "P1", skills: ["荧光测定", "文献调研"],
     help: "可协助基础测定", contact: "zhout@stu.edu.cn", seat: "实验楼 C212",
     status: "在读", after: "",
   },
   {
     id: "MB7", name: "刘洋", role: "硕士生", join: "2020-09", grad: "2024-06",
-    research: "玉米密植栽培", project: "P2", skills: ["田间测产", "示范管理"],
+    research: "玉米密植栽培", project: "P1", skills: ["田间测产", "示范管理"],
     help: "已毕业，可远程答疑", contact: "liuy@alumni.edu.cn", seat: "—",
     status: "已毕业", after: "某农业科技公司 农艺师",
   },
   {
     id: "MB8", name: "孙浩", role: "本科生", join: "2023-03", grad: "2025-06（预计）",
-    research: "玉米栽培辅助", project: "P2", skills: ["田间协助", "数据录入"],
+    research: "玉米栽培辅助", project: "P1", skills: ["田间协助", "数据录入"],
     help: "可协助田间取样", contact: "sunh@stu.edu.cn", seat: "农科楼 B108",
     status: "在读", after: "",
   },
@@ -65,7 +65,7 @@ window.DATA.achievements = [
     id: "A2", type: "论文", title: "黄淮海玉米密植增产机理研究",
     authors: ["王芳", "刘洋", "张明远"], corresponding: "张明远",
     journal: "作物学报", year: 2023, doi: "10.3724/SP.J.1006.2023.xxxx",
-    zone: "中文核心", if: 0, project: "P2", students: ["刘洋"],
+    zone: "中文核心", if: 0, project: "P1", students: ["刘洋"],
     paperUrl: "https://doi.org/10.3724/SP.J.1006.2023.xxxx", pdfUrl: "https://docs.example.com/pdf/a2",
   },
   {
@@ -83,7 +83,7 @@ window.DATA.achievements = [
   {
     id: "A5", type: "获奖", title: "省级科技进步二等奖（玉米高产栽培）",
     authors: ["张明远", "王芳", "刘洋"], corresponding: "张明远",
-    journal: "省级奖励", year: 2023, doi: "", zone: "获奖", if: 0, project: "P2",
+    journal: "省级奖励", year: 2023, doi: "", zone: "获奖", if: 0, project: "P1",
     students: ["刘洋"], paperUrl: "", pdfUrl: "",
   },
   {

@@ -59,7 +59,7 @@ window.DATA.students = [
     join: "2023-10",
     tutor: "李文",
     research: "水稻高温胁迫响应",
-    project: "P3",
+    project: "P1",
     expectGrad: "2026-06",
     stages: [
       { name: "入组", plan: "2023-10", actual: "2023-10", status: "已完成", materials: ["入组登记表"], materialUrl: "", advice: "", done: true, note: "" },
@@ -81,7 +81,7 @@ window.DATA.students = [
     join: "2020-10",
     tutor: "张明远",
     research: "玉米密植栽培",
-    project: "P2",
+    project: "P1",
     expectGrad: "2024-06",
     stages: [
       { name: "入组", plan: "2020-10", actual: "2020-10", status: "已完成", materials: [], materialUrl: "", advice: "", done: true, note: "" },
