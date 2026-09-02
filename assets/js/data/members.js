@@ -4,16 +4,18 @@
 window.DATA = window.DATA || {};
 window.DATA.members = [
   {
-    id: "MB1", name: "张明远", role: "教师", join: "2015-03", grad: "",
-    research: "作物生理生态与产量形成", project: "P1", skills: ["课题设计", "栽培生理", "论文指导"],
-    help: "可指导实验设计、论文框架与投稿", contact: "zhangmy@univ.edu.cn", seat: "农科楼 B402",
+    id: "MB1", name: "韩娟", role: "教师", join: "2008-03", grad: "",
+    research: "旱区水肥高效利用", project: "P1", skills: ["课题设计", "栽培生理", "论文指导"],
+    help: "可指导试验设计、论文框架与投稿", contact: "hjepost@nwsuaf.edu.cn", seat: "南校区农科楼831；南校区研究生院226",
     status: "在职", after: "",
+    employeeNo: "2008114835", studentNo: "", phone: "15029021911", Office phone: "029-87080157",
   },
   {
-    id: "MB2", name: "李文", role: "教师", join: "2018-09", grad: "",
-    research: "水稻逆境生理", project: "P1", skills: ["光合生理", "数据分析"],
-    help: "可协助荧光、气体交换测定", contact: "liwen@univ.edu.cn", seat: "农科楼 B405",
+    id: "MB2", name: "张叶叶", role: "博士后", join: "2018-09", grad: "",
+    research: "农田生态", project: "P1", skills: ["农田碳氮循环", "数据分析"],
+    help: "可协助微生物数据分析、气体交换测定", contact: "zhangyeye8296@nwafu.efu.cn", seat: "农科楼841",
     status: "在职", after: "",
+    employeeNo: "2025130069", studentNo: "", phone: "17392448296", wechat: "OHYE-3011",
   },
   {
     id: "MB3", name: "王芳", role: "讲师", join: "2020-07", grad: "",
