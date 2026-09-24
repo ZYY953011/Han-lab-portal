@@ -13,8 +13,10 @@
     <div class="toolbar">
       <select id="role">
         <option value="">全部身份</option>
-        <option>教师</option><option>博士后</option><option>博士生</option>
-        <option>硕士生</option><option>本科生</option><option>已毕业成员</option>
+        <option value="博士后">博士后</option>
+        <option value="博士生">博士生</option>
+        <option value="硕士生">硕士生</option>
+        <option value="已毕业成员">已毕业成员</option>
       </select>
     </div>
     <div class="grid grid-3" id="list"></div>
@@ -31,27 +33,34 @@
     );
 
     function card(m){
+      var papers = (window.DATA.achievements||[]).filter(a=>a.relatedMember===m.id && a.url);
+      var paperHtml = papers.length ? `<dt>文章成果</dt><dd>${papers.map(p=>`<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`).join("<br>")}</dd>` : "";
       return `<div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
           <h3 style="font-size:17px; color:var(--primary-dark);">${esc(m.name)}</h3>
           ${badge(m.role)}
         </div>
         <dl class="kv" style="margin-top:8px;">
-          <dt>入组时间</dt><dd>${esc(m.join)}</dd>
-          <dt>研究方向</dt><dd>${esc(m.research)}</dd>
-          <dt>当前项目</dt><dd>${esc(m.project)}</dd>
-          <dt>擅长技能</dt><dd>${(m.skills||[]).map(esc).join("、")}</dd>
-          <dt>可帮助</dt><dd>${esc(m.help)}</dd>
-          <dt>联系方式</dt><dd>${esc(m.contact)}</dd>
-          <dt>工位</dt><dd>${esc(m.seat)}</dd>
-          <dt>当前状态</dt><dd>${esc(m.status)}</dd>
-          ${m.after?`<dt>毕业去向</dt><dd>${esc(m.after)}</dd>`:""}
+          ${(m.grade||m.category)?`<dt>年级/类别</dt><dd>${esc(m.grade)}${m.grade&&m.category?" · ":""}${esc(m.category)}</dd>`:""}
+          ${m.studentNo?`<dt>学号</dt><dd>${esc(m.studentNo)}</dd>`:""}
+          ${m.research?`<dt>研究方向</dt><dd>${esc(m.research)}</dd>`:""}
+          ${m.fieldSite?`<dt>试验地</dt><dd>${esc(m.fieldSite)}</dd>`:""}
+          ${m.seat?`<dt>工位</dt><dd>${esc(m.seat)}</dd>`:""}
+          ${m.status?`<dt>在校状态</dt><dd>${esc(m.status)}</dd>`:""}
+          ${m.contact?`<dt>邮箱</dt><dd>${esc(m.contact)}</dd>`:""}
+          ${m.phone?`<dt>手机</dt><dd>${esc(m.phone)}</dd>`:""}
+          ${m.wechat?`<dt>微信</dt><dd>${esc(m.wechat)}</dd>`:""}
+          ${paperHtml}
         </dl>
       </div>`;
     }
     function render(){
       var r = document.getElementById("role").value;
-      var list = (window.DATA.members||[]).filter(m=> !r || m.role===r);
+      var list = (window.DATA.members||[]).filter(m=>{
+        if(!r || r==="全部身份") return true;
+        if(r==="已毕业成员") return m.status && m.status.indexOf("不在籍")>=0;
+        return m.role===r;
+      });
       document.getElementById("list").innerHTML = list.length ? list.map(card).join("") : emptyTip("没有匹配的成员");
     }
     document.getElementById("role").addEventListener("change", render);

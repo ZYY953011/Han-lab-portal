@@ -11,11 +11,7 @@
   <main class="container">
     <div id="head"></div>
     <div class="toolbar">
-      <select id="type">
-        <option value="">全部类型</option>
-        <option>论文</option><option>专利</option><option>软件著作权</option>
-        <option>获奖</option><option>基金</option><option>品种</option><option>标准</option><option>数据集</option><option>学术会议</option><option>学生竞赛</option>
-      </select>
+      <select id="type"></select>
       <select id="year"></select>
     </div>
     <div class="table-wrap" style="margin-top:8px;">
@@ -36,7 +32,9 @@
       [{name:"首页", url:"../index.html"}, {name:"研究成果"}]
     );
 
-    var years = [...new Set((window.DATA.achievements||[]).map(a=>a.year))].sort((a,b)=>b-a);
+    var types = [...new Set((window.DATA.achievements||[]).map(a=>a.type))];
+    document.getElementById("type").innerHTML = `<option value="">全部类型</option>` + types.map(t=>`<option>${esc(t)}</option>`).join("");
+    var years = [...new Set((window.DATA.achievements||[]).map(a=>a.year).filter(Boolean))].sort((a,b)=>b-a);
     document.getElementById("year").innerHTML = `<option value="">全部年份</option>` + years.map(y=>`<option>${y}</option>`).join("");
 
     function render(){
@@ -51,15 +49,13 @@
         <tr>
           <td>${badge(a.type,"purple")}</td>
           <td>${esc(a.title)}</td>
-          <td>${esc(a.authors.join("、"))}${a.corresponding?`<br><span style="font-size:12px;color:var(--muted);">通讯：${esc(a.corresponding)}</span>`:""}</td>
-          <td>${esc(a.journal)}</td>
-          <td>${esc(a.year)}</td>
-          <td>${a.zone||"—"}${a.if?` / IF ${a.if}`:""}</td>
+          <td>${esc((a.authors||[]).join("、"))}</td>
+          <td>${esc(a.journal)||"—"}</td>
+          <td>${a.year||"—"}</td>
+          <td>—</td>
           <td>${esc(a.project)}</td>
           <td>
-            ${a.paperUrl?`<a href="${esc(a.paperUrl)}" target="_blank">原文</a> `:""}
-            ${a.pdfUrl?`<a href="${esc(a.pdfUrl)}" target="_blank">PDF</a>`:""}
-            ${(!a.paperUrl&&!a.pdfUrl)?"—":""}
+            ${a.url?`<a href="${esc(a.url)}" target="_blank" rel="noopener">查看/下载</a>`:"—"}
           </td>
         </tr>`).join("") : `<tr><td colspan="8">${emptyTip("没有匹配的成果")}</td></tr>`;
     }
