@@ -33,8 +33,11 @@
     );
 
     function card(m){
-      var papers = (window.DATA.achievements||[]).filter(a=>a.relatedMember===m.id && a.url);
+      var all = (window.DATA.achievements||[]).filter(a=>a.relatedMember===m.id);
+      var papers = all.filter(a=>a.type!=="获奖" && a.url);
+      var awards = all.filter(a=>a.type==="获奖");
       var paperHtml = papers.length ? `<dt>文章成果</dt><dd>${papers.map(p=>`<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>`).join("<br>")}</dd>` : "";
+      var awardHtml = awards.length ? `<dt>获奖情况</dt><dd>${awards.map(a=>`${esc(a.title)}`).join("<br>")}</dd>` : "";
       return `<div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
           <h3 style="font-size:17px; color:var(--primary-dark);">${esc(m.name)}</h3>
@@ -51,6 +54,8 @@
           ${m.phone?`<dt>手机</dt><dd>${esc(m.phone)}</dd>`:""}
           ${m.wechat?`<dt>微信</dt><dd>${esc(m.wechat)}</dd>`:""}
           ${paperHtml}
+          ${awardHtml}
+          <dt>更多</dt><dd><a href="achievements.html">在成果页查看全部</a></dd>
         </dl>
       </div>`;
     }

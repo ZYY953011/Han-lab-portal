@@ -28,7 +28,7 @@
   <script>
     injectHeader("成果");
     document.getElementById("head").innerHTML = pageHead(
-      "研究成果", "论文、专利、软著、获奖、基金等。支持按年份、类型、项目筛选（成员筛选可在数据中查看作者）。",
+      "研究成果", "论文、专利、软著、获奖、基金等。支持按年份、类型、项目筛选（成员筛选可在数据中查看作者）。<br><span style='color:var(--muted);font-size:14px;'>说明：获奖证书等证明文件因涉及隐私未公开上传，如需查看请联系获奖本人或网页管理员。</span>",
       [{name:"首页", url:"../index.html"}, {name:"研究成果"}]
     );
 
@@ -55,7 +55,7 @@
           <td>—</td>
           <td>${esc(a.project)}</td>
           <td>
-            ${a.url?`<a href="${esc(a.url)}" target="_blank" rel="noopener">查看/下载</a>`:"—"}
+            ${a.type==="获奖" ? `<span style="color:var(--muted);font-size:12px;">${esc(a.note||"若需要证书等证明文件，请联系获奖本人或网页管理员。")}</span>` : (a.url?`<a href="${esc(a.url)}" target="_blank" rel="noopener">查看/下载</a>`:"—")}
           </td>
         </tr>`).join("") : `<tr><td colspan="8">${emptyTip("没有匹配的成果")}</td></tr>`;
     }
