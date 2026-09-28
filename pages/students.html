@@ -10,18 +10,27 @@
 <body>
   <main class="container">
     <div id="head"></div>
-    <div class="note-box" style="margin-bottom:14px;">💡 覆盖学生从入组到毕业全过程。下方时间轴展示各培养节点的计划/实际完成日期与状态，临近节点自动提醒。每位成员可在「开题、中期考核、预答辩、毕业答辩」节点查看或上传培养资料（链接基于飞书云盘权限）。</div>
+    <div class="note-box" style="margin-bottom:14px;">💡 覆盖入组 → 培养计划 → 开题 → 中期 → 预答辩 → 毕业答辩 → 学位材料 → 毕业全过程。点击表格行可展开完整时间轴与培养材料。</div>
+
+    <div class="section-title">培养概况</div>
+    <div class="stat-row" id="stats" style="margin-bottom:10px;"></div>
 
     <div class="section-title">即将到期提醒</div>
     <div id="remind"></div>
 
-    <div class="section-title">学生列表</div>
-    <div class="grid grid-2" id="list"></div>
-
     <div class="section-title">培养进度总览</div>
+    <div class="toolbar" id="toolbar" style="margin-top:8px;">
+      <span style="font-size:13.5px; color:var(--muted);">筛选：</span>
+      <button class="btn btn-sm filter-btn active" data-filter="all" onclick="setFilter('all')">全部</button>
+      <button class="btn btn-sm filter-btn btn-outline" data-filter="开题" onclick="setFilter('开题')">待开题</button>
+      <button class="btn btn-sm filter-btn btn-outline" data-filter="中期考核" onclick="setFilter('中期考核')">待中期考核</button>
+      <button class="btn btn-sm filter-btn btn-outline" data-filter="预答辩" onclick="setFilter('预答辩')">待预答辩</button>
+      <button class="btn btn-sm filter-btn btn-outline" data-filter="毕业答辩" onclick="setFilter('毕业答辩')">待正式答辩</button>
+      <button class="btn btn-sm btn-outline" onclick="exportLocalMaterials()">导出我添加的材料（JSON）</button>
+    </div>
     <div class="table-wrap" style="margin-top:8px;">
       <table>
-        <thead><tr><th>姓名</th><th>类型</th><th>导师</th><th>研究方向</th><th>预计毕业</th><th>当前阶段</th><th>操作</th></tr></thead>
+        <thead><tr><th style="width:36px;"></th><th>姓名</th><th>类型</th><th>导师</th><th>研究方向</th><th>预计毕业</th><th>当前阶段</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
@@ -40,81 +49,97 @@
     );
 
     var students = window.DATA.students||[];
+    var currentFilter = 'all';
+    var openedRows = new Set();
+
     function currentStage(s){
       var cur = s.stages.find(st=> st.status!=="已完成") || s.stages[s.stages.length-1];
       return cur;
     }
 
-    // 即将到期提醒：状态为“准备中 / 需要修改 / 未开始”且计划日期在近期的
+    function countBy(pred){ return students.filter(pred).length; }
+
+    // 统计
+    var total = students.length;
+    var active = countBy(s=>s.status==="在籍在校");
+    var phd = countBy(s=>/博士/.test(s.type) && !/博士后/.test(s.type));
+    var master = countBy(s=>/硕士/.test(s.type));
+    var postdoc = countBy(s=>/博士后/.test(s.type));
+    document.getElementById("stats").innerHTML = `
+      <div class="stat"><div class="num">${total}</div><div class="lab">培养对象总数</div></div>
+      <div class="stat"><div class="num">${active}</div><div class="lab">在读 / 在站</div></div>
+      <div class="stat"><div class="num">${phd}</div><div class="lab">博士生</div></div>
+      <div class="stat"><div class="num">${master}</div><div class="lab">硕士生</div></div>
+      ${postdoc?`<div class="stat"><div class="num">${postdoc}</div><div class="lab">博士后</div></div>`:""}
+    `;
+
+    // 即将到期提醒：状态为“准备中 / 需要修改”且计划日期在近期的
     var upcoming = [];
     students.forEach(s=> s.stages.forEach(st=>{
       if((st.status==="准备中"||st.status==="需要修改") && st.plan) upcoming.push({name:s.name, stage:st.name, plan:st.plan, note:st.note});
     }));
     document.getElementById("remind").innerHTML = upcoming.length
       ? `<div class="warn-box">⏰ 待推进节点（${upcoming.length}）：` +
-        upcoming.map(u=>`${esc(u.name)} 的「${esc(u.stage)}」计划 ${esc(u.plan)}`).join("；") + `</div>`
+        upcoming.slice(0,8).map(u=>`${esc(u.name)} 的「${esc(u.stage)}」计划 ${esc(u.plan)}`).join("；") +
+        (upcoming.length>8?` …… 等共 ${upcoming.length} 人` : "") + `</div>`
       : `<div class="placeholder">暂无临近节点</div>`;
 
-    // 卡片
-    document.getElementById("list").innerHTML = students.map(s=>{
-      var cur = currentStage(s);
-      return `<div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-          <h3 style="font-size:17px; color:var(--primary-dark);">${esc(s.name)}</h3>
-          ${badge(s.type)}
-        </div>
-        <div style="color:var(--muted); font-size:13px; margin:6px 0;">导师：${esc(s.tutor)} ｜ 方向：${esc(s.research)} ｜ 项目：${esc(s.project)}</div>
-        <div style="font-size:13.5px;">当前阶段：<b>${esc(cur.name)}</b> ${badge(cur.status)}</div>
-        <div style="margin-top:8px;"><a class="btn btn-sm" href="#${esc(s.id)}" onclick="showTimeline('${esc(s.id)}')">查看培养时间轴 →</a></div>
-      </div>`;
-    }).join("");
+    function renderTable(){
+      var filtered = students.filter(s=>{
+        if(currentFilter==='all') return true;
+        var cur = currentStage(s);
+        return cur.name === currentFilter;
+      });
 
-    // 总览表
-    document.getElementById("rows").innerHTML = students.map(s=>{
-      var cur = currentStage(s);
-      return `<tr>
-        <td><a href="#${esc(s.id)}" onclick="showTimeline('${esc(s.id)}')">${esc(s.name)}</a></td>
-        <td>${badge(s.type)}</td><td>${esc(s.tutor)}</td><td>${esc(s.research)}</td>
-        <td>${esc(s.expectGrad)}</td><td>${esc(cur.name)} ${badge(cur.status)}</td>
-        <td><button class="btn btn-sm" onclick="showTimeline('${esc(s.id)}')">时间轴</button></td>
-      </tr>`;
-    }).join("");
+      document.getElementById("rows").innerHTML = filtered.map(s=>{
+        var cur = currentStage(s);
+        var isOpen = openedRows.has(s.id);
+        return `<tr id="row-${esc(s.id)}">
+          <td><button class="btn btn-sm btn-icon" onclick="toggleRow('${esc(s.id)}')">${isOpen?'−':'+'}</button></td>
+          <td><b>${esc(s.name)}</b></td>
+          <td>${badge(s.type)}</td>
+          <td>${esc(s.tutor)}</td>
+          <td>${esc(s.research)}</td>
+          <td>${esc(s.expectGrad)}</td>
+          <td>${esc(cur.name)} ${badge(cur.status)}</td>
+        </tr>`;
+      }).join("");
 
-    var box = document.createElement("div");
-    box.id = "tlBox";
-    document.querySelector(".container").appendChild(box);
+      // 重新渲染已展开行
+      openedRows.forEach(function(id){
+        if(filtered.find(s=>s.id===id)) renderDetail(id);
+      });
 
-    // 添加材料弹窗
-    var modal = document.createElement("div");
-    modal.id = "matModal";
-    modal.className = "modal";
-    modal.innerHTML = `<div class="modal-box">
-      <div class="modal-head"><b class="modal-title">添加材料</b><button class="btn btn-sm btn-outline" onclick="closeMaterialModal()">关闭</button></div>
-      <div class="modal-body">
-        <label>版本 / 材料类型</label><input type="text" id="matVersion" value="v1">
-        <label>资料名称 <span style="color:red">*</span></label><input type="text" id="matTitle" placeholder="如：开题报告初稿">
-        <label>资料链接（飞书云盘） <span style="color:red">*</span></label><input type="text" id="matUrl" placeholder="https://my.feishu.cn/file/... 或 https://my.feishu.cn/drive/folder/...">
-        <label>日期</label><input type="text" id="matDate" placeholder="YYYY-MM-DD">
-        <label>备注</label><input type="text" id="matNote" placeholder="可选">
-        <div style="margin-top:12px;">
-          <button class="btn btn-primary" onclick="submitMaterial()">保存</button>
-          <button class="btn btn-outline" onclick="closeMaterialModal()" style="margin-left:8px;">取消</button>
-        </div>
-      </div>
-    </div>`;
-    document.body.appendChild(modal);
+      // 更新筛选按钮状态
+      document.querySelectorAll('.filter-btn').forEach(function(btn){
+        if(btn.dataset.filter === currentFilter){
+          btn.classList.add('active'); btn.classList.remove('btn-outline');
+        } else {
+          btn.classList.remove('active'); btn.classList.add('btn-outline');
+        }
+      });
+    }
+    window.renderTable = renderTable;
 
-    // 导出 JSON 弹窗
-    var exportWrap = document.createElement("div");
-    exportWrap.className = "modal";
-    exportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
-      <div class="modal-head"><b>导出本地添加的材料（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeExportBox()">关闭</button></div>
-      <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/student-materials.js</code>，即可让全组可见。</p>
-        <textarea id="exportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
-      </div>
-    </div>`;
-    document.body.appendChild(exportWrap);
+    function setFilter(filter){
+      currentFilter = filter;
+      renderTable();
+    }
+    window.setFilter = setFilter;
+
+    function toggleRow(id){
+      var detail = document.getElementById('detail-' + id);
+      if(detail){
+        detail.remove();
+        openedRows.delete(id);
+        var btn = document.querySelector('#row-' + esc(id) + ' .btn-icon');
+        if(btn) btn.textContent = '+';
+      } else {
+        openedRows.add(id);
+        renderDetail(id);
+      }
+    }
+    window.toggleRow = toggleRow;
 
     var materialStages = ["开题", "中期考核", "预答辩", "毕业答辩"];
 
@@ -160,36 +185,73 @@
       </div>`;
     }
 
-    function showTimeline(id){
+    function renderDetail(id){
       var s = students.find(x=>x.id===id);
       if(!s) return;
-      box.innerHTML = `<div class="card" style="margin-top:18px; border-color:var(--primary);">
-        <div class="section-title" style="margin-top:0;">${esc(s.name)} 的培养时间轴</div>
-        <dl class="kv" style="margin-bottom:12px;">
-          <dt>学号</dt><dd>${esc(s.studentId)}</dd>
-          <dt>类型</dt><dd>${esc(s.type)}</dd>
-          <dt>入学/入组</dt><dd>${esc(s.enroll)} / ${esc(s.join)}</dd>
-          <dt>预计毕业</dt><dd>${esc(s.expectGrad)}</dd>
-          ${s.tutor?`<dt>导师</dt><dd>${esc(s.tutor)}</dd>`:""}
-        </dl>
-        <div class="timeline">
-          ${s.stages.map(st=>`
-            <div class="tl-item ${st.done?"done":(st.status==="需要修改"?"warn":"")}">
-              <div class="tl-title">${esc(st.name)} ${badge(st.status)}
-                <span class="tl-date">计划 ${esc(st.plan||"—")} ｜ 实际 ${esc(st.actual||"—")}</span></div>
-              ${st.advice?`<div class="tl-note">导师意见：${esc(st.advice)}</div>`:""}
-              ${st.note?`<div class="tl-note" style="color:var(--muted);">备注：${esc(st.note)}</div>`:""}
-              ${renderMaterialBlock(s, st)}
-            </div>`).join("")}
+      var row = document.getElementById('row-' + id);
+      if(!row) return;
+
+      var detailTr = document.createElement('tr');
+      detailTr.id = 'detail-' + id;
+      detailTr.className = 'detail-row';
+      detailTr.innerHTML = `<td colspan="7">
+        <div class="detail-inner">
+          <dl class="kv" style="margin-bottom:12px;">
+            <dt>学号</dt><dd>${esc(s.studentId)}</dd>
+            <dt>类型</dt><dd>${esc(s.type)}</dd>
+            <dt>入学/入组</dt><dd>${esc(s.enroll)} / ${esc(s.join)}</dd>
+            <dt>预计毕业</dt><dd>${esc(s.expectGrad)}</dd>
+            ${s.tutor?`<dt>导师</dt><dd>${esc(s.tutor)}</dd>`:""}
+          </dl>
+          <div class="timeline">
+            ${s.stages.map(st=>`
+              <div class="tl-item ${st.done?"done":(st.status==="需要修改"?"warn":"")}">
+                <div class="tl-title">${esc(st.name)} ${badge(st.status)}
+                  <span class="tl-date">计划 ${esc(st.plan||"—")} ｜ 实际 ${esc(st.actual||"—")}</span></div>
+                ${st.advice?`<div class="tl-note">导师意见：${esc(st.advice)}</div>`:""}
+                ${st.note?`<div class="tl-note" style="color:var(--muted);">备注：${esc(st.note)}</div>`:""}
+                ${renderMaterialBlock(s, st)}
+              </div>`).join("")}
+          </div>
         </div>
-        <p style="margin-top:8px;">
-          <a class="btn btn-outline btn-sm" href="javascript:void(0)" onclick="document.getElementById('tlBox').innerHTML=''">收起</a>
-          <a class="btn btn-outline btn-sm" href="javascript:void(0)" onclick="exportLocalMaterials()">导出我添加的材料（JSON）</a>
-        </p>
-      </div>`;
-      box.scrollIntoView({behavior:"smooth"});
+      </td>`;
+
+      row.parentNode.insertBefore(detailTr, row.nextSibling);
+      var btn = row.querySelector('.btn-icon');
+      if(btn) btn.textContent = '−';
     }
-    window.showTimeline = showTimeline;
+
+    // 添加材料弹窗
+    var modal = document.createElement("div");
+    modal.id = "matModal";
+    modal.className = "modal";
+    modal.innerHTML = `<div class="modal-box">
+      <div class="modal-head"><b class="modal-title">添加材料</b><button class="btn btn-sm btn-outline" onclick="closeMaterialModal()">关闭</button></div>
+      <div class="modal-body">
+        <label>版本 / 材料类型</label><input type="text" id="matVersion" value="v1">
+        <label>资料名称 <span style="color:red">*</span></label><input type="text" id="matTitle" placeholder="如：开题报告初稿">
+        <label>资料链接（飞书云盘） <span style="color:red">*</span></label><input type="text" id="matUrl" placeholder="https://my.feishu.cn/file/... 或 https://my.feishu.cn/drive/folder/...">
+        <label>日期</label><input type="text" id="matDate" placeholder="YYYY-MM-DD">
+        <label>备注</label><input type="text" id="matNote" placeholder="可选">
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary" onclick="submitMaterial()">保存</button>
+          <button class="btn btn-outline" onclick="closeMaterialModal()" style="margin-left:8px;">取消</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+
+    // 导出 JSON 弹窗
+    var exportWrap = document.createElement("div");
+    exportWrap.className = "modal";
+    exportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本地添加的材料（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeExportBox()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/student-materials.js</code>，即可让全组可见。</p>
+        <textarea id="exportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>`;
+    document.body.appendChild(exportWrap);
 
     function openMaterialModal(id, stage){
       var s = students.find(x=>x.id===id);
@@ -229,7 +291,14 @@
       }
       saveLocalMaterial(id, stage, item);
       closeMaterialModal();
-      showTimeline(id);
+      // 刷新当前展开行的时间轴
+      if(openedRows.has(id)){
+        var detail = document.getElementById('detail-' + id);
+        if(detail){
+          detail.remove();
+          renderDetail(id);
+        }
+      }
     }
     window.submitMaterial = submitMaterial;
 
@@ -248,15 +317,17 @@
       var json = JSON.stringify(out, null, 2);
       var textarea = document.getElementById("exportBox");
       textarea.value = "// 将以下内容贴入 assets/js/data/student-materials.js 的对应成员 stages 下，\n// 即可让所有人看到本地添加的材料。\n" + json;
-      textarea.parentElement.classList.add("open");
+      textarea.parentElement.parentElement.classList.add("open");
       textarea.select();
     }
     window.exportLocalMaterials = exportLocalMaterials;
 
     function closeExportBox(){
-      document.getElementById("exportBox").parentElement.classList.remove("open");
+      document.getElementById("exportBox").parentElement.parentElement.classList.remove("open");
     }
     window.closeExportBox = closeExportBox;
+
+    renderTable();
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

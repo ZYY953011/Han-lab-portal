@@ -134,6 +134,14 @@ ul, ol { padding-left: 1.25em; }
 .btn-outline:hover { background: var(--primary-light); }
 .btn-sm { padding: 4px 12px; font-size: 13px; }
 .btn-block { display: block; text-align: center; }
+.btn-icon { width: 26px; height: 26px; padding: 0; line-height: 26px; border-radius: 6px; font-weight: 700; }
+.filter-btn.active { background: var(--primary); color: #fff; }
+
+/* 表格展开详情 */
+.detail-row { background: #f8fafc; }
+.detail-row > td { padding: 0; border-bottom: 1px solid var(--border); }
+.detail-inner { padding: 18px 20px; }
+.detail-row .timeline { margin-left: 6px; }
 
 /* ---------- 标签 / 状态 ---------- */
 .tag {
