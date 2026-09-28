@@ -1,5 +1,5 @@
-/* members.js —— 成员与研究成果（含文章与获奖）
- * 数据来源：成员信息收集表.xlsx + 学生成员获奖情况统计表.xlsx
+/* members.js —— 成员与研究成果（含独立文章链接与获奖）
+ * 数据来源：成员信息收集表.xlsx + 文章成果填写表.xlsx + 学生成员获奖情况统计表.xlsx
  */
 window.DATA = window.DATA || {};
 window.DATA.members = [
@@ -729,71 +729,6 @@ window.DATA.achievements = [
   {
     "id": "A001",
     "type": "学位论文",
-    "title": "张叶叶_博士_学位论文_生物炭和氮肥配施对麦田固碳减排与增产的协同效应及其机制",
-    "authors": [
-      "张叶叶"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "https://my.feishu.cn/file/CwafbfvS9oJhuIxq5BccvwEEnYg",
-    "project": "P1",
-    "relatedMember": "M001"
-  },
-  {
-    "id": "A002",
-    "type": "期刊/会议论文",
-    "title": "张叶叶_Field Crops Research_2025",
-    "authors": [
-      "张叶叶"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M001"
-  },
-  {
-    "id": "A003",
-    "type": "期刊/会议论文",
-    "title": "张叶叶_Soil Biology and Biochemistry_2022",
-    "authors": [
-      "张叶叶"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M001"
-  },
-  {
-    "id": "A004",
-    "type": "期刊/会议论文",
-    "title": "张叶叶_Soil Biology and Biochemistry_2022",
-    "authors": [
-      "张叶叶"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M001"
-  },
-  {
-    "id": "A005",
-    "type": "期刊/会议论文",
-    "title": "张叶叶_The Science of The Total Environment_2024",
-    "authors": [
-      "张叶叶"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M001"
-  },
-  {
-    "id": "A006",
-    "type": "学位论文",
     "title": "曹梓微_硕士_学位论文_不同耕作方式与生物炭对土壤有机碳固存及春玉米生长的影响",
     "authors": [
       "曹梓微"
@@ -805,7 +740,7 @@ window.DATA.achievements = [
     "relatedMember": "M002"
   },
   {
-    "id": "A007",
+    "id": "A002",
     "type": "学位论文",
     "title": "崔家祺_硕士_学位论文_茬口和施氮量对关中地区冬小麦茎秆抗倒伏能力及产量的影响",
     "authors": [
@@ -818,7 +753,7 @@ window.DATA.achievements = [
     "relatedMember": "M006"
   },
   {
-    "id": "A008",
+    "id": "A003",
     "type": "学位论文",
     "title": "董云杰_硕士_学位论文_茬口和氮肥对关中灌区冬小麦籽粒灌浆和产量的影响 董云杰_西北农业学报_2022",
     "authors": [
@@ -831,7 +766,20 @@ window.DATA.achievements = [
     "relatedMember": "M009"
   },
   {
-    "id": "A009",
+    "id": "A004",
+    "type": "期刊/会议论文",
+    "title": "董云杰_西北农业学报_2022",
+    "authors": [
+      "董云杰"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/NiTCba79goks94xOBXgcS3t2nKc",
+    "project": "P1",
+    "relatedMember": "M009"
+  },
+  {
+    "id": "A005",
     "type": "学位论文",
     "title": "樊恒志_硕士_学位论文_种植方式与施氮量对土壤理化性质及春玉米产量的影响",
     "authors": [
@@ -844,7 +792,7 @@ window.DATA.achievements = [
     "relatedMember": "M011"
   },
   {
-    "id": "A010",
+    "id": "A006",
     "type": "学位论文",
     "title": "呼延艺洁_硕士_学位论文_优化施肥对关中灌区冬小麦产量及养分利用的影响",
     "authors": [
@@ -857,111 +805,7 @@ window.DATA.achievements = [
     "relatedMember": "M016"
   },
   {
-    "id": "A011",
-    "type": "学位论文",
-    "title": "刘世举_博士_学位论文_控释尿素与普通尿素配施对麦玉复种体系作物生产力及环境经济效应的影响",
-    "authors": [
-      "刘世举"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "https://my.feishu.cn/file/ASmAblXAmoUsU9xYBxEcuhi2ned",
-    "project": "P1",
-    "relatedMember": "M017"
-  },
-  {
-    "id": "A012",
-    "type": "期刊/会议论文",
-    "title": "刘世举_agronomy_2023",
-    "authors": [
-      "刘世举"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M017"
-  },
-  {
-    "id": "A013",
-    "type": "期刊/会议论文",
-    "title": "刘世举_European Journal of Agronomy_2024 (1)",
-    "authors": [
-      "刘世举"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M017"
-  },
-  {
-    "id": "A014",
-    "type": "期刊/会议论文",
-    "title": "刘世举_European Journal of Agronomy_2024",
-    "authors": [
-      "刘世举"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M017"
-  },
-  {
-    "id": "A015",
-    "type": "期刊/会议论文",
-    "title": "刘世举_Field Crops Research_2023",
-    "authors": [
-      "刘世举"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M017"
-  },
-  {
-    "id": "A016",
-    "type": "期刊/会议论文",
-    "title": "刘世举_Field Crops Research_2025",
-    "authors": [
-      "刘世举"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M017"
-  },
-  {
-    "id": "A017",
-    "type": "期刊/会议论文",
-    "title": "刘世举_西北农业学报_2019",
-    "authors": [
-      "刘世举"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "",
-    "project": "P1",
-    "relatedMember": "M017"
-  },
-  {
-    "id": "A018",
-    "type": "期刊/会议论文",
-    "title": "刘钺_European Journal of Agronomy_2026",
-    "authors": [
-      "刘钺"
-    ],
-    "journal": "",
-    "year": "",
-    "url": "https://my.feishu.cn/file/VDlQbfsW8oIwHtxTUgtcbIvgnwo",
-    "project": "P1",
-    "relatedMember": "M018"
-  },
-  {
-    "id": "A019",
+    "id": "A007",
     "type": "学位论文",
     "title": "李伟_硕士_学位论文_黄土高原施用生物炭对麦田土壤N2O排放及理化性质的影响",
     "authors": [
@@ -974,7 +818,7 @@ window.DATA.achievements = [
     "relatedMember": "M021"
   },
   {
-    "id": "A020",
+    "id": "A008",
     "type": "学位论文",
     "title": "李伟_博士_学位论文_施用生物炭对麦田土壤N2O排放和作物生长的影响及其微生物作用机制 李伟_Agriculture Ecosystems & Environment_2022",
     "authors": [
@@ -982,12 +826,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/E2lcbWckLo0pC5xYhn7cZQ2knQg",
     "project": "P1",
     "relatedMember": "M021"
   },
   {
-    "id": "A021",
+    "id": "A009",
     "type": "期刊/会议论文",
     "title": "李伟_Applied Soil Ecology_2022",
     "authors": [
@@ -995,12 +839,25 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/BwP3bVmASo9wHKxlHnHcvpBtnmb",
     "project": "P1",
     "relatedMember": "M021"
   },
   {
-    "id": "A022",
+    "id": "A010",
+    "type": "期刊/会议论文",
+    "title": "李伟_Agriculture Ecosystems & Environment_2022",
+    "authors": [
+      "李伟"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/P4C9bqAz7oFC0ex2XZQcuQUGnYb",
+    "project": "P1",
+    "relatedMember": "M021"
+  },
+  {
+    "id": "A011",
     "type": "期刊/会议论文",
     "title": "李伟_植物营养与肥料学报_2019",
     "authors": [
@@ -1008,12 +865,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/A9LVbfwzKovEpTxXib2cRvCEnxc",
     "project": "P1",
     "relatedMember": "M021"
   },
   {
-    "id": "A023",
+    "id": "A012",
     "type": "学位论文",
     "title": "李勇琪_硕士_学位论文_生物炭与氮肥配施对土壤质量和春玉米生产力的影响",
     "authors": [
@@ -1026,7 +883,111 @@ window.DATA.achievements = [
     "relatedMember": "M022"
   },
   {
-    "id": "A024",
+    "id": "A013",
+    "type": "学位论文",
+    "title": "刘世举_博士_学位论文_控释尿素与普通尿素配施对麦玉复种体系作物生产力及环境经济效应的影响",
+    "authors": [
+      "刘世举"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/ASmAblXAmoUsU9xYBxEcuhi2ned",
+    "project": "P1",
+    "relatedMember": "M017"
+  },
+  {
+    "id": "A014",
+    "type": "期刊/会议论文",
+    "title": "刘世举_agronomy_2023",
+    "authors": [
+      "刘世举"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/KLpbbpAyPo9GNGxAKalcJHvXnYc",
+    "project": "P1",
+    "relatedMember": "M017"
+  },
+  {
+    "id": "A015",
+    "type": "期刊/会议论文",
+    "title": "刘世举_European Journal of Agronomy_2024 (1)",
+    "authors": [
+      "刘世举"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/CVRHbA3pIofspqxNlgzc7bTFnJo",
+    "project": "P1",
+    "relatedMember": "M017"
+  },
+  {
+    "id": "A016",
+    "type": "期刊/会议论文",
+    "title": "刘世举_European Journal of Agronomy_2024",
+    "authors": [
+      "刘世举"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/CoyTbA2JMoJYTExod5ycxmrMnre",
+    "project": "P1",
+    "relatedMember": "M017"
+  },
+  {
+    "id": "A017",
+    "type": "期刊/会议论文",
+    "title": "刘世举_Field Crops Research_2023",
+    "authors": [
+      "刘世举"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/H736bsP0XoMtRhxT2NYcIqKNnFg",
+    "project": "P1",
+    "relatedMember": "M017"
+  },
+  {
+    "id": "A018",
+    "type": "期刊/会议论文",
+    "title": "刘世举_Field Crops Research_2025",
+    "authors": [
+      "刘世举"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/Ra0DbnDtFogXe3xEUEKclUPinqb",
+    "project": "P1",
+    "relatedMember": "M017"
+  },
+  {
+    "id": "A019",
+    "type": "期刊/会议论文",
+    "title": "刘世举_西北农业学报_2019",
+    "authors": [
+      "刘世举"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/T7mMbrYNOou6D1xw45FcdhWNnHe",
+    "project": "P1",
+    "relatedMember": "M017"
+  },
+  {
+    "id": "A020",
+    "type": "期刊/会议论文",
+    "title": "刘钺_European Journal of Agronomy_2026",
+    "authors": [
+      "刘钺"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/VDlQbfsW8oIwHtxTUgtcbIvgnwo",
+    "project": "P1",
+    "relatedMember": "M018"
+  },
+  {
+    "id": "A021",
     "type": "学位论文",
     "title": "孟文慧_硕士_学位论文_垄沟覆膜和施氮量对春玉米抗倒伏能力和水氮利用效率的影响",
     "authors": [
@@ -1039,7 +1000,7 @@ window.DATA.achievements = [
     "relatedMember": "M023"
   },
   {
-    "id": "A025",
+    "id": "A022",
     "type": "学位论文",
     "title": "普布仓决_硕士_学位论文_控释尿素与常规尿素配施下施氮量对夏玉米抗倒伏能力及产量的影响",
     "authors": [
@@ -1052,7 +1013,7 @@ window.DATA.achievements = [
     "relatedMember": "M024"
   },
   {
-    "id": "A026",
+    "id": "A023",
     "type": "期刊/会议论文",
     "title": "普布仓决_西北农业学报_2024",
     "authors": [
@@ -1060,12 +1021,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/FaXAb7G8loAiSGxS038c2G3mnQg",
     "project": "P1",
     "relatedMember": "M024"
   },
   {
-    "id": "A027",
+    "id": "A024",
     "type": "学位论文",
     "title": "塞丁·苏普尔盖控释_硕士_学位论文_尿素和传统尿素配施对冬小麦生长和氮素利用效率的影响",
     "authors": [
@@ -1078,9 +1039,9 @@ window.DATA.achievements = [
     "relatedMember": "M027"
   },
   {
-    "id": "A028",
+    "id": "A025",
     "type": "期刊/会议论文",
-    "title": "王浩辰_植物遗传资源学报_2025 王浩辰_植物遗传资源学报_2025(1)",
+    "title": "王浩辰_植物遗传资源学报_2025",
     "authors": [
       "王浩辰"
     ],
@@ -1091,7 +1052,20 @@ window.DATA.achievements = [
     "relatedMember": "M031"
   },
   {
-    "id": "A029",
+    "id": "A026",
+    "type": "期刊/会议论文",
+    "title": "王浩辰_植物遗传资源学报_2025(1)",
+    "authors": [
+      "王浩辰"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/V2MSbMUgQo8nvtx3xPncCmllnqg",
+    "project": "P1",
+    "relatedMember": "M031"
+  },
+  {
+    "id": "A027",
     "type": "期刊/会议论文",
     "title": "王浩辰_作物学报_2025",
     "authors": [
@@ -1099,12 +1073,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/D7nEbdY3CoftZ1xrnOhc6srVntc",
     "project": "P1",
     "relatedMember": "M031"
   },
   {
-    "id": "A030",
+    "id": "A028",
     "type": "学位论文",
     "title": "王涛_硕士_学位论文_不同播期播量对冬小麦籽粒灌浆动态及产量的影响",
     "authors": [
@@ -1117,7 +1091,7 @@ window.DATA.achievements = [
     "relatedMember": "M033"
   },
   {
-    "id": "A031",
+    "id": "A029",
     "type": "学位论文",
     "title": "杨莎莎_硕士_学位论文_不同垄沟比和肥料减量深施对烟田土壤水肥动态及烤烟生产力的影响",
     "authors": [
@@ -1130,7 +1104,7 @@ window.DATA.achievements = [
     "relatedMember": "M037"
   },
   {
-    "id": "A032",
+    "id": "A030",
     "type": "学位论文",
     "title": "姚丽茹_硕士_学位论文_生物炭与氮肥对麦玉复种体系土壤团聚体有机碳及微生物群落的影响",
     "authors": [
@@ -1143,7 +1117,7 @@ window.DATA.achievements = [
     "relatedMember": "M039"
   },
   {
-    "id": "A033",
+    "id": "A031",
     "type": "期刊/会议论文",
     "title": "姚丽茹_环境科学_2023",
     "authors": [
@@ -1151,14 +1125,27 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/ZbkybT4ZaoTs1AxYmR4c8IRQnXe",
     "project": "P1",
     "relatedMember": "M039"
   },
   {
-    "id": "A034",
+    "id": "A032",
     "type": "期刊/会议论文",
-    "title": "张帆_Field crop research_2025 张帆_European Journal of Agronomy_2025",
+    "title": "张帆_European Journal of Agronomy_2025",
+    "authors": [
+      "张帆"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/WBWlbQdBroB2lXxvQB0cnNasnVg",
+    "project": "P1",
+    "relatedMember": "M041"
+  },
+  {
+    "id": "A033",
+    "type": "期刊/会议论文",
+    "title": "张帆_Field crop research_2025",
     "authors": [
       "张帆"
     ],
@@ -1169,7 +1156,7 @@ window.DATA.achievements = [
     "relatedMember": "M041"
   },
   {
-    "id": "A035",
+    "id": "A034",
     "type": "期刊/会议论文",
     "title": "张帆_Journal of Environmental Management_2026",
     "authors": [
@@ -1177,12 +1164,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/P3TAbX3tqoN4LwxmyFLckv6Hnab",
     "project": "P1",
     "relatedMember": "M041"
   },
   {
-    "id": "A036",
+    "id": "A035",
     "type": "期刊/会议论文",
     "title": "张帆_Journal of Environmental Management_2026(1)",
     "authors": [
@@ -1190,12 +1177,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/FNMpb3nvLoJZoKxIriCcWe7cnLf",
     "project": "P1",
     "relatedMember": "M041"
   },
   {
-    "id": "A037",
+    "id": "A036",
     "type": "学位论文",
     "title": "张光鑫_博士_学位论文_垄沟比和施氮量对黄土高原雨养春玉米产量的影响及其生理生态机制",
     "authors": [
@@ -1208,7 +1195,7 @@ window.DATA.achievements = [
     "relatedMember": "M042"
   },
   {
-    "id": "A038",
+    "id": "A037",
     "type": "期刊/会议论文",
     "title": "张光鑫_Agricultural Water Management_2020",
     "authors": [
@@ -1216,12 +1203,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/MIN7b22zKox44JxW13uctmNwnYf",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A039",
+    "id": "A038",
     "type": "期刊/会议论文",
     "title": "张光鑫_Agricultural Water Management_2021",
     "authors": [
@@ -1229,12 +1216,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/NFk4bJ05DoYcjrx0EyacdehvnPg",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A040",
+    "id": "A039",
     "type": "期刊/会议论文",
     "title": "张光鑫_Agricultural Water Management_2022",
     "authors": [
@@ -1242,12 +1229,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/TAEZblXl9oFHRRxauXyc7nYLnyd",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A041",
+    "id": "A040",
     "type": "期刊/会议论文",
     "title": "张光鑫_European Journal of Agronomy_2023",
     "authors": [
@@ -1255,12 +1242,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/KEjobTVpKoNhSAxhkI8co0oqnFd",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A042",
+    "id": "A041",
     "type": "期刊/会议论文",
     "title": "张光鑫_European Journal of Agronomy_2024",
     "authors": [
@@ -1268,12 +1255,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/OhIsbSafJoXUF5xXDQ7cf8zJnOg",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A043",
+    "id": "A042",
     "type": "期刊/会议论文",
     "title": "张光鑫_Field Crops Research_2022",
     "authors": [
@@ -1281,12 +1268,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/TBzvbdTnyo65Mgxl6K3ccWLansc",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A044",
+    "id": "A043",
     "type": "期刊/会议论文",
     "title": "张光鑫_Field Crops Research_2022(1)",
     "authors": [
@@ -1294,12 +1281,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/CpvebusPeo5xE0xdK0WcmfftnCh",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A045",
+    "id": "A044",
     "type": "期刊/会议论文",
     "title": "张光鑫_Field Crops Research_2023",
     "authors": [
@@ -1307,12 +1294,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/Z1AubEYbEoos5FxBYKDc1diLngg",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A046",
+    "id": "A045",
     "type": "期刊/会议论文",
     "title": "张光鑫_Soil and Tillage Research_2022",
     "authors": [
@@ -1320,12 +1307,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/IMO1bOHdNoVz6mx8Nq4cvOKJnAg",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
-    "id": "A047",
+    "id": "A046",
     "type": "期刊/会议论文",
     "title": "张光鑫_Soil and Tillage Research_2023",
     "authors": [
@@ -1333,12 +1320,77 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/XEnbbY19goKBBzxAflZcpGzxnEf",
     "project": "P1",
     "relatedMember": "M042"
   },
   {
+    "id": "A047",
+    "type": "学位论文",
+    "title": "张叶叶_博士_学位论文_生物炭和氮肥配施对麦田固碳减排与增产的协同效应及其机制",
+    "authors": [
+      "张叶叶"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/CwafbfvS9oJhuIxq5BccvwEEnYg",
+    "project": "P1",
+    "relatedMember": "M001"
+  },
+  {
     "id": "A048",
+    "type": "期刊/会议论文",
+    "title": "张叶叶_Field Crops Research_2025",
+    "authors": [
+      "张叶叶"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/ZHBtbF9XHom7Frx3F7ucDXQdnBh",
+    "project": "P1",
+    "relatedMember": "M001"
+  },
+  {
+    "id": "A049",
+    "type": "期刊/会议论文",
+    "title": "张叶叶_Soil Biology and Biochemistry_2022",
+    "authors": [
+      "张叶叶"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/GwrzbILkHopuTxxt4DdcAj5hnFb",
+    "project": "P1",
+    "relatedMember": "M001"
+  },
+  {
+    "id": "A050",
+    "type": "期刊/会议论文",
+    "title": "张叶叶_Soil Biology and Biochemistry_2024",
+    "authors": [
+      "张叶叶"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/JoGWbBzEIoAWMxxXyyqckR5qnTa",
+    "project": "P1",
+    "relatedMember": "M001"
+  },
+  {
+    "id": "A051",
+    "type": "期刊/会议论文",
+    "title": "张叶叶_The Science of The Total Environment_2024",
+    "authors": [
+      "张叶叶"
+    ],
+    "journal": "",
+    "year": "",
+    "url": "https://my.feishu.cn/file/HXihbg5S1ojXmtxdxImcYtHjnHd",
+    "project": "P1",
+    "relatedMember": "M001"
+  },
+  {
+    "id": "A052",
     "type": "期刊/会议论文",
     "title": "赵德豪_European Journal of Agronomy_2023",
     "authors": [
@@ -1351,7 +1403,7 @@ window.DATA.achievements = [
     "relatedMember": "M044"
   },
   {
-    "id": "A049",
+    "id": "A053",
     "type": "学位论文",
     "title": "朱员正_硕士_学位论文_关中灌区优化氮肥管理对麦豆复种体系作物产量及品质的影响",
     "authors": [
@@ -1364,7 +1416,7 @@ window.DATA.achievements = [
     "relatedMember": "M045"
   },
   {
-    "id": "A050",
+    "id": "A054",
     "type": "期刊/会议论文",
     "title": "朱员正_西北农业学报_2024",
     "authors": [
@@ -1372,12 +1424,12 @@ window.DATA.achievements = [
     ],
     "journal": "",
     "year": "",
-    "url": "",
+    "url": "https://my.feishu.cn/file/QsBVbuTx3oS8nyxkHNfckxn8nkh",
     "project": "P1",
     "relatedMember": "M045"
   },
   {
-    "id": "A051",
+    "id": "A055",
     "type": "获奖",
     "title": "校级优秀研究生干部（2020-2021学年，校级）",
     "authors": [
@@ -1391,7 +1443,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A052",
+    "id": "A056",
     "type": "获奖",
     "title": "校级优秀共青团员（2021年度，校级）",
     "authors": [
@@ -1405,7 +1457,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A053",
+    "id": "A057",
     "type": "获奖",
     "title": "优秀学生干部（2021-2022学年，院级）",
     "authors": [
@@ -1419,7 +1471,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A054",
+    "id": "A058",
     "type": "获奖",
     "title": "优秀共产党员（2022-2023年度，院级）",
     "authors": [
@@ -1433,7 +1485,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A055",
+    "id": "A059",
     "type": "获奖",
     "title": "优秀研究生（2022年度，院级）",
     "authors": [
@@ -1447,7 +1499,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A056",
+    "id": "A060",
     "type": "获奖",
     "title": "瑞华农业奖学金（2023-2024学年，院级）",
     "authors": [
@@ -1461,7 +1513,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A057",
+    "id": "A061",
     "type": "获奖",
     "title": "乡村振兴工作先进个人（2024年度，校级）",
     "authors": [
@@ -1475,7 +1527,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A058",
+    "id": "A062",
     "type": "获奖",
     "title": "优秀共产党员（2021年，院级）",
     "authors": [
@@ -1489,7 +1541,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A059",
+    "id": "A063",
     "type": "获奖",
     "title": "博士国家奖学金（2024年，国家级）",
     "authors": [
@@ -1503,7 +1555,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A060",
+    "id": "A064",
     "type": "获奖",
     "title": "校级优秀毕业生（2025届，校级）",
     "authors": [
@@ -1517,7 +1569,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A061",
+    "id": "A065",
     "type": "获奖",
     "title": "优秀博士毕业论文（2025届，校级）",
     "authors": [
@@ -1531,7 +1583,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A062",
+    "id": "A066",
     "type": "获奖",
     "title": "校级优秀学术性硕士学位论文（2023年，校级）",
     "authors": [
@@ -1545,7 +1597,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A063",
+    "id": "A067",
     "type": "获奖",
     "title": "优秀大学生（2022-2023学年，校级）",
     "authors": [
@@ -1559,7 +1611,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A064",
+    "id": "A068",
     "type": "获奖",
     "title": "大学生军事技能训练优秀标兵（2021级，校级）",
     "authors": [
@@ -1573,7 +1625,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A065",
+    "id": "A069",
     "type": "获奖",
     "title": "暑期综合实践优秀学生（2023年，院级）",
     "authors": [
@@ -1587,7 +1639,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A066",
+    "id": "A070",
     "type": "获奖",
     "title": "本科校级优秀毕业论文（2025届，校级）",
     "authors": [
@@ -1601,7 +1653,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A067",
+    "id": "A071",
     "type": "获奖",
     "title": "优秀大学生（2023-2024学年，校级）",
     "authors": [
@@ -1615,7 +1667,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A068",
+    "id": "A072",
     "type": "获奖",
     "title": "优秀共青团员（2021年度，院级）",
     "authors": [
@@ -1629,7 +1681,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A069",
+    "id": "A073",
     "type": "获奖",
     "title": "优秀共产党员（2024-2025年度，院级）",
     "authors": [
@@ -1643,7 +1695,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A070",
+    "id": "A074",
     "type": "获奖",
     "title": "中国科协青年科技人才培育工程博士生专项计划（2025年度，国家级）",
     "authors": [
@@ -1657,7 +1709,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A071",
+    "id": "A075",
     "type": "获奖",
     "title": "优秀共产党员（2025年，院级）",
     "authors": [
@@ -1671,7 +1723,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A072",
+    "id": "A076",
     "type": "获奖",
     "title": "本科毕业论文（2023年，校级）",
     "authors": [
@@ -1685,7 +1737,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A073",
+    "id": "A077",
     "type": "获奖",
     "title": "优秀党务工作者（2026年，院级）",
     "authors": [
@@ -1699,7 +1751,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A074",
+    "id": "A078",
     "type": "获奖",
     "title": "瑞华农业奖学金（2024年，院级）",
     "authors": [
@@ -1713,7 +1765,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A075",
+    "id": "A079",
     "type": "获奖",
     "title": "瑞华一等奖学金（2024年，院级）",
     "authors": [
@@ -1727,7 +1779,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A076",
+    "id": "A080",
     "type": "获奖",
     "title": "校级优秀大学生（2023年，校级）",
     "authors": [
@@ -1741,7 +1793,7 @@ window.DATA.achievements = [
     "note": "若需要证书等证明文件，请联系获奖本人或网页管理员。"
   },
   {
-    "id": "A077",
+    "id": "A081",
     "type": "获奖",
     "title": "优秀研究生（2021年，院级）",
     "authors": [
