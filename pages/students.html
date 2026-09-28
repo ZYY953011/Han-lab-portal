@@ -10,7 +10,7 @@
 <body>
   <main class="container">
     <div id="head"></div>
-    <div class="note-box" style="margin-bottom:14px;">💡 覆盖学生从入组到毕业全过程。下方时间轴展示各培养节点的计划/实际完成日期与状态，临近节点自动提醒。</div>
+    <div class="note-box" style="margin-bottom:14px;">💡 覆盖学生从入组到毕业全过程。下方时间轴展示各培养节点的计划/实际完成日期与状态，临近节点自动提醒。每位成员可在「开题、中期考核、预答辩、毕业答辩」节点查看或上传培养资料（链接基于飞书云盘权限）。</div>
 
     <div class="section-title">即将到期提醒</div>
     <div id="remind"></div>
@@ -28,6 +28,7 @@
   </main>
 
   <script src="../assets/js/data/students.js"></script>
+  <script src="../assets/js/data/student-materials.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
@@ -82,6 +83,82 @@
     box.id = "tlBox";
     document.querySelector(".container").appendChild(box);
 
+    // 添加材料弹窗
+    var modal = document.createElement("div");
+    modal.id = "matModal";
+    modal.className = "modal";
+    modal.innerHTML = `<div class="modal-box">
+      <div class="modal-head"><b class="modal-title">添加材料</b><button class="btn btn-sm btn-outline" onclick="closeMaterialModal()">关闭</button></div>
+      <div class="modal-body">
+        <label>版本 / 材料类型</label><input type="text" id="matVersion" value="v1">
+        <label>资料名称 <span style="color:red">*</span></label><input type="text" id="matTitle" placeholder="如：开题报告初稿">
+        <label>资料链接（飞书云盘） <span style="color:red">*</span></label><input type="text" id="matUrl" placeholder="https://my.feishu.cn/file/... 或 https://my.feishu.cn/drive/folder/...">
+        <label>日期</label><input type="text" id="matDate" placeholder="YYYY-MM-DD">
+        <label>备注</label><input type="text" id="matNote" placeholder="可选">
+        <div style="margin-top:12px;">
+          <button class="btn btn-primary" onclick="submitMaterial()">保存</button>
+          <button class="btn btn-outline" onclick="closeMaterialModal()" style="margin-left:8px;">取消</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+
+    // 导出 JSON 弹窗
+    var exportWrap = document.createElement("div");
+    exportWrap.className = "modal";
+    exportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本地添加的材料（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeExportBox()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/student-materials.js</code>，即可让全组可见。</p>
+        <textarea id="exportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>`;
+    document.body.appendChild(exportWrap);
+
+    var materialStages = ["开题", "中期考核", "预答辩", "毕业答辩"];
+
+    function lsKey(id, stage){ return "training-materials-" + id + "-" + stage; }
+
+    function getLocalMaterials(id, stage){
+      try {
+        var raw = localStorage.getItem(lsKey(id, stage));
+        return raw ? JSON.parse(raw) : [];
+      } catch(e){ return []; }
+    }
+
+    function saveLocalMaterial(id, stage, item){
+      var arr = getLocalMaterials(id, stage);
+      arr.push(item);
+      localStorage.setItem(lsKey(id, stage), JSON.stringify(arr));
+    }
+
+    function renderMaterialBlock(s, st){
+      var locals = getLocalMaterials(s.id, st.name);
+      var all = (st.materials || []).concat(locals);
+      var hasFeishu = st.feishu && st.feishu.indexOf("PASTE_FEISHU_LINK") === -1;
+      var isMatStage = materialStages.indexOf(st.name) !== -1;
+      if (!isMatStage && !all.length && !hasFeishu) return "";
+
+      var listHtml = all.map(function(m){
+        return `<div class="material-item">
+          <span class="material-version">${esc(m.version || "资料")}</span>
+          ${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.title || "打开链接")}</a>` : `<span>${esc(m.title || "")}</span>`}
+          <span class="material-date">${esc(m.date || "")}</span>
+          ${m.note ? `<span class="material-note">${esc(m.note)}</span>` : ""}
+        </div>`;
+      }).join("");
+
+      return `<div class="material-block">
+        <div class="material-head">
+          <span>📎 培养材料</span>
+          <span style="flex:1;"></span>
+          ${hasFeishu ? `<a class="btn btn-sm btn-outline feishu-btn" href="${esc(st.feishu)}" target="_blank" rel="noopener">📤 去飞书查看/上传 ↗</a>` : ""}
+          ${isMatStage ? `<button class="btn btn-sm" onclick="openMaterialModal('${esc(s.id)}','${esc(st.name)}')">＋ 添加材料</button>` : ""}
+        </div>
+        ${all.length ? `<div class="material-list">${listHtml}</div>` : `<div class="material-empty">暂无资料，点击「添加材料」或去飞书云盘上传。</div>`}
+      </div>`;
+    }
+
     function showTimeline(id){
       var s = students.find(x=>x.id===id);
       if(!s) return;
@@ -92,22 +169,93 @@
           <dt>类型</dt><dd>${esc(s.type)}</dd>
           <dt>入学/入组</dt><dd>${esc(s.enroll)} / ${esc(s.join)}</dd>
           <dt>预计毕业</dt><dd>${esc(s.expectGrad)}</dd>
+          ${s.tutor?`<dt>导师</dt><dd>${esc(s.tutor)}</dd>`:""}
         </dl>
         <div class="timeline">
           ${s.stages.map(st=>`
             <div class="tl-item ${st.done?"done":(st.status==="需要修改"?"warn":"")}">
               <div class="tl-title">${esc(st.name)} ${badge(st.status)}
                 <span class="tl-date">计划 ${esc(st.plan||"—")} ｜ 实际 ${esc(st.actual||"—")}</span></div>
-              ${st.materials&&st.materials.length?`<div class="tl-note">材料：${st.materials.map(esc).join("、")} ${st.materialUrl?`<a href="${esc(st.materialUrl)}" target="_blank">[查看]</a>`:""}</div>`:""}
               ${st.advice?`<div class="tl-note">导师意见：${esc(st.advice)}</div>`:""}
               ${st.note?`<div class="tl-note" style="color:var(--muted);">备注：${esc(st.note)}</div>`:""}
+              ${renderMaterialBlock(s, st)}
             </div>`).join("")}
         </div>
-        <p style="margin-top:8px;"><a class="btn btn-outline btn-sm" href="javascript:void(0)" onclick="document.getElementById('tlBox').innerHTML=''">收起</a></p>
+        <p style="margin-top:8px;">
+          <a class="btn btn-outline btn-sm" href="javascript:void(0)" onclick="document.getElementById('tlBox').innerHTML=''">收起</a>
+          <a class="btn btn-outline btn-sm" href="javascript:void(0)" onclick="exportLocalMaterials()">导出我添加的材料（JSON）</a>
+        </p>
       </div>`;
       box.scrollIntoView({behavior:"smooth"});
     }
     window.showTimeline = showTimeline;
+
+    function openMaterialModal(id, stage){
+      var s = students.find(x=>x.id===id);
+      if(!s) return;
+      var modal = document.getElementById("matModal");
+      modal.dataset.id = id;
+      modal.dataset.stage = stage;
+      modal.querySelector(".modal-title").textContent = s.name + " · " + stage + " · 添加材料";
+      modal.querySelector("#matVersion").value = "v1";
+      modal.querySelector("#matTitle").value = "";
+      modal.querySelector("#matUrl").value = "";
+      modal.querySelector("#matDate").value = new Date().toISOString().slice(0,10);
+      modal.querySelector("#matNote").value = "";
+      modal.classList.add("open");
+    }
+    window.openMaterialModal = openMaterialModal;
+
+    function closeMaterialModal(){
+      document.getElementById("matModal").classList.remove("open");
+    }
+    window.closeMaterialModal = closeMaterialModal;
+
+    function submitMaterial(){
+      var modal = document.getElementById("matModal");
+      var id = modal.dataset.id;
+      var stage = modal.dataset.stage;
+      var item = {
+        version: modal.querySelector("#matVersion").value.trim() || "v1",
+        title: modal.querySelector("#matTitle").value.trim() || "未命名资料",
+        url: modal.querySelector("#matUrl").value.trim(),
+        date: modal.querySelector("#matDate").value.trim(),
+        note: modal.querySelector("#matNote").value.trim()
+      };
+      if(!item.url){
+        alert("请填写资料链接（飞书云盘链接）");
+        return;
+      }
+      saveLocalMaterial(id, stage, item);
+      closeMaterialModal();
+      showTimeline(id);
+    }
+    window.submitMaterial = submitMaterial;
+
+    function exportLocalMaterials(){
+      var out = {};
+      for(var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if(k && k.indexOf("training-materials-")===0){
+          var parts = k.replace("training-materials-","").split("-");
+          var stage = parts.pop();
+          var id = parts.join("-");
+          if(!out[id]) out[id] = {};
+          out[id][stage] = JSON.parse(localStorage.getItem(k));
+        }
+      }
+      var json = JSON.stringify(out, null, 2);
+      var textarea = document.getElementById("exportBox");
+      textarea.value = "// 将以下内容贴入 assets/js/data/student-materials.js 的对应成员 stages 下，\n// 即可让所有人看到本地添加的材料。\n" + json;
+      textarea.parentElement.classList.add("open");
+      textarea.select();
+    }
+    window.exportLocalMaterials = exportLocalMaterials;
+
+    function closeExportBox(){
+      document.getElementById("exportBox").parentElement.classList.remove("open");
+    }
+    window.closeExportBox = closeExportBox;
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

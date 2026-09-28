@@ -287,3 +287,62 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
 }
 .expense-entry-btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
 .expense-entry-btns .btn { text-decoration: none; }
+
+/* ---------- 学生培养·资料材料 ---------- */
+.material-block {
+  margin-top: 8px; padding: 10px 12px;
+  background: #f8fafc; border: 1px dashed #cfe0f0; border-radius: 8px;
+}
+.material-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 13.5px; color: #36465a; margin-bottom: 8px;
+}
+.material-head .feishu-btn {
+  background: #fff; color: #3370ff; border-color: #3370ff;
+}
+.material-head .feishu-btn:hover { background: #f0f5ff; }
+.material-list { display: flex; flex-direction: column; gap: 6px; }
+.material-item {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 13.5px; padding: 6px 8px; background: #fff;
+  border-radius: 6px; border: 1px solid var(--border);
+}
+.material-version {
+  display: inline-block; padding: 1px 8px; border-radius: 12px;
+  background: var(--primary-light); color: var(--primary-dark); font-size: 12px; font-weight: 600;
+}
+.material-date { font-size: 12px; color: var(--muted); }
+.material-note { font-size: 12.5px; color: var(--muted); }
+.material-empty { font-size: 13px; color: var(--muted); padding: 6px 0; }
+
+/* ---------- 弹窗 ---------- */
+.modal {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(20, 40, 60, .45);
+  display: none; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.modal.open { display: flex; }
+.modal-box {
+  background: #fff; border-radius: var(--radius); box-shadow: 0 10px 40px rgba(20,40,60,.2);
+  width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.modal-body { padding: 18px; }
+.modal-body label {
+  display: block; font-size: 13px; color: #44505f; margin: 12px 0 5px;
+}
+.modal-body label:first-child { margin-top: 0; }
+.modal-body input[type="text"] {
+  width: 100%; box-sizing: border-box; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none;
+}
+.modal-body input[type="text"]:focus { border-color: var(--primary); }
+
+@media (max-width: 720px) {
+  .material-head { gap: 8px; }
+  .material-head .btn { margin-top: 2px; }
+}
