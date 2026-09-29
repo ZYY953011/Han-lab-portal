@@ -133,6 +133,8 @@ ul, ol { padding-left: 1.25em; }
 .btn-outline { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
 .btn-outline:hover { background: var(--primary-light); }
 .btn-sm { padding: 4px 12px; font-size: 13px; }
+.btn-xs { padding: 2px 8px; font-size: 12px; border-radius: 6px; }
+.tl-edit { margin-left: auto; }
 .btn-block { display: block; text-align: center; }
 .btn-icon { width: 26px; height: 26px; padding: 0; line-height: 26px; border-radius: 6px; font-weight: 700; }
 .filter-btn.active { background: var(--primary); color: #fff; }

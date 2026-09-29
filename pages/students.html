@@ -19,6 +19,10 @@
     <div id="remind"></div>
 
     <div class="section-title">培养进度总览</div>
+    <div class="note-box" style="margin-bottom:8px; font-size:13px;">
+      💡 阶段时间按「硕士入学当年 12 月开题、第 2 年 12 月中期、第 3 年答辩；博士第 2 学期开题、第 4 学期中期、第 8 学期答辩」自动推算。
+      如有专项计划等特殊情况，管理员可在 <code>assets/js/data/student-materials.js</code> 的 <code>studentStageOverrides</code> 中手动覆盖。
+    </div>
     <div class="toolbar" id="toolbar" style="margin-top:8px;">
       <span style="font-size:13.5px; color:var(--muted);">筛选：</span>
       <button class="btn btn-sm filter-btn active" data-filter="all" onclick="setFilter('all')">全部</button>
@@ -27,6 +31,7 @@
       <button class="btn btn-sm filter-btn btn-outline" data-filter="预答辩" onclick="setFilter('预答辩')">待预答辩</button>
       <button class="btn btn-sm filter-btn btn-outline" data-filter="毕业答辩" onclick="setFilter('毕业答辩')">待正式答辩</button>
       <button class="btn btn-sm btn-outline" onclick="exportLocalMaterials()">导出我添加的材料（JSON）</button>
+      <button class="btn btn-sm btn-outline" onclick="exportStageOverrides()">导出状态修改（JSON）</button>
     </div>
     <div class="table-wrap" style="margin-top:8px;">
       <table>
@@ -51,6 +56,28 @@
     var students = window.DATA.students||[];
     var currentFilter = 'all';
     var openedRows = new Set();
+    var studentsBase = JSON.parse(JSON.stringify(students)); // 基线（含管理员 overrides）
+
+    // 应用本浏览器中组员/管理员手动设置的阶段状态
+    function applyLocalOverrides() {
+      students.forEach(function (s, i) {
+        if (studentsBase[i]) s.stages = JSON.parse(JSON.stringify(studentsBase[i].stages));
+      });
+      students.forEach(function (s) {
+        var raw = localStorage.getItem('training-override-' + s.id);
+        if (!raw) return;
+        try {
+          var ov = JSON.parse(raw);
+          Object.keys(ov).forEach(function (name) {
+            var st = s.stages.find(function (x) { return x.name === name; });
+            if (!st) return;
+            Object.assign(st, ov[name]);
+            st.done = (st.status === "已完成");
+          });
+        } catch (e) {}
+      });
+    }
+    window.applyLocalOverrides = applyLocalOverrides;
 
     function currentStage(s){
       var cur = s.stages.find(st=> st.status!=="已完成") || s.stages[s.stages.length-1];
@@ -207,7 +234,8 @@
             ${s.stages.map(st=>`
               <div class="tl-item ${st.done?"done":(st.status==="需要修改"?"warn":"")}">
                 <div class="tl-title">${esc(st.name)} ${badge(st.status)}
-                  <span class="tl-date">计划 ${esc(st.plan||"—")} ｜ 实际 ${esc(st.actual||"—")}</span></div>
+                  <span class="tl-date">计划 ${esc(st.plan||"—")} ｜ 实际 ${esc(st.actual||"—")}</span>
+                  <button class="btn btn-xs btn-outline tl-edit" onclick="openStageModal('${esc(s.id)}','${esc(st.name)}')">✎ 设置</button></div>
                 ${st.advice?`<div class="tl-note">导师意见：${esc(st.advice)}</div>`:""}
                 ${st.note?`<div class="tl-note" style="color:var(--muted);">备注：${esc(st.note)}</div>`:""}
                 ${renderMaterialBlock(s, st)}
@@ -252,6 +280,34 @@
       </div>
     </div>`;
     document.body.appendChild(exportWrap);
+
+    // 设置阶段状态弹窗
+    var stageModal = document.createElement("div");
+    stageModal.id = "stageModal";
+    stageModal.className = "modal";
+    stageModal.innerHTML = `<div class="modal-box" style="max-width:460px;">
+      <div class="modal-head"><b class="modal-title">设置培养状态</b><button class="btn btn-sm btn-outline" onclick="closeStageModal()">关闭</button></div>
+      <div class="modal-body">
+        <label>状态</label>
+        <select id="stageStatus" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+          <option value="未开始">未开始</option>
+          <option value="准备中">准备中</option>
+          <option value="已完成">已完成</option>
+          <option value="需要修改">需要修改</option>
+        </select>
+        <label>实际完成日期（可选，如 2026-05-20）</label>
+        <input type="text" id="stageActual" placeholder="YYYY-MM-DD">
+        <label>备注（可选）</label>
+        <input type="text" id="stageNote" placeholder="如：延迟毕业，按实际进度更新">
+        <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="submitStageOverride()">保存</button>
+          <button class="btn btn-outline" onclick="resetStageOverride()">恢复自动</button>
+          <button class="btn btn-outline" onclick="closeStageModal()">取消</button>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:10px;">设置仅保存在本浏览器，刷新或换设备不保留。管理员可在筛选栏点「导出状态修改（JSON）」收集后合并到全站。</p>
+      </div>
+    </div>`;
+    document.body.appendChild(stageModal);
 
     function openMaterialModal(id, stage){
       var s = students.find(x=>x.id===id);
@@ -327,6 +383,85 @@
     }
     window.closeExportBox = closeExportBox;
 
+    // ===== 手动设置阶段状态 =====
+    function openStageModal(id, stageName){
+      var s = students.find(function(x){ return x.id===id; });
+      if(!s) return;
+      var st = s.stages.find(function(x){ return x.name===stageName; });
+      if(!st) return;
+      stageModal.dataset.id = id;
+      stageModal.dataset.stage = stageName;
+      stageModal.querySelector(".modal-title").textContent = s.name + " · " + stageName + " · 设置状态";
+      stageModal.querySelector("#stageStatus").value = st.status || "未开始";
+      stageModal.querySelector("#stageActual").value = st.actual || "";
+      stageModal.querySelector("#stageNote").value = st.note || "";
+      stageModal.classList.add("open");
+    }
+    window.openStageModal = openStageModal;
+
+    function closeStageModal(){
+      document.getElementById("stageModal").classList.remove("open");
+    }
+    window.closeStageModal = closeStageModal;
+
+    function saveStageOverride(id, stageName, data){
+      var key = 'training-override-' + id;
+      var ov = {};
+      try { ov = JSON.parse(localStorage.getItem(key)) || {}; } catch(e) {}
+      ov[stageName] = data;
+      localStorage.setItem(key, JSON.stringify(ov));
+      applyLocalOverrides();
+      renderTable();
+    }
+    window.saveStageOverride = saveStageOverride;
+
+    function submitStageOverride(){
+      var id = stageModal.dataset.id;
+      var stageName = stageModal.dataset.stage;
+      var status = stageModal.querySelector("#stageStatus").value;
+      var actual = stageModal.querySelector("#stageActual").value.trim();
+      var note = stageModal.querySelector("#stageNote").value.trim();
+      saveStageOverride(id, stageName, { status: status, actual: actual, note: note });
+      closeStageModal();
+    }
+    window.submitStageOverride = submitStageOverride;
+
+    function resetStageOverride(){
+      var id = stageModal.dataset.id;
+      var stageName = stageModal.dataset.stage;
+      var key = 'training-override-' + id;
+      try {
+        var ov = JSON.parse(localStorage.getItem(key)) || {};
+        delete ov[stageName];
+        if (Object.keys(ov).length) localStorage.setItem(key, JSON.stringify(ov));
+        else localStorage.removeItem(key);
+      } catch(e) {}
+      applyLocalOverrides();
+      renderTable();
+      closeStageModal();
+    }
+    window.resetStageOverride = resetStageOverride;
+
+    // 导出本浏览器中设置的状态修改（管理员合并到 student-materials.js）
+    function exportStageOverrides(){
+      var out = {};
+      for(var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if(k && k.indexOf("training-override-")===0){
+          var id = k.replace("training-override-","");
+          out[id] = { stages: JSON.parse(localStorage.getItem(k)) };
+        }
+      }
+      var json = JSON.stringify(out, null, 2);
+      var ta = document.getElementById("exportBox");
+      ta.value = "// 将以下内容追加进 assets/js/data/student-materials.js 的 studentStageOverrides：\n" +
+        "Object.assign(window.DATA.studentStageOverrides || {}, " + json + ");";
+      ta.parentElement.parentElement.classList.add("open");
+      ta.select();
+    }
+    window.exportStageOverrides = exportStageOverrides;
+
+    applyLocalOverrides();
     renderTable();
   </script>
 <script src="../assets/js/gate.js"></script>

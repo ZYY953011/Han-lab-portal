@@ -1,10 +1,15 @@
 /* students.js —— 学生培养（从 members.js 自动生成）
  * 覆盖入组 → 毕业全过程，每个节点含计划/实际日期与状态。
  * 培养阶段固定顺序见 window.DATA.studentStages。
- * 计划时间依据西北农林科技大学农学院培养方案：
- *   - 学术型硕士（3年制）：第3学期结束前开题，第4学期结束前中期考核，第6学期答辩。
- *   - 学术型博士（4年制）：第2学期结束前开题，第4学期末中期考核，第8学期答辩。
- *   - 专业学位硕士（3年制）：第3学期结束前开题，第5学期结束前中期考核，第6学期答辩。
+ *
+ * 计划时间依据西北农林科技大学农学院实际培养节奏：
+ *   - 硕士（3年制，含学术型与专业学位）：入学后第二年（第三学期）开题，
+ *     第 3 年 4 月预答辩、6 月毕业答辩；中期考核学术型第 4 学期末、专业学位第 5 学期末。
+ *   - 博士（4年制）：第 2 学期结束前（5 月）开题，
+ *     第 4 学期末（5 月）中期考核，第 8 学期 4 月预答辩、6 月答辩。
+ *
+ * 管理员如需覆盖某位同学的阶段状态，请在 student-materials.js 中
+ * 对应成员的 stages 下写入 { plan, actual, status, done, note }。
  */
 window.DATA = window.DATA || {};
 window.DATA.studentStages = ["入组", "培养计划", "开题", "中期考核", "预答辩", "毕业答辩", "学位材料", "毕业"];
@@ -28,8 +33,8 @@ window.DATA.studentStages = ["入组", "培养计划", "开题", "中期考核",
     var cat = (m.category || "") + " " + (m.role || "");
     if (cat.indexOf("博士后") !== -1) return { type: "博士后", degree: "postdoc", years: 2, label: "博士后" };
     if (cat.indexOf("博士") !== -1) return { type: "博士生", degree: "phd", years: 4, label: "博士" };
-    if (cat.indexOf("硕士") !== -1) return { type: "硕士生", degree: "master", years: 3, label: "硕士" };
-    return { type: "硕士生", degree: "master", years: 3, label: "硕士" };
+    if (cat.indexOf("硕士") !== -1) return { type: "硕士生", degree: "master", years: 3, label: "硕士", isPro: cat.indexOf("专业学位") !== -1 };
+    return { type: "硕士生", degree: "master", years: 3, label: "硕士", isPro: false };
   }
 
   // 比较年月字符串 "YYYY-MM" 与当前日期
@@ -40,11 +45,11 @@ window.DATA.studentStages = ["入组", "培养计划", "开题", "中期考核",
     return today >= p;
   }
 
+  // 计划月份已完整度过（下个月 1 号及以后）视为已完成
   function isFarPast(plan) {
     if (!plan) return false;
     var today = new Date();
     var p = new Date(plan + "-01");
-    // 计划月份过完即视为已过（加 1 个月）
     p.setMonth(p.getMonth() + 1);
     return today >= p;
   }
@@ -65,7 +70,6 @@ window.DATA.studentStages = ["入组", "培养计划", "开题", "中期考核",
     var stages = [];
 
     if (info.degree === "postdoc") {
-      // 博士后：仅保留入组、出站两个关键节点
       stages = [
         { name: "入组", plan: Y + "-10", actual: Y + "-10", status: "已完成", materials: [], feishu: "", advice: "", done: true, note: "" },
         { name: "出站", plan: (Y + 2) + "-06", actual: "", status: allDone ? "已完成" : (isPast((Y + 2) + "-06") ? "准备中" : "未开始"), materials: [], feishu: "", advice: "", done: allDone, note: "" }
@@ -73,15 +77,24 @@ window.DATA.studentStages = ["入组", "培养计划", "开题", "中期考核",
       return stages;
     }
 
-    // 硕士/博士的计划月份
-    var proposalPlan = info.degree === "phd" ? (Y + 1) + "-05" : (Y + 1) + "-12";
-    var midPlan = (Y + 2) + "-05";
-    var preDefPlan = (Y + years) + "-04";
-    var defensePlan = (Y + years) + "-06";
+    var proposalPlan, midPlan, preDefPlan, defensePlan;
+    if (info.degree === "phd") {
+      proposalPlan = (Y + 1) + "-05";
+      midPlan = (Y + 2) + "-05";
+      preDefPlan = (Y + 4) + "-04";
+      defensePlan = (Y + 4) + "-06";
+    } else {
+      // 硕士：入学后第二年（第三学期）开题，第三年答辩；
+      // 中期考核统一在第 5 学期末（入学后第 2 年 12 月）
+      proposalPlan = (Y + 1) + "-09";
+      midPlan = (Y + 2) + "-12";
+      preDefPlan = (Y + 3) + "-04";
+      defensePlan = (Y + 3) + "-06";
+    }
 
     var base = [
       { name: "入组", plan: Y + "-10" },
-      { name: "培养计划", plan: (Y + 1) + "-01" },
+      { name: "培养计划", plan: Y + "-12" },
       { name: "开题", plan: proposalPlan },
       { name: "中期考核", plan: midPlan },
       { name: "预答辩", plan: preDefPlan },
@@ -91,8 +104,8 @@ window.DATA.studentStages = ["入组", "培养计划", "开题", "中期考核",
     ];
 
     base.forEach(function (st, idx) {
-      // 入组、培养计划默认已完成
-      var done = allDone || (idx <= 1);
+      // 入组、培养计划默认已完成；计划月份已完整度过的节点也视为已完成
+      var done = allDone || (idx <= 1) || isFarPast(st.plan);
       var status = done ? "已完成" : (isPast(st.plan) ? "准备中" : "未开始");
       stages.push({
         name: st.name,
@@ -125,7 +138,7 @@ window.DATA.studentStages = ["入组", "培养计划", "开题", "中期考核",
         degree: info.degree,
         enroll: Y + "-09",
         join: Y + "-10",
-        tutor: "", // members.js 暂无导师字段，后续可通过 overrides 补充
+        tutor: "", // members.js 暂无导师字段，后续可通过 student-materials.js 补充
         research: m.research || "",
         project: m.project || "P1",
         expectGrad: expectGrad,
