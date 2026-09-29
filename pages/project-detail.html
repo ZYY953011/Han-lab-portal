@@ -25,16 +25,14 @@
     injectHeader("项目");
     var id = getParam("id");
     var p = (window.DATA.projects||[]).find(function(x){ return x.id===id; });
-    var categories = window.PROJECT_ARCHIVE_CATEGORIES || [];
     var folderUrl = (p && p.projectFolderUrl) || window.PROJECT_MATERIALS_FOLDER || "";
 
     if(!p){ document.getElementById("main").innerHTML = emptyTip("未找到该项目"); }
     else {
       var nameOf = function(key,arr,field){
-        return (window.DATA[arr]||[]).filter(function(x){ return (p[key]||[]).indexOf(x.id)!==-1; }).map(function(x){ return x[field]; }).join("、") || "—";
+        return (window.DATA[arr]||[]).filter(function(x){ return (p[key]||[]).indexOf(x.id)!==-1; }).map(function(x){ return x[field]; }).join("。") || "—";
       };
 
-      // localStorage keys
       function matKey(){ return "proj-materials-" + p.id; }
       function progressKey(){ return "proj-progress-" + p.id; }
 
@@ -44,7 +42,6 @@
       function saveLocalMaterials(items){
         localStorage.setItem(matKey(), JSON.stringify(items));
       }
-
       function getLocalProgress(){
         try { var raw = localStorage.getItem(progressKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
       }
@@ -56,109 +53,73 @@
         var list = (p.materials || []).slice();
         var locals = getLocalMaterials();
         locals.forEach(function(item){
-          var exists = list.some(function(m){ return m.name===item.name && m.category===item.category && m.date===item.date && m.uploader===item.uploader; });
+          var exists = list.some(function(m){ return m.name===item.name && m.date===item.date && m.uploader===item.uploader; });
           if(!exists) list.push(item);
         });
-        return list.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+        return list.sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
       }
 
-      var catMap = {};
-      categories.forEach(function(c){ catMap[c.key] = c.label; });
-      function normalizeCategory(c){
-        if(!c) return "experiment";
-        var key = String(c).trim();
-        if(catMap[key]) return key;
-        var mapped = window.PROJECT_ARCHIVE_CATEGORY_MAP && window.PROJECT_ARCHIVE_CATEGORY_MAP[key];
-        return mapped || "experiment";
+      function nowISO(){ return new Date().toISOString(); }
+      function formatDate(d){
+        if(!d) return "—";
+        if(/^\d{4}-\d{2}$/.test(d)) return d;
+        var date = new Date(d);
+        if(isNaN(date.getTime())) return d;
+        return date.toLocaleString('zh-CN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      }
+      function fileIcon(name){
+        var n = (name||"").toLowerCase();
+        if(/\.pdf$/.test(n)) return "📄";
+        if(/\.(ppt|pptx)$/.test(n)) return "📊";
+        if(/\.(doc|docx)$/.test(n)) return "📝";
+        if(/\.(xls|xlsx|csv)$/.test(n)) return "📈";
+        if(/\.(jpg|jpeg|png|gif)$/.test(n)) return "🖼️";
+        return "📁";
       }
 
-      function thisMonth(){
-        return new Date().toISOString().slice(0,7);
+      function materialRow(m){
+        return '<tr>' +
+          '<td><span class="mat-icon">' + fileIcon(m.name) + '</span><a class="mat-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" title="' + esc(m.url) + '">' + esc(m.name || "未命名文件") + '</a></td>' +
+          '<td>' + esc(m.uploader || "—") + '</td>' +
+          '<td class="mat-time">' + esc(formatDate(m.date)) + '</td>' +
+          '<td class="mat-note">' + esc(m.note || "") + '</td>' +
+        '</tr>';
       }
 
-      // 已填写的资料行
-      function fileItem(m){
-        var nameHtml = m.url
-          ? '<a class="file-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" title="' + esc(m.url) + '">' + esc(m.name || "未命名文件") + '</a>'
-          : '<span class="file-name disabled">' + esc(m.name || "未命名文件") + '</span>';
-        return '<div class="file-row">' +
-          '<div class="file-col file-col-name">' + nameHtml + '</div>' +
-          '<div class="file-col file-col-note" title="' + esc(m.note || "") + '">' + esc(m.note || "—") + '</div>' +
-          '<div class="file-col file-col-date">' + esc(m.date || "—") + '</div>' +
-          '<div class="file-col file-col-uploader">' + esc(m.uploader || "—") + '</div>' +
-          '<div class="file-col file-col-action">' +
-            (m.url ? '<a class="btn btn-xs btn-outline feishu-btn" href="' + esc(m.url) + '" target="_blank" rel="noopener">打开 ↗</a>' : '<span class="file-no-link">未上传</span>') +
-          '</div>' +
-        '</div>';
-      }
-
-      // 内联添加表单
-      function inlineAddForm(ckey){
-        return '<div class="file-row file-row-form">' +
-          '<div class="file-col file-col-name"><input type="text" id="mat-name-' + esc(ckey) + '" placeholder="文件名称"></div>' +
-          '<div class="file-col file-col-note"><input type="text" id="mat-note-' + esc(ckey) + '" placeholder="备注"></div>' +
-          '<div class="file-col file-col-date"><input type="text" id="mat-date-' + esc(ckey) + '" value="' + esc(thisMonth()) + '" readonly title="自动填充本月"></div>' +
-          '<div class="file-col file-col-uploader"><input type="text" id="mat-uploader-' + esc(ckey) + '" placeholder="上传人"></div>' +
-          '<div class="file-col file-col-action"><button class="btn btn-xs btn-primary" onclick="submitInlineMat(\'' + esc(ckey) + '\')">保存</button></div>' +
-        '</div>' +
-        '<div class="file-row file-row-form" style="border-top:none; padding-top:0;">' +
-          '<div style="flex:1; min-width:200px;"><input type="text" id="mat-url-' + esc(ckey) + '" placeholder="粘贴飞书文件/文件夹链接" style="width:100%;"></div>' +
-        '</div>';
-      }
-
-      function renderArchive(){
+      function renderMaterials(){
         var list = allMaterials();
-        var byCat = {};
-        categories.forEach(function(c){ byCat[c.key] = []; });
-        list.forEach(function(m){
-          var key = normalizeCategory(m.category);
-          if(!byCat[key]) byCat[key] = [];
-          byCat[key].push(m);
-        });
-
         var hasFolder = folderUrl && folderUrl.indexOf("http") === 0;
-        var uploadBtnText = (p.projectFolderUrl && p.projectFolderUrl.indexOf("http")===0)
-          ? "📤 上传到本项目飞书文件夹 ↗"
-          : "📤 上传到总资料夹（按“项目名”建子文件夹）↗";
         var uploadBtn = hasFolder
-          ? '<a class="btn btn-primary" href="' + esc(folderUrl) + '" target="_blank" rel="noopener">' + uploadBtnText + '</a>'
-          : '<span class="btn btn-primary disabled" style="opacity:.6; cursor:not-allowed;">📤 上传入口未配置</span>';
+          ? '<a class="btn btn-primary btn-sm" href="' + esc(folderUrl) + '" target="_blank" rel="noopener">📤 上传到飞书资料夹 ↗</a>'
+          : '<span class="btn btn-primary btn-sm disabled" style="opacity:.6; cursor:not-allowed;">📤 上传入口未配置</span>';
 
-        var html = '<div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
-          '<div>' +
-            '<div class="section-title" style="margin:0;">项目档案与资料库</div>' +
-            '<div style="font-size:13px; color:var(--muted); margin-top:4px;">在每个分类下粘贴飞书链接、填写上传人和备注，日期自动填充本月。</div>' +
-          '</div>' +
-          '<div style="display:flex; gap:8px; flex-wrap:wrap;">' + uploadBtn +
-            '<button class="btn btn-outline" onclick="exportProjLocalMaterials()">导出我添加的资料（JSON）</button>' +
+        var rows = list.length ? list.map(materialRow).join("") : '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:24px;">暂无资料，请在上方添加。</td></tr>';
+
+        return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+          '<span>项目资料</span>' +
+          '<div style="display:flex; gap:8px;">' + uploadBtn +
+            '<button class="btn btn-outline btn-sm" onclick="exportProjLocalMaterials()">导出我添加的资料（JSON）</button>' +
           '</div>' +
         '</div>' +
-        '<div class="help-hint" onclick="this.classList.toggle(\'open\')">' +
-          '<span class="help-icon">?</span>' +
-          '<span class="help-title">使用说明</span>' +
-          '<div class="help-body">① 点上方「上传到…飞书文件夹」把文件放到飞书；② 在下方分类里粘贴链接、填上传人/备注，点保存；③ 管理员点「导出」把 JSON 贴入 <code>assets/js/data/project-materials.js</code>，全组可见。所有输入默认只保存在当前浏览器。</div>' +
+        '<p style="font-size:13px; color:var(--muted); margin:0 0 10px;">文件先传到飞书，再在这里粘贴链接、填写信息；保存后自动记录当前时间。</p>' +
+        '<div class="table-wrap">' +
+          '<table class="material-table">' +
+            '<thead><tr><th>名称</th><th style="width:110px;">上传人</th><th style="width:130px;">更新时间</th><th style="min-width:160px;">备注</th></tr></thead>' +
+            '<tbody>' +
+              '<tr class="add-row">' +
+                '<td><input type="text" id="mat-name" placeholder="文件名称"></td>' +
+                '<td><input type="text" id="mat-uploader" placeholder="上传人"></td>' +
+                '<td><input type="text" id="mat-date" value="' + esc(formatDate(nowISO())) + '" readonly title="保存时自动填充"></td>' +
+                '<td><input type="text" id="mat-note" placeholder="备注"></td>' +
+              '</tr>' +
+              '<tr class="add-row">' +
+                '<td colspan="3"><input type="text" id="mat-url" placeholder="粘贴飞书文件/文件夹链接"></td>' +
+                '<td><button class="btn btn-primary btn-sm" onclick="submitMat()">保存</button></td>' +
+              '</tr>' +
+              rows +
+            '</tbody>' +
+          '</table>' +
         '</div>';
-
-        categories.forEach(function(c){
-          var items = byCat[c.key] || [];
-          var fileList = items.map(fileItem).join("");
-          html += '<details class="archive-details" open>' +
-            '<summary class="archive-summary">' +
-              '<span><span class="cat-label cat-' + esc(c.key) + '">' + esc(c.label) + '</span>' +
-              '<span style="font-size:13px; color:var(--muted); margin-left:8px;">' + esc(c.desc) + '</span></span>' +
-              '<span style="display:flex; gap:6px; align-items:center;">' +
-                '<span class="badge badge-light">' + items.length + ' 份</span>' +
-                (hasFolder?'<a class="btn btn-sm btn-outline feishu-btn" href="' + esc(folderUrl) + '" target="_blank" rel="noopener">📤 去飞书上传</a>':'') +
-              '</span>' +
-            '</summary>' +
-            '<div class="archive-body">' +
-              inlineAddForm(c.key) +
-              (items.length ? '<div class="file-list" style="margin-top:6px;">' + fileList + '</div>' : '') +
-            '</div>' +
-          '</details>';
-        });
-
-        return html;
       }
 
       function renderProgress(){
@@ -166,20 +127,19 @@
         var current = history.length ? history[0].content : (p.monthlyProgress || "");
         var histHtml = history.map(function(it){
           return '<div class="progress-item">' +
-            '<div class="progress-head"><span class="progress-date">' + esc(it.date) + '</span>' +
+            '<div class="progress-head"><span class="progress-date">' + esc(formatDate(it.date)) + '</span>' +
             '<span class="progress-reporter">' + esc(it.reporter || "—") + '</span></div>' +
             '<div class="progress-body">' + esc(it.content) + '</div>' +
           '</div>';
         }).join("");
         return '<div style="font-size:13.5px; margin-bottom:10px;"><b>本月进展</b></div>' +
-          '<textarea id="progressInput" rows="4" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; resize:vertical;">' + esc(current) + '</textarea>' +
+          '<textarea id="progressInput" rows="3" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; resize:vertical;">' + esc(current) + '</textarea>' +
           '<div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
             '<input type="text" id="progressReporter" placeholder="填写人姓名" style="width:140px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">' +
             '<button class="btn btn-primary btn-sm" onclick="saveProjectProgress()">保存本月进展</button>' +
           '</div>' +
-          '<div style="margin-top:14px;">' +
-            '<div style="font-size:13px; color:var(--muted); margin-bottom:6px;">历史进展记录</div>' +
-            (histHtml || '<div class="placeholder">暂无历史进展记录</div>') +
+          '<div style="margin-top:12px;">' +
+            (histHtml || '<div class="placeholder" style="font-size:13px;">暂无历史进展记录</div>') +
           '</div>';
       }
 
@@ -205,7 +165,7 @@
               '<dt>项目来源</dt><dd>' + esc(p.source) + '</dd>' +
               '<dt>项目编号</dt><dd>' + esc(p.code) + '</dd>' +
               '<dt>财务编号</dt><dd>' + esc(p.fiscalCode || "—") + '</dd>' +
-              '<dt>参与成员</dt><dd>' + esc(p.members.join("、")) + '</dd>' +
+              '<dt>参与成员</dt><dd>' + esc(p.members.join("。")) + '</dd>' +
               '<dt>经费</dt><dd>' + esc(p.budget) + '</dd>' +
               '<dt>项目目标</dt><dd>' + esc(p.goal) + '</dd>' +
               '<dt>项目资料夹</dt>' +
@@ -222,7 +182,7 @@
           '</div>' +
         '</div>' +
 
-        '<div class="card" style="margin-top:16px;">' + renderArchive() + '</div>' +
+        '<div class="card" style="margin-top:16px;">' + renderMaterials() + '</div>' +
 
         '<div class="card" style="margin-top:16px;">' +
           '<div class="section-title" style="margin-top:0;">关联信息</div>' +
@@ -230,7 +190,7 @@
             '<dt>关联实验方法</dt><dd>' + nameOf("relatedMethods","methods","name") + ' <a class="btn btn-sm btn-outline" href="methods.html">去方法库</a></dd>' +
             '<dt>关联样品</dt><dd>' + nameOf("relatedSamples","samples","name") + ' <a class="btn btn-sm btn-outline" href="samples.html">去样品库</a></dd>' +
             '<dt>关联数据</dt><dd>' + nameOf("relatedDatasets","datasets","name") + ' <a class="btn btn-sm btn-outline" href="datasets.html">去数据</a></dd>' +
-            '<dt>关联报账</dt><dd>' + (p.relatedExpenses||[]).map(function(e){ return esc(e); }).join("、") || "—" + ' <a class="btn btn-sm btn-outline" href="expenses.html">去报账</a></dd>' +
+            '<dt>关联报账</dt><dd>' + (p.relatedExpenses||[]).map(function(e){ return esc(e); }).join("。") || "—" + ' <a class="btn btn-sm btn-outline" href="expenses.html">去报账</a></dd>' +
             '<dt>关联成果</dt><dd>' + nameOf("relatedAchievements","achievements","title") + ' <a class="btn btn-sm btn-outline" href="achievements.html">去成果</a></dd>' +
           '</dl>' +
         '</div>' +
@@ -259,34 +219,32 @@
       document.body.appendChild(exportWrap);
     }
 
-    function submitInlineMat(ckey){
-      var name = document.getElementById("mat-name-" + ckey).value.trim();
-      var url = document.getElementById("mat-url-" + ckey).value.trim();
-      var uploader = document.getElementById("mat-uploader-" + ckey).value.trim();
-      var note = document.getElementById("mat-note-" + ckey).value.trim();
-      var date = document.getElementById("mat-date-" + ckey).value.trim() || new Date().toISOString().slice(0,7);
+    function submitMat(){
+      var name = document.getElementById("mat-name").value.trim();
+      var url = document.getElementById("mat-url").value.trim();
+      var uploader = document.getElementById("mat-uploader").value.trim();
+      var note = document.getElementById("mat-note").value.trim();
 
       if(!url){ alert("请粘贴飞书链接"); return; }
       if(!name){ name = "未命名文件"; }
 
-      var item = { name: name, category: ckey, url: url, uploader: uploader || "—", note: note, date: date };
+      var item = { name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() };
       var arr = [];
       try { var raw = localStorage.getItem("proj-materials-" + p.id); if(raw) arr = JSON.parse(raw); } catch(e){}
       arr.push(item);
       localStorage.setItem("proj-materials-" + p.id, JSON.stringify(arr));
       location.reload();
     }
-    window.submitInlineMat = submitInlineMat;
+    window.submitMat = submitMat;
 
     function saveProjectProgress(){
       var content = document.getElementById("progressInput").value.trim();
       var reporter = document.getElementById("progressReporter").value.trim();
       if(!content){ alert("请填写本月进展"); return; }
-      var date = new Date().toISOString().slice(0,7);
+      var date = nowISO();
       var history = [];
       try { var raw = localStorage.getItem("proj-progress-" + p.id); if(raw) history = JSON.parse(raw); } catch(e){}
-      // 如果本月已有记录，替换；否则插入最前
-      var idx = history.findIndex(function(it){ return it.date === date; });
+      var idx = history.findIndex(function(it){ return it.date && it.date.slice(0,7) === date.slice(0,7); });
       if(idx >= 0){ history[idx] = { date: date, content: content, reporter: reporter || "—" }; }
       else { history.unshift({ date: date, content: content, reporter: reporter || "—" }); }
       localStorage.setItem("proj-progress-" + p.id, JSON.stringify(history));

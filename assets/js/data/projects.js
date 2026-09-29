@@ -4,10 +4,8 @@
  * 现已支持多项目；新增项目请按 P1/P2 格式在数组中追加对象。
  *
  * 项目资料（materials）说明：
- * - 每项必须包含 category 字段，取值来自 config.js 的 PROJECT_ARCHIVE_CATEGORIES：
- *   proposal(申报立项) / annual(年度报告) / midterm(中期考核) / final(结题验收)
- *   / report(技术/进展报告) / finance(经费财务) / experiment(实验资料)
- * - 若缺少 category 或 category 无法识别，页面会自动归到「实验资料」。
+ * - 新版详情页使用单一资料表，字段为：{ name, url, uploader, note, date }。
+ * - category / type / pinned 为旧版保留字段，现可省略。
  * - 真实项目资料链接建议维护在 project-materials.js 的 projectMaterialOverrides 中，
  *   方便管理员统一更新，而不用每次重写 projects.js。
  */

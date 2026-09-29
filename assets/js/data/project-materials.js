@@ -4,14 +4,13 @@
  * 1. 本文件在 projects.js 之后加载，会把 projectMaterialOverrides 中的资料
  *    合并到对应项目的 materials 数组里。
  * 2. 每个项目 ID（如 P1）对应 projects.js 中的 id。
- * 3. 每项资料结构：{ name, category, type, date, uploader, url, pinned, note }，
- *    其中 category 必须对应 config.js 的 PROJECT_ARCHIVE_CATEGORIES 中的 key。
- *    pinned: true 会显示在项目详情页顶部的「必读/常用资料」区。
+ * 3. 每项资料结构：{ name, url, uploader, note, date }。
+ *    category / type / pinned 字段为旧版保留，新版详情页已统一为单列表，
+ *    不再按分类展示，也不再渲染「必读」区，因此这些字段可留空或删除。
  * 4. 建议把真实飞书链接维护在这里，而不是直接改 projects.js；
  *    这样以后更新资料时，只需修改本文件，降低出错概率。
- * 5. 页面上的「＋ 添加资料」弹窗会把临时资料存入浏览器 localStorage，
- *    组员可导出 JSON，管理员直接把弹窗里的 JSON 贴到下面的 projectMaterialOverrides
- *    中即可全组可见（注意去掉外层大括号时保持格式）。
+ * 5. 页面上的添加资料表单会把临时资料存入浏览器 localStorage，
+ *    组员可导出 JSON，管理员把 JSON 贴到下面的 projectMaterialOverrides 对应项目下即可全组可见。
  */
 window.DATA = window.DATA || {};
 

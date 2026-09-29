@@ -81,7 +81,7 @@
 
 | 模块 | 数据名 | 关键字段 |
 |------|--------|----------|
-| 项目 | `projects` | id, name, **shortName**, leader, members, source, code, **fiscalCode**, start, end, budget, status, stage, progress, **pinned**, goal, okr, monthlyProgress, nextPlan, risks, **setup**, **design**, projectFolderUrl, materials[{name,category,type,date,uploader,url,**pinned**,note}], relatedMethods/Samples/Datasets/Expenses/Achievements |
+| 项目 | `projects` | id, name, **shortName**, leader, members, source, code, **fiscalCode**, start, end, budget, status, stage, progress, **pinned**, goal, okr, monthlyProgress, nextPlan, risks, **setup**, **design**, projectFolderUrl, materials[{name,url,uploader,note,date}], relatedMethods/Samples/Datasets/Expenses/Achievements |
 | 实验方法 | `methods` | id, name, category, applicableExperiments, applicableProjects, author, version, updated, purpose, materials, instruments, steps, keyParams, notes, commonErrors, failureCases, tips, references, attachments, videoUrl, versionHistory |
 | 样品 | `samples` | id, code, name, type, source, project, owner, prepDate, storage, building, room, fridge, layer, box, location, total, remain, unit, status, lastUser, lastUse, remark, qr |
 | 数据 | `datasets` | id, name, project, experiment, date, material, treatment, replicate, variables, operator, instrument, raw_data_url, clean_data_url, analysis_url, figure_url, note, version, updated, storage_url, api_endpoint, external_id |
@@ -134,7 +134,7 @@
 
 ## 六、项目资料上传与批量入库
 
-项目详情页现在按「申报立项 → 年度报告 → 中期考核 → 结题验收 → 技术/进展报告 → 经费财务 → 实验资料」分类展示资料，并支持「必读/常用资料」置顶、分类折叠、最新资料倒序，方便接手项目的学生快速找到关键信息。
+项目详情页使用单一资料表，按「名称 / 上传人 / 更新时间 / 备注」展示所有资料，结构简单、类似飞书云盘文件列表。更新时间随保存自动填充，方便接手项目的学生按时间倒序快速找到历史资料。
 
 ### 添加项目的两种方式
 
@@ -154,18 +154,18 @@
 
 #### 方式 1：飞书项目文件夹（最常用，门槛低）
 1. 在飞书云盘为每个项目建一个子文件夹，复制分享链接填到项目的 `projectFolderUrl`（Excel 或弹窗均可）。
-2. 若暂时没为每个项目单独建文件夹，系统会 fallback 到 `config.js` 的全局 `PROJECT_MATERIALS_FOLDER`，详情页会提示「请按“项目名”建子文件夹」。
-3. 组员点「📤 上传到…飞书文件夹」直接拖文件/文件夹进去。
-4. 上传后把文件信息通过「＋ 添加资料」登记。
+2. 若暂时没为每个项目单独建文件夹，系统会 fallback 到 `config.js` 的全局 `PROJECT_MATERIALS_FOLDER`。
+3. 组员点「📤 上传到飞书资料夹」直接拖文件/文件夹进去。
+4. 上传后在详情页资料表顶部填写文件名、上传人、备注、飞书链接，点保存登记。
 
-#### 方式 2：网页弹窗临时登记（个人先记、再导出）
-1. 项目详情页点「＋ 添加资料」填写名称、分类、类型、日期、上传人、飞书链接、备注。
-2. 可勾选「标记为必读/常用资料」，该条会显示在详情页顶部必读区。
+#### 方式 2：网页表单临时登记（个人先记、再导出）
+1. 项目详情页资料表顶部直接填写名称、上传人、备注、飞书链接。
+2. 保存时自动填充当前时间作为「更新时间」。
 3. 信息先存在当前浏览器（换设备或清缓存会丢失）。
 4. 管理员点「导出我添加的资料（JSON）」，把 JSON 贴入 `assets/js/data/project-materials.js` 的 `projectMaterialOverrides` 中，全组即可见。
 
 #### 方式 3：Excel 模板批量登记（已有大量资料时）
-与「添加项目」的 Excel 方式共用同一张表：在「项目资料」sheet 一行一条资料，运行 `python3 build_projects.py` 即可合并到 `projects.js`。
+与「添加项目」的 Excel 方式共用同一张表：在「项目资料」sheet 一行一条资料（类别列可留空），运行 `python3 build_projects.py` 即可合并到 `projects.js`。
 
 > 提示：也可以直接复制 `projects.js` 中已有项目对象，改 `id` 和字段，适合会改代码的管理员。
 

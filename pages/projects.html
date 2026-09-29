@@ -52,7 +52,14 @@
     );
 
     var projects = window.DATA.projects || [];
-    var categories = window.PROJECT_ARCHIVE_CATEGORIES || [];
+
+    function formatDate(d){
+      if(!d) return "";
+      if(/^\d{4}-\d{2}$/.test(d)) return d;
+      var date = new Date(d);
+      if(isNaN(date.getTime())) return d;
+      return date.toLocaleString('zh-CN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+    }
 
     // 合并本地弹窗添加的项目
     function localProjectsKey(){ return "proj-projects"; }
@@ -108,7 +115,7 @@
           <span style="font-weight:600; white-space:nowrap;">最近更新资料：</span>
           ${top.map(function(it){
             return `<a class="recent-chip ${it.pinned?'pinned':''}" href="project-detail.html?id=${esc(it.pid)}">
-              ${esc(it.name)} <span class="sep">·</span> ${esc(it.project)} <span class="sep">·</span> ${esc(it.date)}
+              ${esc(it.name)} <span class="sep">·</span> ${esc(it.project)} <span class="sep">·</span> ${esc(formatDate(it.date))}
             </a>`;
           }).join("")}
         </div>`;
@@ -143,7 +150,7 @@
       var count = materialCount(p);
       var pinnedBadge = p.pinned ? '<span class="badge badge-danger">必读</span>' : "";
       var fiscalBadge = p.fiscalCode ? '<span style="display:inline-block;">财务编号：<b>' + esc(p.fiscalCode) + '</b></span>' : "";
-      var latestBadge = latest ? '<span class="badge badge-info" style="margin-right:6px;">最新资料 ' + esc(latest) + '</span>' : "";
+      var latestBadge = latest ? '<span class="badge badge-info" style="margin-right:6px;">最新资料 ' + esc(formatDate(latest)) + '</span>' : "";
       var countBadge = count ? '<span class="badge badge-light">资料 ' + count + ' 份</span>' : '<span class="badge badge-light">暂无资料</span>';
       return '<div class="card ' + (p.pinned?'pinned-card':'') + '">' +
         '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">' +

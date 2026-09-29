@@ -479,6 +479,47 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
   .file-col-date, .file-col-uploader, .file-col-action { width: auto; flex: 1; text-align: left; }
 }
 
+/* ===================== 项目资料表（精简单列表） ===================== */
+.table-wrap { overflow-x: auto; }
+.material-table {
+  width: 100%;
+  min-width: 580px;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.material-table th,
+.material-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+.material-table thead th {
+  background: #f8fafc;
+  color: #5a6a7a;
+  font-weight: 600;
+  font-size: 13px;
+}
+.material-table tbody tr:hover { background: #fafbfc; }
+.material-table .add-row td { background: #f8fafc; }
+.material-table input[type="text"] {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.material-table input[readonly] { background: #eef2f7; color: var(--muted); }
+.mat-icon { margin-right: 8px; font-size: 18px; }
+.mat-name { color: var(--primary-dark); font-weight: 500; }
+.mat-name:hover { text-decoration: underline; }
+.mat-time { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.mat-note { color: var(--muted); font-size: 13px; }
+
 /* 最近更新资料条 */
 .recent-update-strip {
   display: flex;

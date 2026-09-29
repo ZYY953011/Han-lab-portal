@@ -91,30 +91,3 @@ window.EXPENSE_VIEW_URL  = "https://my.feishu.cn/wiki/PZoSwAUDqi7mVDk3V9ocaiTGnz
  * 填好后这里的按钮才会工作；空着则按钮点了没反应。
  * ========================================================= */
 window.PROJECT_MATERIALS_FOLDER = "https://my.feishu.cn/drive/folder/BmabfxTa8lur81dlQa8cwNkPnmf";   // 飞书云盘「项目实验资料」文件夹（组员共享·可编辑），点项目页「上传新资料」按钮跳到这里
-
-/* =========================================================
- * 项目资料分类（项目详情页「项目档案」区块使用）
- * 用法：在 project-detail.html 中按此顺序渲染分类资料库。
- * 每个分类对应 materials 数组里 item 的 category 字段。
- * ========================================================= */
-window.PROJECT_ARCHIVE_CATEGORIES = [
-  { key: "proposal",   label: "申报立项",     desc: "申请书、任务书、立项汇报 PPT" },
-  { key: "annual",     label: "年度报告",     desc: "年度进展报告、年度总结" },
-  { key: "midterm",    label: "中期考核",     desc: "中期检查报告、中期汇报材料" },
-  { key: "final",      label: "结题验收",     desc: "结题报告、验收材料、结题汇报" },
-  { key: "report",     label: "技术/进展报告", desc: "阶段性科技报告、项目工作简报" },
-  { key: "finance",    label: "经费财务",     desc: "经费本、决算表、财务说明" },
-  { key: "experiment", label: "实验资料",     desc: "实验方案、原始记录、PPT、讨论记录" },
-];
-window.PROJECT_ARCHIVE_CATEGORY_MAP = {
-  "申报立项": "proposal", "立项": "proposal", "申请书": "proposal", "任务书": "proposal",
-  "年度报告": "annual", "年度": "annual",
-  "中期考核": "midterm", "中期": "midterm",
-  "结题验收": "final", "结题": "final", "验收": "final",
-  "技术/进展报告": "report", "进展报告": "report", "技术报告": "report", "报告": "report",
-  "经费财务": "finance", "财务": "finance", "经费": "finance",
-  "实验资料": "experiment", "实验": "experiment", "PPT": "experiment", "原始记录": "experiment"
-};
-
-/* 项目详情页「必读/常用资料」区提示语 */
-window.PROJECT_MUST_READ_HINT = "接手项目请先阅读「必读/常用资料」，可快速了解项目背景与关键节点。";
