@@ -428,6 +428,53 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
   margin-top: 16px;
 }
 
+/* 文件行列表 */
+.file-list { display: flex; flex-direction: column; gap: 6px; }
+.file-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.file-row:hover { background: #fafbfc; }
+.file-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.file-name {
+  color: var(--primary-dark);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 420px;
+}
+.file-name:hover { text-decoration: underline; }
+.file-name.disabled { color: #999; cursor: default; }
+.file-cat {
+  font-size: 12px;
+  color: var(--muted);
+  background: #f0f4f8;
+  padding: 1px 8px;
+  border-radius: 12px;
+}
+.file-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.file-no-link { color: #bbb; font-size: 13px; }
+
 /* 最近更新资料条 */
 .recent-update-strip {
   display: flex;

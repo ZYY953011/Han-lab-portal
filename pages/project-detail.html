@@ -71,25 +71,32 @@
         return mats.length ? mats.map(function(m){ return m.date; }).sort().pop() : "";
       }
 
+      function fileItem(m, showCategory){
+        var nameHtml = m.url
+          ? '<a class="file-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" title="' + esc(m.url) + '">' + esc(m.name || "未命名文件") + '</a>'
+          : '<span class="file-name disabled" title="未填写链接">' + esc(m.name || "未命名文件") + '</span>';
+        return '<div class="file-row">' +
+          '<div class="file-main">' + nameHtml +
+            (showCategory ? '<span class="file-cat">' + esc(catMap[normalizeCategory(m.category)] || m.category) + '</span>' : '') +
+            (m.note ? '<span class="file-note">' + esc(m.note) + '</span>' : '') +
+          '</div>' +
+          '<div class="file-meta">' +
+            '<span>' + esc(m.date || "—") + '</span>' +
+            '<span>' + esc(m.uploader || "—") + '</span>' +
+            (m.url ? '<a class="btn btn-xs btn-outline feishu-btn" href="' + esc(m.url) + '" target="_blank" rel="noopener">打开 ↗</a>' : '<span class="file-no-link">未上传</span>') +
+          '</div>' +
+        '</div>';
+      }
+
       function renderMustRead(){
         var list = allMaterials().filter(function(m){ return m.pinned; });
         if(!list.length) return "";
-        var rows = list.map(function(m){
-          return '<tr>' +
-            '<td><b>' + esc(m.name) + '</b></td>' +
-            '<td>' + esc(catMap[normalizeCategory(m.category)] || m.category) + '</td>' +
-            '<td>' + esc(m.type || "—") + '</td>' +
-            '<td>' + esc(m.date || "—") + '</td>' +
-            '<td>' + (m.url ? '<a class="btn btn-sm btn-outline feishu-btn" href="' + esc(m.url) + '" target="_blank" rel="noopener">📥 打开</a>' : '<span style="color:#999;">未上传</span>') + '</td>' +
-          '</tr>' +
-          (m.note ? '<tr><td colspan="5" style="background:#fff8f0; font-size:12.5px; color:var(--muted);">备注：' + esc(m.note) + '</td></tr>' : "");
-        }).join("");
         return '<div class="must-read-box">' +
           '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">' +
             '<span style="font-weight:600;">📌 必读 / 常用资料</span>' +
             '<span style="font-size:12.5px; color:var(--muted);">' + esc(mustReadHint) + '</span>' +
           '</div>' +
-          simpleTable(["资料名称", "分类", "类型", "日期", "查看"], rows) +
+          '<div class="file-list">' + list.map(function(m){ return fileItem(m, true); }).join("") + '</div>' +
         '</div>';
       }
 
@@ -132,16 +139,7 @@
 
         categories.forEach(function(c){
           var items = byCat[c.key] || [];
-          var tableRows = items.map(function(m){
-            return '<tr>' +
-              '<td>' + esc(m.name) + '</td>' +
-              '<td>' + esc(m.type || "—") + '</td>' +
-              '<td>' + esc(m.date || "—") + '</td>' +
-              '<td>' + esc(m.uploader || "—") + '</td>' +
-              '<td>' + (m.url ? '<a class="btn btn-sm btn-outline feishu-btn" href="' + esc(m.url) + '" target="_blank" rel="noopener">📥 打开</a>' : '<span style="color:#999;">未上传</span>') + '</td>' +
-            '</tr>' +
-            (m.note?'<tr><td colspan="5" style="background:#fafafa; font-size:12.5px; color:var(--muted);">备注：' + esc(m.note) + '</td></tr>' : "");
-          }).join("");
+          var fileList = items.map(function(m){ return fileItem(m, false); }).join("");
 
           var hasItems = items.length > 0;
           html += '<details class="archive-details" data-cat="' + esc(c.key) + '" ' + (hasItems?'open':'') + '>' +
@@ -155,7 +153,7 @@
               '</span>' +
             '</summary>' +
             '<div class="archive-body">' +
-              (items.length ? simpleTable(["资料名称", "类型", "日期", "上传人", "查看"], tableRows) :
+              (items.length ? '<div class="file-list">' + fileList + '</div>' :
                 '<div class="placeholder" style="margin-top:6px;">暂无「' + esc(c.label) + '」资料。点击右侧「添加」或去飞书文件夹上传。</div>') +
             '</div>' +
           '</details>';
@@ -235,28 +233,25 @@
       var modal = document.createElement("div");
       modal.id = "projMatModal";
       modal.className = "modal";
-      modal.innerHTML = '<div class="modal-box" style="max-width:560px;">' +
+      modal.innerHTML = '<div class="modal-box" style="max-width:520px;">' +
         '<div class="modal-head"><b class="modal-title">添加项目资料</b><button class="btn btn-sm btn-outline" onclick="closeProjMatModal()">关闭</button></div>' +
         '<div class="modal-body">' +
-          '<label>资料名称 <span style="color:red">*</span></label>' +
-          '<input type="text" id="pmName" placeholder="如：2025 年度进展报告">' +
           '<label>分类 <span style="color:red">*</span></label>' +
-          '<select id="pmCategory" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">' +
+          '<select id="pmCategory" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px;">' +
             categories.map(function(c){ return '<option value="' + esc(c.key) + '">' + esc(c.label) + ' — ' + esc(c.desc) + '</option>'; }).join("") +
           '</select>' +
-          '<label>类型</label>' +
-          '<input type="text" id="pmType" placeholder="如：PDF / PPT / DOCX / 文件夹">' +
-          '<label>日期</label>' +
+          '<label>文件名称 <span style="color:red">*</span></label>' +
+          '<input type="text" id="pmName" placeholder="如：2025 年度进展报告.pdf">' +
+          '<label>飞书链接 <span style="color:red">*</span></label>' +
+          '<input type="text" id="pmUrl" placeholder="https://my.feishu.cn/file/... 或 https://my.feishu.cn/drive/folder/...">' +
+          '<label>日期（修改时间）</label>' +
           '<input type="text" id="pmDate" placeholder="YYYY-MM">' +
           '<label>上传人</label>' +
           '<input type="text" id="pmUploader" placeholder="姓名">' +
-          '<label>资料链接（飞书云盘） <span style="color:red">*</span></label>' +
-          '<input type="text" id="pmUrl" placeholder="https://my.feishu.cn/file/... 或 https://my.feishu.cn/drive/folder/...">' +
-          '<div style="font-size:12.5px; color:var(--muted); margin:-4px 0 8px;">提示：上传文件夹时，直接把文件夹的飞书分享链接贴到这里即可。</div>' +
           '<label><input type="checkbox" id="pmPinned" style="width:auto; margin-right:6px;">标记为必读/常用资料</label>' +
-          '<label>备注</label>' +
-          '<input type="text" id="pmNote" placeholder="可选">' +
-          '<div style="margin-top:12px;">' +
+          '<label>备注（可选）</label>' +
+          '<input type="text" id="pmNote" placeholder="简短说明">' +
+          '<div style="margin-top:14px;">' +
             '<button class="btn btn-primary" onclick="submitProjMat()">保存</button>' +
             '<button class="btn btn-outline" onclick="closeProjMatModal()" style="margin-left:8px;">取消</button>' +
           '</div>' +
@@ -306,9 +301,8 @@
       var modal = document.getElementById("projMatModal");
       var pid = modal.dataset.id;
       var item = {
-        name: modal.querySelector("#pmName").value.trim() || "未命名资料",
+        name: modal.querySelector("#pmName").value.trim() || "未命名文件",
         category: modal.querySelector("#pmCategory").value.trim() || "experiment",
-        type: modal.querySelector("#pmType").value.trim() || "—",
         date: modal.querySelector("#pmDate").value.trim() || "",
         uploader: modal.querySelector("#pmUploader").value.trim() || "—",
         url: modal.querySelector("#pmUrl").value.trim(),
