@@ -17,7 +17,8 @@
   <script src="../assets/js/data/samples.js"></script>
   <script src="../assets/js/data/datasets.js"></script>
   <script src="../assets/js/data/expenses.js"></script>
-  <script src="../assets/js/data/achievements.js"></script>
+  <!-- window.DATA.achievements 定义在 members.js 中，此处加载以便「关联成果」正常显示 -->
+  <script src="../assets/js/data/members.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
@@ -26,7 +27,6 @@
     var p = (window.DATA.projects||[]).find(function(x){ return x.id===id; });
     var categories = window.PROJECT_ARCHIVE_CATEGORIES || [];
     var folderUrl = (p && p.projectFolderUrl) || window.PROJECT_MATERIALS_FOLDER || "";
-    var mustReadHint = window.PROJECT_MUST_READ_HINT || "接手项目请先阅读「必读/常用资料」，可快速了解项目背景与关键节点。";
 
     if(!p){ document.getElementById("main").innerHTML = emptyTip("未找到该项目"); }
     else {
@@ -34,16 +34,34 @@
         return (window.DATA[arr]||[]).filter(function(x){ return (p[key]||[]).indexOf(x.id)!==-1; }).map(function(x){ return x[field]; }).join("、") || "—";
       };
 
-      // 本地资料读写
-      function lsKey(pid){ return "proj-materials-" + pid; }
-      function getLocalMaterials(pid){
-        try { var raw = localStorage.getItem(lsKey(pid)); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+      // localStorage keys
+      function matKey(){ return "proj-materials-" + p.id; }
+      function progressKey(){ return "proj-progress-" + p.id; }
+
+      function getLocalMaterials(){
+        try { var raw = localStorage.getItem(matKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
       }
-      function saveLocalMaterials(pid, items){
-        localStorage.setItem(lsKey(pid), JSON.stringify(items));
+      function saveLocalMaterials(items){
+        localStorage.setItem(matKey(), JSON.stringify(items));
       }
 
-      // 分类中文映射
+      function getLocalProgress(){
+        try { var raw = localStorage.getItem(progressKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+      }
+      function saveLocalProgress(items){
+        localStorage.setItem(progressKey(), JSON.stringify(items));
+      }
+
+      function allMaterials(){
+        var list = (p.materials || []).slice();
+        var locals = getLocalMaterials();
+        locals.forEach(function(item){
+          var exists = list.some(function(m){ return m.name===item.name && m.category===item.category && m.date===item.date && m.uploader===item.uploader; });
+          if(!exists) list.push(item);
+        });
+        return list.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+      }
+
       var catMap = {};
       categories.forEach(function(c){ catMap[c.key] = c.label; });
       function normalizeCategory(c){
@@ -54,31 +72,17 @@
         return mapped || "experiment";
       }
 
-      // 合并正式 materials + 本地 materials
-      function allMaterials(){
-        var list = (p.materials || []).slice();
-        var locals = getLocalMaterials(p.id);
-        locals.forEach(function(item){
-          var exists = list.some(function(m){ return m.name===item.name && m.category===item.category && m.date===item.date && m.uploader===item.uploader; });
-          if(!exists) list.push(item);
-        });
-        // 日期倒序
-        return list.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+      function thisMonth(){
+        return new Date().toISOString().slice(0,7);
       }
 
-      function latestMaterialDate(){
-        var mats = allMaterials().filter(function(m){ return m.date; });
-        return mats.length ? mats.map(function(m){ return m.date; }).sort().pop() : "";
-      }
-
-      function fileItem(m, showCategory){
+      // 已填写的资料行
+      function fileItem(m){
         var nameHtml = m.url
           ? '<a class="file-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" title="' + esc(m.url) + '">' + esc(m.name || "未命名文件") + '</a>'
-          : '<span class="file-name disabled" title="未填写链接">' + esc(m.name || "未命名文件") + '</span>';
+          : '<span class="file-name disabled">' + esc(m.name || "未命名文件") + '</span>';
         return '<div class="file-row">' +
-          '<div class="file-col file-col-name">' + nameHtml +
-            (showCategory ? '<span class="file-cat">' + esc(catMap[normalizeCategory(m.category)] || m.category) + '</span>' : '') +
-          '</div>' +
+          '<div class="file-col file-col-name">' + nameHtml + '</div>' +
           '<div class="file-col file-col-note" title="' + esc(m.note || "") + '">' + esc(m.note || "—") + '</div>' +
           '<div class="file-col file-col-date">' + esc(m.date || "—") + '</div>' +
           '<div class="file-col file-col-uploader">' + esc(m.uploader || "—") + '</div>' +
@@ -88,25 +92,17 @@
         '</div>';
       }
 
-      function emptyFileSlot(ckey, cname){
-        return '<div class="file-row file-row-empty" onclick="openProjMatModal(\'' + esc(p.id) + '\',\'' + esc(ckey) + '\')">' +
-          '<div class="file-col file-col-name"><span class="file-placeholder">＋ 点击添加资料</span></div>' +
-          '<div class="file-col file-col-note">粘贴飞书链接、填写文件名/日期/上传人/备注</div>' +
-          '<div class="file-col file-col-date">—</div>' +
-          '<div class="file-col file-col-uploader">—</div>' +
-          '<div class="file-col file-col-action"><span class="file-no-link">待添加</span></div>' +
-        '</div>';
-      }
-
-      function renderMustRead(){
-        var list = allMaterials().filter(function(m){ return m.pinned; });
-        if(!list.length) return "";
-        return '<div class="must-read-box">' +
-          '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">' +
-            '<span style="font-weight:600;">📌 必读 / 常用资料</span>' +
-            '<span style="font-size:12.5px; color:var(--muted);">' + esc(mustReadHint) + '</span>' +
-          '</div>' +
-          '<div class="file-list">' + list.map(function(m){ return fileItem(m, true); }).join("") + '</div>' +
+      // 内联添加表单
+      function inlineAddForm(ckey){
+        return '<div class="file-row file-row-form">' +
+          '<div class="file-col file-col-name"><input type="text" id="mat-name-' + esc(ckey) + '" placeholder="文件名称"></div>' +
+          '<div class="file-col file-col-note"><input type="text" id="mat-note-' + esc(ckey) + '" placeholder="备注"></div>' +
+          '<div class="file-col file-col-date"><input type="text" id="mat-date-' + esc(ckey) + '" value="' + esc(thisMonth()) + '" readonly title="自动填充本月"></div>' +
+          '<div class="file-col file-col-uploader"><input type="text" id="mat-uploader-' + esc(ckey) + '" placeholder="上传人"></div>' +
+          '<div class="file-col file-col-action"><button class="btn btn-xs btn-primary" onclick="submitInlineMat(\'' + esc(ckey) + '\')">保存</button></div>' +
+        '</div>' +
+        '<div class="file-row file-row-form" style="border-top:none; padding-top:0;">' +
+          '<div style="flex:1; min-width:200px;"><input type="text" id="mat-url-' + esc(ckey) + '" placeholder="粘贴飞书文件/文件夹链接" style="width:100%;"></div>' +
         '</div>';
       }
 
@@ -121,8 +117,9 @@
         });
 
         var hasFolder = folderUrl && folderUrl.indexOf("http") === 0;
-        var isProjectFolder = !!(p.projectFolderUrl && p.projectFolderUrl.indexOf("http")===0);
-        var uploadBtnText = isProjectFolder ? "📤 上传到本项目飞书文件夹 ↗" : "📤 上传到总资料夹（按“项目名”建子文件夹）↗";
+        var uploadBtnText = (p.projectFolderUrl && p.projectFolderUrl.indexOf("http")===0)
+          ? "📤 上传到本项目飞书文件夹 ↗"
+          : "📤 上传到总资料夹（按“项目名”建子文件夹）↗";
         var uploadBtn = hasFolder
           ? '<a class="btn btn-primary" href="' + esc(folderUrl) + '" target="_blank" rel="noopener">' + uploadBtnText + '</a>'
           : '<span class="btn btn-primary disabled" style="opacity:.6; cursor:not-allowed;">📤 上传入口未配置</span>';
@@ -130,41 +127,33 @@
         var html = '<div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
           '<div>' +
             '<div class="section-title" style="margin:0;">项目档案与资料库</div>' +
-            '<div style="font-size:13px; color:var(--muted); margin-top:4px;">按项目阶段分类归档，方便接手成员快速找到历史资料。</div>' +
+            '<div style="font-size:13px; color:var(--muted); margin-top:4px;">在每个分类下粘贴飞书链接、填写上传人和备注，日期自动填充本月。</div>' +
           '</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap;">' + uploadBtn +
-            '<button class="btn btn-outline" onclick="openProjMatModal(\'' + esc(p.id) + '\')">＋ 添加资料</button>' +
-            '<button class="btn btn-outline" onclick="exportProjLocalMaterials(\'' + esc(p.id) + '\')">导出我添加的资料（JSON）</button>' +
+            '<button class="btn btn-outline" onclick="exportProjLocalMaterials()">导出我添加的资料（JSON）</button>' +
           '</div>' +
         '</div>' +
-        '<div class="help-hint" id="archiveHelp" onclick="this.classList.toggle(\'open\')">' +
+        '<div class="help-hint" onclick="this.classList.toggle(\'open\')">' +
           '<span class="help-icon">?</span>' +
-          '<span class="help-title">上传/登记流程</span>' +
-          '<div class="help-body">① 点上方「上传到…飞书文件夹」把文件放到飞书；② 回到本页点「＋ 添加资料」登记名称、分类、链接；③ 管理员点「导出」把 JSON 贴入 <code>assets/js/data/project-materials.js</code>，全组可见。</div>' +
-        '</div>' +
-        '<div style="margin:10px 0;">' +
-          '<button class="btn btn-xs btn-outline" onclick="expandAllCats(true)">全部展开</button>' +
-          '<button class="btn btn-xs btn-outline" onclick="expandAllCats(false)" style="margin-left:6px;">全部收起</button>' +
+          '<span class="help-title">使用说明</span>' +
+          '<div class="help-body">① 点上方「上传到…飞书文件夹」把文件放到飞书；② 在下方分类里粘贴链接、填上传人/备注，点保存；③ 管理员点「导出」把 JSON 贴入 <code>assets/js/data/project-materials.js</code>，全组可见。所有输入默认只保存在当前浏览器。</div>' +
         '</div>';
 
         categories.forEach(function(c){
           var items = byCat[c.key] || [];
-          var fileList = items.map(function(m){ return fileItem(m, false); }).join("");
-          var slots = emptyFileSlot(c.key, c.label) + emptyFileSlot(c.key, c.label);
-
-          var hasItems = items.length > 0;
-          html += '<details class="archive-details" data-cat="' + esc(c.key) + '" ' + (hasItems?'open':'') + '>' +
+          var fileList = items.map(fileItem).join("");
+          html += '<details class="archive-details" open>' +
             '<summary class="archive-summary">' +
               '<span><span class="cat-label cat-' + esc(c.key) + '">' + esc(c.label) + '</span>' +
               '<span style="font-size:13px; color:var(--muted); margin-left:8px;">' + esc(c.desc) + '</span></span>' +
               '<span style="display:flex; gap:6px; align-items:center;">' +
                 '<span class="badge badge-light">' + items.length + ' 份</span>' +
                 (hasFolder?'<a class="btn btn-sm btn-outline feishu-btn" href="' + esc(folderUrl) + '" target="_blank" rel="noopener">📤 去飞书上传</a>':'') +
-                '<button class="btn btn-sm" onclick="event.stopPropagation(); openProjMatModal(\'' + esc(p.id) + '\',\'' + esc(c.key) + '\')">＋ 添加</button>' +
               '</span>' +
             '</summary>' +
             '<div class="archive-body">' +
-              '<div class="file-list">' + fileList + slots + '</div>' +
+              inlineAddForm(c.key) +
+              (items.length ? '<div class="file-list" style="margin-top:6px;">' + fileList + '</div>' : '') +
             '</div>' +
           '</details>';
         });
@@ -172,7 +161,28 @@
         return html;
       }
 
-      var latestDate = latestMaterialDate();
+      function renderProgress(){
+        var history = getLocalProgress();
+        var current = history.length ? history[0].content : (p.monthlyProgress || "");
+        var histHtml = history.map(function(it){
+          return '<div class="progress-item">' +
+            '<div class="progress-head"><span class="progress-date">' + esc(it.date) + '</span>' +
+            '<span class="progress-reporter">' + esc(it.reporter || "—") + '</span></div>' +
+            '<div class="progress-body">' + esc(it.content) + '</div>' +
+          '</div>';
+        }).join("");
+        return '<div style="font-size:13.5px; margin-bottom:10px;"><b>本月进展</b></div>' +
+          '<textarea id="progressInput" rows="4" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; resize:vertical;">' + esc(current) + '</textarea>' +
+          '<div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
+            '<input type="text" id="progressReporter" placeholder="填写人姓名" style="width:140px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">' +
+            '<button class="btn btn-primary btn-sm" onclick="saveProjectProgress()">保存本月进展</button>' +
+          '</div>' +
+          '<div style="margin-top:14px;">' +
+            '<div style="font-size:13px; color:var(--muted); margin-bottom:6px;">历史进展记录</div>' +
+            (histHtml || '<div class="placeholder">暂无历史进展记录</div>') +
+          '</div>';
+      }
+
       document.getElementById("main").innerHTML =
         '<div class="breadcrumb"><a href="../index.html">首页</a> / <a href="projects.html">项目管理</a> / 项目详情</div>' +
         '<div class="detail-head">' +
@@ -182,7 +192,6 @@
             '<span><b>周期：</b>' + esc(p.start) + ' ~ ' + esc(p.end) + '</span>' +
             '<span><b>当前进度：</b>' + p.progress + '%</span>' +
             '<span><b>阶段：</b>' + esc(p.stage) + '</span>' +
-            (latestDate ? '<span><b>最新资料：</b>' + esc(latestDate) + '</span>' : '') +
             badge(p.status) +
           '</div>' +
           '<div class="progress" style="margin-top:12px;"><span style="width:' + p.progress + '%"></span></div>' +
@@ -207,14 +216,11 @@
             '<div class="section-title" style="margin-top:0;">OKR / 进展 / 风险</div>' +
             '<div style="font-size:13.5px; margin-bottom:10px;"><b>OKR</b></div>' +
             '<ul style="margin-top:0; padding-left:18px; font-size:13.5px;">' + p.okr.map(function(o){ return '<li style="margin-bottom:6px;">' + esc(o) + '</li>'; }).join("") + '</ul>' +
-            '<div style="font-size:13.5px; margin:14px 0 6px;"><b>本月进展</b></div>' +
-            '<p style="font-size:13.5px; color:#44505f; margin:0;">' + esc(p.monthlyProgress) + '</p>' +
+            renderProgress() +
             '<div style="font-size:13.5px; margin:14px 0 6px;"><b>风险与问题</b></div>' +
             '<div class="warn-box" style="font-size:13.5px; margin:0;">' + esc(p.risks) + '</div>' +
           '</div>' +
         '</div>' +
-
-        (renderMustRead() || '') +
 
         '<div class="card" style="margin-top:16px;">' + renderArchive() + '</div>' +
 
@@ -239,37 +245,6 @@
 
         '<p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="projects.html">← 返回项目列表</a></p>';
 
-      // 弹窗：添加项目资料
-      var modal = document.createElement("div");
-      modal.id = "projMatModal";
-      modal.className = "modal";
-      modal.innerHTML = '<div class="modal-box" style="max-width:520px;">' +
-        '<div class="modal-head"><b class="modal-title">添加项目资料</b><button class="btn btn-sm btn-outline" onclick="closeProjMatModal()">关闭</button></div>' +
-        '<div class="modal-body">' +
-          '<label>分类 <span style="color:red">*</span></label>' +
-          '<select id="pmCategory" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; margin-bottom:10px;">' +
-            categories.map(function(c){ return '<option value="' + esc(c.key) + '">' + esc(c.label) + ' — ' + esc(c.desc) + '</option>'; }).join("") +
-          '</select>' +
-          '<label>文件名称 <span style="color:red">*</span></label>' +
-          '<input type="text" id="pmName" placeholder="如：2025 年度进展报告.pdf">' +
-          '<label>飞书链接 <span style="color:red">*</span></label>' +
-          '<input type="text" id="pmUrl" placeholder="https://my.feishu.cn/file/... 或 https://my.feishu.cn/drive/folder/...">' +
-          '<label>日期（修改时间）</label>' +
-          '<input type="text" id="pmDate" placeholder="YYYY-MM">' +
-          '<label>上传人</label>' +
-          '<input type="text" id="pmUploader" placeholder="姓名">' +
-          '<label><input type="checkbox" id="pmPinned" style="width:auto; margin-right:6px;">标记为必读/常用资料</label>' +
-          '<label>备注（可选）</label>' +
-          '<input type="text" id="pmNote" placeholder="简短说明">' +
-          '<div style="margin-top:14px;">' +
-            '<button class="btn btn-primary" onclick="submitProjMat()">保存</button>' +
-            '<button class="btn btn-outline" onclick="closeProjMatModal()" style="margin-left:8px;">取消</button>' +
-          '</div>' +
-          '<p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅在本浏览器可见；换设备或清缓存会丢失。请点页面右上角「导出我添加的资料（JSON）」交给管理员合并到全站。</p>' +
-        '</div>' +
-      '</div>';
-      document.body.appendChild(modal);
-
       // 弹窗：导出 JSON
       var exportWrap = document.createElement("div");
       exportWrap.id = "projExportWrap";
@@ -284,56 +259,43 @@
       document.body.appendChild(exportWrap);
     }
 
-    function openProjMatModal(pid, defaultCategory){
-      var modal = document.getElementById("projMatModal");
-      if(!modal) return;
-      modal.dataset.id = pid;
-      modal.querySelector(".modal-title").textContent = "添加项目资料";
-      modal.querySelector("#pmName").value = "";
-      modal.querySelector("#pmCategory").value = defaultCategory || (window.PROJECT_ARCHIVE_CATEGORIES[0] && window.PROJECT_ARCHIVE_CATEGORIES[0].key) || "experiment";
-      modal.querySelector("#pmType").value = "PDF";
-      modal.querySelector("#pmDate").value = new Date().toISOString().slice(0,7);
-      modal.querySelector("#pmUploader").value = "";
-      modal.querySelector("#pmUrl").value = "";
-      modal.querySelector("#pmPinned").checked = false;
-      modal.querySelector("#pmNote").value = "";
-      modal.classList.add("open");
-    }
-    window.openProjMatModal = openProjMatModal;
+    function submitInlineMat(ckey){
+      var name = document.getElementById("mat-name-" + ckey).value.trim();
+      var url = document.getElementById("mat-url-" + ckey).value.trim();
+      var uploader = document.getElementById("mat-uploader-" + ckey).value.trim();
+      var note = document.getElementById("mat-note-" + ckey).value.trim();
+      var date = document.getElementById("mat-date-" + ckey).value.trim() || new Date().toISOString().slice(0,7);
 
-    function closeProjMatModal(){
-      var modal = document.getElementById("projMatModal");
-      if(modal) modal.classList.remove("open");
-    }
-    window.closeProjMatModal = closeProjMatModal;
+      if(!url){ alert("请粘贴飞书链接"); return; }
+      if(!name){ name = "未命名文件"; }
 
-    function submitProjMat(){
-      var modal = document.getElementById("projMatModal");
-      var pid = modal.dataset.id;
-      var item = {
-        name: modal.querySelector("#pmName").value.trim() || "未命名文件",
-        category: modal.querySelector("#pmCategory").value.trim() || "experiment",
-        date: modal.querySelector("#pmDate").value.trim() || "",
-        uploader: modal.querySelector("#pmUploader").value.trim() || "—",
-        url: modal.querySelector("#pmUrl").value.trim(),
-        pinned: modal.querySelector("#pmPinned").checked,
-        note: modal.querySelector("#pmNote").value.trim()
-      };
-      if(!item.url){
-        alert("请填写资料链接（飞书云盘链接）");
-        return;
-      }
-      var key = "proj-materials-" + pid;
+      var item = { name: name, category: ckey, url: url, uploader: uploader || "—", note: note, date: date };
       var arr = [];
-      try { var raw = localStorage.getItem(key); if(raw) arr = JSON.parse(raw); } catch(e){}
+      try { var raw = localStorage.getItem("proj-materials-" + p.id); if(raw) arr = JSON.parse(raw); } catch(e){}
       arr.push(item);
-      localStorage.setItem(key, JSON.stringify(arr));
-      closeProjMatModal();
+      localStorage.setItem("proj-materials-" + p.id, JSON.stringify(arr));
       location.reload();
     }
-    window.submitProjMat = submitProjMat;
+    window.submitInlineMat = submitInlineMat;
 
-    function exportProjLocalMaterials(pid){
+    function saveProjectProgress(){
+      var content = document.getElementById("progressInput").value.trim();
+      var reporter = document.getElementById("progressReporter").value.trim();
+      if(!content){ alert("请填写本月进展"); return; }
+      var date = new Date().toISOString().slice(0,7);
+      var history = [];
+      try { var raw = localStorage.getItem("proj-progress-" + p.id); if(raw) history = JSON.parse(raw); } catch(e){}
+      // 如果本月已有记录，替换；否则插入最前
+      var idx = history.findIndex(function(it){ return it.date === date; });
+      if(idx >= 0){ history[idx] = { date: date, content: content, reporter: reporter || "—" }; }
+      else { history.unshift({ date: date, content: content, reporter: reporter || "—" }); }
+      localStorage.setItem("proj-progress-" + p.id, JSON.stringify(history));
+      alert("已保存本月进展（仅本机可见，管理员可导出 JSON 合并到全站）");
+      location.reload();
+    }
+    window.saveProjectProgress = saveProjectProgress;
+
+    function exportProjLocalMaterials(){
       var out = {};
       for(var i=0;i<localStorage.length;i++){
         var k = localStorage.key(i);
@@ -358,11 +320,6 @@
       if(wrap) wrap.classList.remove("open");
     }
     window.closeProjExportBox = closeProjExportBox;
-
-    function expandAllCats(expand){
-      document.querySelectorAll(".archive-details").forEach(function(d){ d.open = expand; });
-    }
-    window.expandAllCats = expandAllCats;
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

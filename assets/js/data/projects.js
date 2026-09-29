@@ -41,9 +41,7 @@ window.DATA.projects = [
     setup: "（待补充：实验初始设置——实验室设备、田间/温室场地、关键材料等）",
     design: "（待补充：实验布置细节——小区设计、处理梯度、重复数、测定指标等）",
     projectFolderUrl: "",
-    materials: [
-      { name: "项目申请书 / 立项汇报", category: "proposal", type: "PPT", date: "2026-12", uploader: "张叶叶", url: "", pinned: true, note: "立项汇报材料，待上传后替换链接" },
-    ],
+    materials: [],
     relatedMethods: [],
     relatedSamples: [],
     relatedDatasets: [],
