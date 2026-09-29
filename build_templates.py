@@ -26,13 +26,17 @@ THIN       = Side(style="thin", color="BFBFBF")
 BORDER     = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 
 
-def build(filename, title, instructions, headers, example, validations=None, blank_rows=15):
+def build(filename, title, instructions, headers, example, validations=None, blank_rows=15, extra_sheets=None, sheet_name="填报表"):
     """headers: list of (中文列名, 填写说明/留空)
        example: list of 示例值（与 headers 等长）
-       validations: list of (列索引0基, ["选项1","选项2",...])"""
+       validations: list of (列索引0基, ["选项1","选项2",...])
+       extra_sheets: list of dicts {title, headers, example, validations, blank_rows, instructions}
+                     每个 dict 生成一个额外 sheet。
+       sheet_name: 第一个 sheet 的名称（默认「填报表」）。"""
     wb = Workbook()
     ws = wb.active
-    ws.title = "填报表"
+    ws.title = sheet_name
+    extra_sheets = extra_sheets or []
 
     ncol = len(headers)
     # 标题行
@@ -94,6 +98,61 @@ def build(filename, title, instructions, headers, example, validations=None, bla
         ws.column_dimensions[ws.cell(row=3, column=j).column_letter].width = min(max(maxlen + 4, 12), 40)
 
     ws.freeze_panes = "A4" if example else "A3"
+
+    # 添加额外 sheet（如项目资料 sheet）
+    for sheet in extra_sheets:
+        ws2 = wb.create_sheet(title=sheet.get("title", "附表"))
+        sh = sheet.get("headers", [])
+        ex = sheet.get("example", [])
+        val = sheet.get("validations")
+        br = sheet.get("blank_rows", 15)
+        inst2 = sheet.get("instructions", "")
+        ncol2 = len(sh)
+        ws2.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(ncol2,1))
+        c = ws2.cell(row=1, column=1, value=sheet.get("title", "附表"))
+        c.font = TITLE_FONT; c.fill = TITLE_FILL; c.alignment = CENTER
+        ws2.row_dimensions[1].height = 26
+        if inst2:
+            ws2.merge_cells(start_row=2, start_column=1, end_row=2, end_column=max(ncol2,1))
+            c = ws2.cell(row=2, column=1, value="填写说明：" + inst2)
+            c.font = Font(name="微软雅黑", size=9, color="375623")
+            c.fill = NOTE_FILL; c.alignment = WRAP
+            ws2.row_dimensions[2].height = 30
+        head_row = 3 if inst2 else 2
+        for j, (hname, hnote) in enumerate(sh, start=1):
+            cell = ws2.cell(row=head_row, column=j, value=hname)
+            cell.font = HEAD_FONT; cell.fill = HEAD_FILL
+            cell.alignment = CENTER; cell.border = BORDER
+            if hnote:
+                cell.comment = Comment(hnote, "模板")
+        ws2.row_dimensions[head_row].height = 30
+        ex_row = head_row + 1
+        if ex:
+            for j, val_cell in enumerate(ex, start=1):
+                cell = ws2.cell(row=ex_row, column=j, value=val_cell)
+                cell.fill = EX_FILL; cell.alignment = WRAP; cell.border = BORDER
+                cell.font = Font(name="微软雅黑", size=9, color="7F6000")
+            ws2.row_dimensions[ex_row].height = 42
+        start2 = ex_row + 1 if ex else head_row + 1
+        for r in range(start2, start2 + br):
+            for j in range(1, ncol2 + 1):
+                cell = ws2.cell(row=r, column=j)
+                cell.alignment = WRAP; cell.border = BORDER
+        if val:
+            for col_idx, opts in val:
+                dv = DataValidation(type="list", formula1='"' + ",".join(opts) + '"', allow_blank=True)
+                ws2.add_data_validation(dv)
+                col_letter = ws2.cell(row=ex_row if ex else head_row, column=col_idx + 1).column_letter
+                dv.add(f"{col_letter}{start2}:{col_letter}{start2 + br - 1}")
+        for j in range(1, ncol2 + 1):
+            maxlen = len(str(sh[j-1][0]))
+            for r in range(ex_row if ex else head_row, start2 + br):
+                v = ws2.cell(row=r, column=j).value
+                if v:
+                    maxlen = max(maxlen, min(len(str(v)), 20))
+            ws2.column_dimensions[ws2.cell(row=head_row, column=j).column_letter].width = min(max(maxlen + 4, 12), 40)
+        ws2.freeze_panes = f"A{ex_row+1 if ex else head_row+1}"
+
     path = os.path.join(OUT, filename)
     wb.save(path)
     print("已生成:", filename)
@@ -104,36 +163,63 @@ build(
     "01-项目信息表.xlsx",
     "项目信息表（对应网站「项目管理」模块）",
     "每个项目一行；编号请唯一（P1、P2…）。关联字段填对应模块的编号，多个用逗号分隔。黄色行为示例，正式提交前删除。",
+    sheet_name="项目信息",
     headers=[
         ("项目编号", "唯一，字母+数字，如 P1"),
         ("项目名称", ""),
+        ("项目简称", "列表卡片显示，建议 20 字以内；不填则显示完整名称"),
         ("项目负责人", ""),
         ("参与成员", "多人用逗号分隔，如 张三,李四"),
         ("项目来源", "如 国家自然科学基金面上项目"),
         ("项目外部编号", "如 NSFC-32171800"),
+        ("财务编号", "如 NSFC-32171800-01，用于报账/经费管理"),
+        ("项目飞书文件夹链接", "该项目专属飞书云盘文件夹，不填则使用 config.js 全局文件夹"),
         ("起始时间", "年-月，如 2022-01"),
         ("结束时间", "年-月，如 2025-12"),
         ("经费", "如 60 万元"),
         ("当前状态", "见下拉"),
         ("当前阶段", "如 基因功能验证"),
         ("进度百分比", "数字 0-100"),
+        ("是否必读", "是/否；「是」会在列表显示必读徽章，详情页置顶"),
         ("项目目标", ""),
         ("OKR", "每条一行，可多行"),
         ("本月进展", ""),
         ("下一步计划", ""),
         ("风险和问题", ""),
+        ("实验初始设置", "实验室设备、田间/温室场地、关键材料等"),
+        ("实验布置细节", "小区设计、处理梯度、重复数、测定指标等"),
         ("关联实验方法ID", "如 M1,M2"),
         ("关联样品ID", "如 S1,S2"),
         ("关联数据ID", "如 D1"),
         ("关联报账ID", "如 E1"),
         ("关联成果ID", "如 A1"),
     ],
-    example=["P1", "小麦抗旱基因挖掘与分子机制研究", "张明远 教授", "张明远,李文,赵磊,陈思",
-             "国家自然科学基金面上项目", "NSFC-32171800", "2022-01", "2025-12", "60 万元",
-             "进行中", "基因功能验证", 72, "挖掘 2–3 个抗旱主效基因", "O：完成抗旱资源筛选 KR：鉴定50份抗旱种质",
-             "本月完成转录组第3批取样", "下月开展VIGS验证", "转基因材料构建周期长", "M1,M2,M5",
+    example=["P1", "小麦抗旱基因挖掘与分子机制研究", "小麦抗旱基因挖掘", "张明远 教授", "张明远,李文,赵磊,陈思",
+             "国家自然科学基金面上项目", "NSFC-32171800", "NSFC-32171800-01", "https://my.feishu.cn/drive/folder/xxx",
+             "2022-01", "2025-12", "60 万元",
+             "进行中", "基因功能验证", 72, "否", "挖掘 2–3 个抗旱主效基因", "O：完成抗旱资源筛选 KR：鉴定50份抗旱种质",
+             "本月完成转录组第3批取样", "下月开展VIGS验证", "转基因材料构建周期长",
+             "待补充", "待补充", "M1,M2,M5",
              "S1,S2,S3", "D1,D2", "E1,E2", "A1"],
-    validations=[(9, ["准备中", "进行中", "暂停", "结题中", "已结题"])],
+    validations=[(12, ["准备中", "进行中", "暂停", "结题中", "已结题"]), (15, ["是", "否"])],
+    extra_sheets=[{
+        "title": "项目资料",
+        "instructions": "每条资料一行；项目编号对应「项目信息」sheet 的项目编号。类别必须从下拉中选择，链接为飞书云盘文件/文件夹分享链接。",
+        "headers": [
+            ("项目编号", "如 P1"),
+            ("资料名称", ""),
+            ("类别", "见下拉：申报立项 / 年度报告 / 中期考核 / 结题验收 / 技术/进展报告 / 经费财务 / 实验资料"),
+            ("类型", "如 PDF / PPT / DOCX / 文件夹"),
+            ("日期", "年-月，如 2024-12"),
+            ("上传人", ""),
+            ("链接", "飞书云盘分享链接"),
+            ("是否必读", "是/否；「是」会显示在项目详情页顶部必读区"),
+            ("备注", ""),
+        ],
+        "example": ["P1", "项目申请书", "申报立项", "PDF", "2024-10", "张明远", "https://my.feishu.cn/file/xxx", "是", "终稿"],
+        "validations": [(2, ["申报立项", "年度报告", "中期考核", "结题验收", "技术/进展报告", "经费财务", "实验资料"]), (7, ["是", "否"])],
+        "blank_rows": 40,
+    }],
 )
 
 # ============ 2. 实验方法/SOP ============

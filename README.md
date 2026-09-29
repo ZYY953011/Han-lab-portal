@@ -81,7 +81,7 @@
 
 | 模块 | 数据名 | 关键字段 |
 |------|--------|----------|
-| 项目 | `projects` | id, name, leader, members, source, code, start, end, budget, status, stage, progress, goal, okr, monthlyProgress, nextPlan, risks, relatedMethods/Samples/Datasets/Expenses/Achievements |
+| 项目 | `projects` | id, name, **shortName**, leader, members, source, code, **fiscalCode**, start, end, budget, status, stage, progress, **pinned**, goal, okr, monthlyProgress, nextPlan, risks, **setup**, **design**, projectFolderUrl, materials[{name,category,type,date,uploader,url,**pinned**,note}], relatedMethods/Samples/Datasets/Expenses/Achievements |
 | 实验方法 | `methods` | id, name, category, applicableExperiments, applicableProjects, author, version, updated, purpose, materials, instruments, steps, keyParams, notes, commonErrors, failureCases, tips, references, attachments, videoUrl, versionHistory |
 | 样品 | `samples` | id, code, name, type, source, project, owner, prepDate, storage, building, room, fridge, layer, box, location, total, remain, unit, status, lastUser, lastUse, remark, qr |
 | 数据 | `datasets` | id, name, project, experiment, date, material, treatment, replicate, variables, operator, instrument, raw_data_url, clean_data_url, analysis_url, figure_url, note, version, updated, storage_url, api_endpoint, external_id |
@@ -132,7 +132,46 @@
 
 ---
 
-## 六、以后怎么接入第三方服务？
+## 六、项目资料上传与批量入库
+
+项目详情页现在按「申报立项 → 年度报告 → 中期考核 → 结题验收 → 技术/进展报告 → 经费财务 → 实验资料」分类展示资料，并支持「必读/常用资料」置顶、分类折叠、最新资料倒序，方便接手项目的学生快速找到关键信息。
+
+### 添加项目的两种方式
+
+#### 方式 A：网页弹窗添加（1–2 个项目，最快捷）
+1. 打开「项目管理」页，点工具栏「＋ 添加项目」。
+2. 填写项目编号、名称、简称、负责人、参与人、来源、项目编号、财务编号、起止年月、经费、状态、阶段、进度。
+3. 保存后新项目即时出现在列表中（仅本机可见）。
+4. 点「导出我添加的项目（JSON）」，把 JSON 数组贴入 `assets/js/data/project-overrides.js` 的 `window.DATA.projectOverrides` 中，上传 GitHub 后全组可见。
+
+#### 方式 B：Excel 模板批量入库（多个项目，推荐）
+1. 运行 `python3 build_templates.py`，生成 `信息收集模板/01-项目信息表.xlsx`。
+2. 在「项目信息」sheet 每行填一个项目（含项目简称、财务编号、是否必读、实验设置等）；在「项目资料」sheet 按行填写每条资料（含项目编号、类别、是否必读、链接）。
+3. 运行 `python3 build_projects.py` 自动生成 `assets/js/data/projects.js`。
+4. 如需先预览/校验，运行 `python3 build_projects.py --check` 只解析不写入。
+
+### 上传资料的三种方式
+
+#### 方式 1：飞书项目文件夹（最常用，门槛低）
+1. 在飞书云盘为每个项目建一个子文件夹，复制分享链接填到项目的 `projectFolderUrl`（Excel 或弹窗均可）。
+2. 若暂时没为每个项目单独建文件夹，系统会 fallback 到 `config.js` 的全局 `PROJECT_MATERIALS_FOLDER`，详情页会提示「请按“项目名”建子文件夹」。
+3. 组员点「📤 上传到…飞书文件夹」直接拖文件/文件夹进去。
+4. 上传后把文件信息通过「＋ 添加资料」登记。
+
+#### 方式 2：网页弹窗临时登记（个人先记、再导出）
+1. 项目详情页点「＋ 添加资料」填写名称、分类、类型、日期、上传人、飞书链接、备注。
+2. 可勾选「标记为必读/常用资料」，该条会显示在详情页顶部必读区。
+3. 信息先存在当前浏览器（换设备或清缓存会丢失）。
+4. 管理员点「导出我添加的资料（JSON）」，把 JSON 贴入 `assets/js/data/project-materials.js` 的 `projectMaterialOverrides` 中，全组即可见。
+
+#### 方式 3：Excel 模板批量登记（已有大量资料时）
+与「添加项目」的 Excel 方式共用同一张表：在「项目资料」sheet 一行一条资料，运行 `python3 build_projects.py` 即可合并到 `projects.js`。
+
+> 提示：也可以直接复制 `projects.js` 中已有项目对象，改 `id` 和字段，适合会改代码的管理员。
+
+---
+
+## 七、以后怎么接入第三方服务？
 
 第一版用“链接跳转”实现，将来可平滑升级为“嵌入式/自动同步”：
 
@@ -151,7 +190,7 @@
 
 ---
 
-## 七、权限设计（第一版暂不实装，但已在架构中预留）
+## 八、权限设计（第一版暂不实装，但已在架构中预留）
 
 未来角色与权限范围（写代码时按此设计）：
 - **管理员**：查看/编辑全部信息。
@@ -163,14 +202,14 @@
 
 ---
 
-## 八、全站搜索说明
+## 九、全站搜索说明
 
 首页/各页顶部搜索框基于**本地数据**即时搜索（项目名称、成员、实验方法、样品编号、数据名称、组会主题、成果、学习资源）。
 搜索覆盖范围在 `assets/js/config.js` 的 `SEARCH_CONFIG` 中配置，想加新模块搜索，照格式加一项即可。
 
 ---
 
-## 九、后续升级路线图（1 天原型 → 1–2 周实用 → 逐步智能）
+## 十、后续升级路线图（1 天原型 → 1–2 周实用 → 逐步智能）
 
 - **Day 1**：运行静态原型，浏览全部页面。
 - **1–2 周**：替换示例为真实数据，组内开始使用；用链接接入飞书/腾讯文档/NAS。

@@ -356,3 +356,164 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
   .material-head { gap: 8px; }
   .material-head .btn { margin-top: 2px; }
 }
+
+/* ===================== 项目详情·分类档案 ===================== */
+.archive-block {
+  background: #f8fafc;
+  border: 1px dashed #cfe0f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.archive-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.cat-label {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+.cat-proposal   { background: #1f5fa8; }
+.cat-annual     { background: #2f7cc0; }
+.cat-midterm    { background: #e67e22; }
+.cat-final      { background: #27ae60; }
+.cat-report     { background: #8e44ad; }
+.cat-finance    { background: #c0392b; }
+.cat-experiment { background: #16a085; }
+
+/* 折叠分类档案 */
+.archive-details {
+  background: #f8fafc;
+  border: 1px dashed #cfe0f0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.archive-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 500;
+}
+.archive-summary::-webkit-details-marker { display: none; }
+.archive-summary::before {
+  content: "▶";
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  transition: transform .15s;
+}
+.archive-details[open] > .archive-summary::before { transform: rotate(90deg); }
+.archive-body { margin-top: 10px; }
+
+/* 必读资料高亮区 */
+.must-read-box {
+  background: #fff8f0;
+  border: 1px solid #f5d6b3;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-top: 16px;
+}
+
+/* 最近更新资料条 */
+.recent-update-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #f4f8fd;
+  border: 1px solid #d7e5f6;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #c7d9ee;
+  border-radius: 20px;
+  padding: 3px 10px;
+  color: var(--primary-dark);
+  text-decoration: none;
+  transition: background .15s;
+}
+.recent-chip:hover { background: #eaf2fb; }
+.recent-chip.pinned { border-color: #e67e22; background: #fff7ed; }
+.recent-chip .sep { color: var(--muted); }
+
+/* 帮助提示（可展开） */
+.help-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #f4f8fd;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.help-hint .help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.help-hint .help-title { font-weight: 500; }
+.help-hint .help-body {
+  display: none;
+  width: 100%;
+  margin-top: 6px;
+  padding-left: 26px;
+}
+.help-hint.open .help-body { display: block; }
+
+/* 状态筛选 chip */
+.filter-chip {
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 13px;
+}
+.filter-chip.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* 必读项目卡片 */
+.pinned-card {
+  border-left: 4px solid #e67e22;
+}
+
+/* 通用徽标色（与现有 .badge-* 并存） */
+.badge-info   { background: #e6f0fb; color: #1f5fa8; }
+.badge-danger { background: #fbe6e6; color: #c43d3d; }
+.badge-light  { background: #eef0f3; color: #6b7280; }
+
+.btn.disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  pointer-events: none;
+}

@@ -10,52 +10,345 @@
 <body>
   <main class="container">
     <div id="head"></div>
-    <div class="toolbar">
-      <input class="grow" id="kw" placeholder="搜索项目名称 / 负责人 / 编号…">
-      <select id="statusFilter">
-        <option value="">全部状态</option>
-        <option>准备中</option><option>进行中</option><option>暂停</option>
-        <option>结题中</option><option>已结题</option>
+
+    <div class="section-title">项目概览</div>
+    <div class="stat-row" id="stats" style="margin-bottom:10px;"></div>
+
+    <div id="recentUpdates"></div>
+
+    <div class="section-title" style="margin-top:18px;">项目列表</div>
+    <div class="toolbar" style="align-items:flex-start; flex-wrap:wrap;">
+      <input class="grow" id="kw" placeholder="搜索项目名称 / 负责人 / 编号 / 财务编号 / 参与人…" style="min-width:220px;">
+      <select id="sourceFilter"><option value="">全部来源</option></select>
+      <select id="sortBy">
+        <option value="default">默认排序</option>
+        <option value="active">进行中优先</option>
+        <option value="latest">最新资料优先</option>
+        <option value="name">按名称</option>
       </select>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn btn-sm filter-chip active" data-status="" onclick="setStatusChip('')">全部</button>
+        <button class="btn btn-sm filter-chip btn-outline" data-status="进行中" onclick="setStatusChip('进行中')">进行中</button>
+        <button class="btn btn-sm filter-chip btn-outline" data-status="已结题" onclick="setStatusChip('已结题')">已结题</button>
+      </div>
+      <div style="display:flex; gap:6px; margin-left:auto;">
+        <button class="btn btn-primary btn-sm" onclick="openAddProjectModal()">＋ 添加项目</button>
+        <button class="btn btn-outline btn-sm" onclick="exportLocalProjects()">导出我添加的项目（JSON）</button>
+      </div>
     </div>
     <div class="grid grid-2" id="list"></div>
   </main>
 
   <script src="../assets/js/data/projects.js"></script>
+  <script src="../assets/js/data/project-materials.js"></script>
+  <script src="../assets/js/data/project-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("项目");
     document.getElementById("head").innerHTML = pageHead(
-      "项目管理", "让所有成员知道：组里有哪些项目、谁负责、做到哪一步。",
+      "项目管理", "让所有成员知道：组里有哪些项目、谁负责、做到哪一步，以及在哪里找到历史资料。",
       [{name:"首页", url:"../index.html"}, {name:"项目管理"}]
     );
 
-    function card(p){
-      return `<div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-          <h3 style="font-size:17px; color:var(--primary-dark);"><a href="project-detail.html?id=${esc(p.id)}">${esc(p.name)}</a></h3>
-          ${badge(p.status)}
-        </div>
-        <div style="color:var(--muted); font-size:13px; margin:6px 0;">负责人：${esc(p.leader)} ｜ 来源：${esc(p.source)} ｜ 编号：${esc(p.code)}</div>
-        <div style="margin:10px 0 4px; font-size:13px; color:#44505f;">当前阶段：<b>${esc(p.stage)}</b></div>
-        <div class="progress" style="margin-bottom:4px;"><span style="width:${p.progress}%"></span></div>
-        <div style="font-size:12.5px; color:var(--muted);">进度 ${p.progress}% ｜ 周期 ${esc(p.start)} ~ ${esc(p.end)} ｜ 经费 ${esc(p.budget)}</div>
-        <div style="margin-top:10px;"><a class="btn btn-sm" href="project-detail.html?id=${esc(p.id)}">查看详情 →</a></div>
-      </div>`;
+    var projects = window.DATA.projects || [];
+    var categories = window.PROJECT_ARCHIVE_CATEGORIES || [];
+
+    // 合并本地弹窗添加的项目
+    function localProjectsKey(){ return "proj-projects"; }
+    function getLocalProjects(){
+      try { var raw = localStorage.getItem(localProjectsKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
     }
+    function mergeLocalProjects(){
+      var locals = getLocalProjects();
+      locals.forEach(function(p){
+        var idx = projects.findIndex(function(x){ return x.id === p.id; });
+        if (idx >= 0){ projects[idx] = Object.assign({}, projects[idx], p); }
+        else { projects.push(p); }
+      });
+    }
+    mergeLocalProjects();
+
+    // 合并本地弹窗添加的资料
+    function localMaterialsKey(pid){ return "proj-materials-" + pid; }
+    function getLocalMaterials(pid){
+      try { var raw = localStorage.getItem(localMaterialsKey(pid)); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+    }
+    function allMaterials(p){
+      var list = (p.materials || []).slice();
+      var locals = getLocalMaterials(p.id);
+      locals.forEach(function(item){
+        var exists = list.some(function(m){ return m.name===item.name && m.category===item.category && m.date===item.date && m.uploader===item.uploader; });
+        if(!exists) list.push(item);
+      });
+      return list;
+    }
+
+    function latestMaterialDate(p){
+      var mats = allMaterials(p).filter(function(m){ return m.date; });
+      if(!mats.length) return "";
+      return mats.map(function(m){ return m.date; }).sort().pop();
+    }
+    function materialCount(p){ return allMaterials(p).length; }
+
+    function recentUpdatesHTML(){
+      var items = [];
+      projects.forEach(function(p){
+        allMaterials(p).forEach(function(m){
+          if(m.date && m.name){
+            items.push({ date: m.date, name: m.name, project: p.name, pid: p.id, pinned: !!m.pinned });
+          }
+        });
+      });
+      items.sort(function(a,b){ return (b.date||"").localeCompare(a.date||""); });
+      var top = items.slice(0, 6);
+      if(!top.length) return "";
+      return `
+        <div class="recent-update-strip">
+          <span style="font-weight:600; white-space:nowrap;">最近更新资料：</span>
+          ${top.map(function(it){
+            return `<a class="recent-chip ${it.pinned?'pinned':''}" href="project-detail.html?id=${esc(it.pid)}">
+              ${esc(it.name)} <span class="sep">·</span> ${esc(it.project)} <span class="sep">·</span> ${esc(it.date)}
+            </a>`;
+          }).join("")}
+        </div>`;
+    }
+
+    function renderStats(){
+      var activeBudget = projects.filter(function(p){ return p.status==="进行中"; }).reduce(function(sum,p){
+        var n = parseFloat((p.budget||"").replace(/[^0-9.]/g,"")); return sum+(isNaN(n)?0:n);
+      },0);
+      var sources = [...new Set(projects.map(function(p){ return p.source; }).filter(Boolean))];
+      document.getElementById("stats").innerHTML = `
+        <div class="stat"><div class="num">${projects.length}</div><div class="lab">项目总数</div></div>
+        <div class="stat"><div class="num">${projects.filter(function(p){ return p.status==="进行中"; }).length}</div><div class="lab">进行中</div></div>
+        <div class="stat"><div class="num">${projects.filter(function(p){ return p.status==="已结题"; }).length}</div><div class="lab">已结题</div></div>
+        <div class="stat"><div class="num">${projects.filter(function(p){ return p.pinned; }).length}</div><div class="lab">必读项目</div></div>
+        <div class="stat"><div class="num">${activeBudget?activeBudget+" 万":"—"}</div><div class="lab">在研经费合计</div></div>
+        <div class="stat"><div class="num">${sources.length}</div><div class="lab">来源类别</div></div>
+      `;
+    }
+
+    function initSourceFilter(){
+      var sel = document.getElementById("sourceFilter");
+      var sources = [...new Set(projects.map(function(p){ return p.source; }).filter(Boolean))].sort();
+      sources.forEach(function(s){ var o=document.createElement("option"); o.value=s; o.textContent=s; sel.appendChild(o); });
+    }
+
+    function card(p){
+      var displayName = p.shortName || p.name;
+      var tags = (p.members||[]).slice(0,3).map(function(m){ return '<span class="tag" style="margin-right:4px;">' + esc(m) + '</span>'; }).join("");
+      var more = (p.members||[]).length > 3 ? '<span class="tag" style="background:var(--bg); color:var(--muted);">+' + ((p.members||[]).length-3) + '</span>' : "";
+      var latest = latestMaterialDate(p);
+      var count = materialCount(p);
+      var pinnedBadge = p.pinned ? '<span class="badge badge-danger">必读</span>' : "";
+      var fiscalBadge = p.fiscalCode ? '<span style="display:inline-block;">财务编号：<b>' + esc(p.fiscalCode) + '</b></span>' : "";
+      var latestBadge = latest ? '<span class="badge badge-info" style="margin-right:6px;">最新资料 ' + esc(latest) + '</span>' : "";
+      var countBadge = count ? '<span class="badge badge-light">资料 ' + count + ' 份</span>' : '<span class="badge badge-light">暂无资料</span>';
+      return '<div class="card ' + (p.pinned?'pinned-card':'') + '">' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">' +
+          '<h3 style="font-size:17px; color:var(--primary-dark); line-height:1.35; margin:0;">' +
+            '<a href="project-detail.html?id=' + esc(p.id) + '">' + esc(displayName) + '</a>' +
+          '</h3>' +
+          '<div style="display:flex; gap:4px; flex-shrink:0;">' + pinnedBadge + badge(p.status) + '</div>' +
+        '</div>' +
+        '<div style="color:var(--muted); font-size:13px; margin:8px 0 4px;">负责人：' + esc(p.leader) + ' ｜ 来源：' + esc(p.source||"—") + '</div>' +
+        '<div style="font-size:13px; color:#44505f; margin-bottom:6px;">' +
+          '<span style="display:inline-block; margin-right:12px;">项目编号：<b>' + esc(p.code||"—") + '</b></span>' + fiscalBadge +
+        '</div>' +
+        '<div style="margin:8px 0 4px; font-size:13px; color:#44505f;">当前阶段：<b>' + esc(p.stage||"—") + '</b></div>' +
+        '<div class="progress" style="margin-bottom:4px;"><span style="width:' + (p.progress||0) + '%"></span></div>' +
+        '<div style="font-size:12.5px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; margin-bottom:8px;">' +
+          '<span>进度 ' + (p.progress||0) + '%</span>' +
+          '<span>周期 ' + esc(p.start||"—") + ' ~ ' + esc(p.end||"—") + '</span>' +
+          '<span>经费 ' + esc(p.budget||"—") + '</span>' +
+        '</div>' +
+        '<div style="font-size:12.5px; color:var(--muted); margin-bottom:8px;">' + latestBadge + countBadge + '</div>' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">' +
+          '<div>' + tags + more + '</div>' +
+          '<a class="btn btn-sm" href="project-detail.html?id=' + esc(p.id) + '">查看详情 →</a>' +
+        '</div>' +
+      '</div>';
+    }
+
+    var currentStatusChip = "";
+    function setStatusChip(status){
+      currentStatusChip = status;
+      document.querySelectorAll(".filter-chip").forEach(function(btn){
+        if(btn.dataset.status === status){
+          btn.classList.add("active"); btn.classList.remove("btn-outline");
+        } else {
+          btn.classList.remove("active"); btn.classList.add("btn-outline");
+        }
+      });
+      render();
+    }
+    window.setStatusChip = setStatusChip;
+
     function render(){
       var kw = document.getElementById("kw").value.trim().toLowerCase();
-      var sf = document.getElementById("statusFilter").value;
-      var list = (window.DATA.projects||[]).filter(p=>{
-        var ok1 = !kw || (p.name+p.leader+p.code).toLowerCase().includes(kw);
-        var ok2 = !sf || p.status===sf;
-        return ok1 && ok2;
+      var sf = document.getElementById("sourceFilter").value;
+      var sort = document.getElementById("sortBy").value;
+      var list = projects.filter(function(p){
+        var ok1 = !kw || (p.name+(p.shortName||"")+p.leader+(p.code||"")+(p.fiscalCode||"")+(p.members||[]).join("")).toLowerCase().includes(kw);
+        var ok2 = !sf || p.source===sf;
+        var ok3 = !currentStatusChip || p.status===currentStatusChip;
+        return ok1 && ok2 && ok3;
       });
+
+      if(sort === "name"){
+        list.sort(function(a,b){ return (a.shortName||a.name).localeCompare(b.shortName||b.name); });
+      } else if(sort === "latest"){
+        list.sort(function(a,b){ return latestMaterialDate(b).localeCompare(latestMaterialDate(a)); });
+      } else if(sort === "active"){
+        var order = { "进行中":0, "准备中":1, "结题中":2, "暂停":3, "已结题":4 };
+        list.sort(function(a,b){ return (order[a.status]||9) - (order[b.status]||9); });
+      } else {
+        // 默认：必读优先，再按 id
+        list.sort(function(a,b){ return (b.pinned?1:0)-(a.pinned?1:0) || a.id.localeCompare(b.id); });
+      }
+
       document.getElementById("list").innerHTML = list.length ? list.map(card).join("") : emptyTip("没有匹配的项目");
     }
+
+    // 弹窗：添加项目
+    var modal = document.createElement("div");
+    modal.id = "addProjectModal";
+    modal.className = "modal";
+    modal.innerHTML = `<div class="modal-box" style="max-width:600px;">
+      <div class="modal-head"><b>添加新项目</b><button class="btn btn-sm btn-outline" onclick="closeAddProjectModal()">关闭</button></div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div><label>项目编号 <span style="color:red">*</span></label><input type="text" id="apId" placeholder="如 P3"></div>
+          <div><label>项目名称 <span style="color:red">*</span></label><input type="text" id="apName" placeholder="完整项目名称"></div>
+          <div style="grid-column:1/-1;"><label>项目简称</label><input type="text" id="apShortName" placeholder="列表卡片显示，可不填"></div>
+          <div><label>负责人 <span style="color:red">*</span></label><input type="text" id="apLeader" placeholder="姓名"></div>
+          <div><label>参与人</label><input type="text" id="apMembers" placeholder="多人用逗号分隔"></div>
+          <div><label>项目来源</label><input type="text" id="apSource" placeholder="如 国家自然科学基金"></div>
+          <div><label>项目外部编号</label><input type="text" id="apCode" placeholder="如 NSFC-2026-xxx"></div>
+          <div><label>财务编号</label><input type="text" id="apFiscalCode" placeholder="财务系统编号"></div>
+          <div><label>起始时间</label><input type="text" id="apStart" placeholder="YYYY-MM"></div>
+          <div><label>结束时间</label><input type="text" id="apEnd" placeholder="YYYY-MM"></div>
+          <div><label>经费</label><input type="text" id="apBudget" placeholder="如 30 万元"></div>
+          <div><label>当前状态</label>
+            <select id="apStatus" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option>准备中</option><option selected>进行中</option><option>暂停</option><option>结题中</option><option>已结题</option>
+            </select>
+          </div>
+          <div style="grid-column:1/-1;"><label>当前阶段</label><input type="text" id="apStage" placeholder="如 项目启动与方案设计"></div>
+          <div style="grid-column:1/-1;"><label>进度 %</label><input type="number" id="apProgress" min="0" max="100" value="0"></div>
+          <div style="grid-column:1/-1;"><label><input type="checkbox" id="apPinned" style="width:auto; margin-right:6px;">标记为必读项目</label></div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitAddProject()">保存</button>
+          <button class="btn btn-outline" onclick="closeAddProjectModal()" style="margin-left:8px;">取消</button>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅在本浏览器可见；请点「导出我添加的项目（JSON）」交给管理员合并到全站。</p>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+
+    function openAddProjectModal(){
+      document.getElementById("addProjectModal").classList.add("open");
+    }
+    window.openAddProjectModal = openAddProjectModal;
+
+    function closeAddProjectModal(){
+      document.getElementById("addProjectModal").classList.remove("open");
+    }
+    window.closeAddProjectModal = closeAddProjectModal;
+
+    function submitAddProject(){
+      var id = document.getElementById("apId").value.trim();
+      var name = document.getElementById("apName").value.trim();
+      var leader = document.getElementById("apLeader").value.trim();
+      if(!id || !name || !leader){ alert("请填写项目编号、项目名称和负责人"); return; }
+
+      var membersStr = document.getElementById("apMembers").value.trim();
+      var members = membersStr ? membersStr.split(/[,，]/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
+
+      var p = {
+        id: id,
+        name: name,
+        shortName: document.getElementById("apShortName").value.trim() || name,
+        leader: leader,
+        members: members,
+        source: document.getElementById("apSource").value.trim() || "—",
+        code: document.getElementById("apCode").value.trim() || "—",
+        fiscalCode: document.getElementById("apFiscalCode").value.trim() || "",
+        start: document.getElementById("apStart").value.trim() || "",
+        end: document.getElementById("apEnd").value.trim() || "",
+        budget: document.getElementById("apBudget").value.trim() || "—",
+        status: document.getElementById("apStatus").value,
+        stage: document.getElementById("apStage").value.trim() || "—",
+        progress: parseInt(document.getElementById("apProgress").value,10) || 0,
+        pinned: document.getElementById("apPinned").checked,
+        goal: "（待填写）",
+        okr: ["（待填写）"],
+        monthlyProgress: "（待填写）",
+        nextPlan: "（待填写）",
+        risks: "（待填写）",
+        setup: "（待补充）",
+        design: "（待补充）",
+        projectFolderUrl: "",
+        materials: [],
+        relatedMethods: [],
+        relatedSamples: [],
+        relatedDatasets: [],
+        relatedExpenses: [],
+        relatedAchievements: []
+      };
+
+      var arr = getLocalProjects();
+      var idx = arr.findIndex(function(x){ return x.id === id; });
+      if(idx >= 0) arr[idx] = p; else arr.push(p);
+      localStorage.setItem(localProjectsKey(), JSON.stringify(arr));
+
+      // 同时合并到当前 projects 数组并刷新
+      var pidx = projects.findIndex(function(x){ return x.id === id; });
+      if(pidx >= 0) projects[pidx] = Object.assign({}, projects[pidx], p); else projects.push(p);
+
+      closeAddProjectModal();
+      renderStats();
+      document.getElementById("recentUpdates").innerHTML = recentUpdatesHTML();
+      render();
+    }
+    window.submitAddProject = submitAddProject;
+
+    // 弹窗：导出项目 JSON
+    var exportWrap = document.createElement("div");
+    exportWrap.id = "projExportWrap";
+    exportWrap.className = "modal";
+    exportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本地添加的项目（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeProjExportBox()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/project-overrides.js</code> 的 <code>window.DATA.projectOverrides</code> 数组中，全组即可看到。</p>
+        <textarea id="projExportBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>`;
+    document.body.appendChild(exportWrap);
+
+    function exportLocalProjects(){
+      var arr = getLocalProjects();
+      if(!arr.length){ alert("当前浏览器没有临时添加的项目"); return; }
+      var box = document.getElementById("projExportBox");
+      box.value = JSON.stringify(arr, null, 2);
+      document.getElementById("projExportWrap").classList.add("open");
+      box.select();
+    }
+    window.exportLocalProjects = exportLocalProjects;
+
+    function closeProjExportBox(){
+      document.getElementById("projExportWrap").classList.remove("open");
+    }
+    window.closeProjExportBox = closeProjExportBox;
+
+    renderStats();
+    document.getElementById("recentUpdates").innerHTML = recentUpdatesHTML();
+    initSourceFilter();
     document.getElementById("kw").addEventListener("input", render);
-    document.getElementById("statusFilter").addEventListener("change", render);
+    document.getElementById("sourceFilter").addEventListener("change", render);
+    document.getElementById("sortBy").addEventListener("change", render);
     render();
   </script>
 <script src="../assets/js/gate.js"></script>
