@@ -132,6 +132,8 @@ ul, ol { padding-left: 1.25em; }
 .btn:hover { background: var(--primary-dark); text-decoration: none; }
 .btn-outline { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
 .btn-outline:hover { background: var(--primary-light); }
+.btn-danger { background: var(--danger); }
+.btn-danger:hover { background: #b53d3d; }
 .btn-sm { padding: 4px 12px; font-size: 13px; }
 .btn-xs { padding: 2px 8px; font-size: 12px; border-radius: 6px; }
 .tl-edit { margin-left: auto; }
@@ -519,6 +521,27 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
 .mat-name:hover { text-decoration: underline; }
 .mat-time { color: var(--muted); font-size: 13px; white-space: nowrap; }
 .mat-note { color: var(--muted); font-size: 13px; }
+
+.material-add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.material-add-form input[type="text"] {
+  flex: 1;
+  min-width: 120px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.material-add-form input#mat-url { flex: 2; min-width: 220px; }
 
 /* 最近更新资料条 */
 .recent-update-strip {

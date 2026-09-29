@@ -52,9 +52,13 @@
       function allMaterials(){
         var list = (p.materials || []).slice();
         var locals = getLocalMaterials();
-        locals.forEach(function(item){
+        locals.forEach(function(item, idx){
           var exists = list.some(function(m){ return m.name===item.name && m.date===item.date && m.uploader===item.uploader; });
-          if(!exists) list.push(item);
+          if(!exists){
+            var copy = Object.assign({}, item);
+            copy.__localIdx = idx;
+            list.push(copy);
+          }
         });
         return list.sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
       }
@@ -78,11 +82,19 @@
       }
 
       function materialRow(m){
+        var actions = '';
+        if(typeof m.__localIdx === 'number'){
+          actions = '<div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;">' +
+            '<button class="btn btn-xs btn-outline" onclick="editMat(' + m.__localIdx + ')">编辑</button>' +
+            '<button class="btn btn-xs btn-danger" onclick="deleteMat(' + m.__localIdx + ')">删除</button>' +
+            '</div>';
+        }
         return '<tr>' +
           '<td><span class="mat-icon">' + fileIcon(m.name) + '</span><a class="mat-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" title="' + esc(m.url) + '">' + esc(m.name || "未命名文件") + '</a></td>' +
           '<td>' + esc(m.uploader || "—") + '</td>' +
           '<td class="mat-time">' + esc(formatDate(m.date)) + '</td>' +
           '<td class="mat-note">' + esc(m.note || "") + '</td>' +
+          '<td style="width:90px;">' + actions + '</td>' +
         '</tr>';
       }
 
@@ -93,7 +105,7 @@
           ? '<a class="btn btn-primary btn-sm" href="' + esc(folderUrl) + '" target="_blank" rel="noopener">📤 上传到飞书资料夹 ↗</a>'
           : '<span class="btn btn-primary btn-sm disabled" style="opacity:.6; cursor:not-allowed;">📤 上传入口未配置</span>';
 
-        var rows = list.length ? list.map(materialRow).join("") : '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:24px;">暂无资料，请在上方添加。</td></tr>';
+        var rows = list.length ? list.map(materialRow).join("") : '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:24px;">暂无资料，请在上方添加。</td></tr>';
 
         return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
           '<span>项目资料</span>' +
@@ -102,22 +114,19 @@
           '</div>' +
         '</div>' +
         '<p style="font-size:13px; color:var(--muted); margin:0 0 10px;">文件先传到飞书，再在这里粘贴链接、填写信息；保存后自动记录当前时间。</p>' +
+        '<div class="material-add-form">' +
+          '<input type="text" id="mat-name" placeholder="文件名称">' +
+          '<input type="text" id="mat-uploader" placeholder="上传人">' +
+          '<input type="text" id="mat-note" placeholder="备注">' +
+          '<input type="text" id="mat-url" placeholder="粘贴飞书文件/文件夹链接">' +
+          '<button class="btn btn-primary btn-sm" id="mat-submit-btn" onclick="submitMat()">保存</button>' +
+          '<button class="btn btn-outline btn-sm" id="mat-cancel-btn" onclick="resetMatForm()" style="display:none;">取消</button>' +
+          '<input type="hidden" id="mat-idx" value="">' +
+        '</div>' +
         '<div class="table-wrap">' +
           '<table class="material-table">' +
-            '<thead><tr><th>名称</th><th style="width:110px;">上传人</th><th style="width:130px;">更新时间</th><th style="min-width:160px;">备注</th></tr></thead>' +
-            '<tbody>' +
-              '<tr class="add-row">' +
-                '<td><input type="text" id="mat-name" placeholder="文件名称"></td>' +
-                '<td><input type="text" id="mat-uploader" placeholder="上传人"></td>' +
-                '<td><input type="text" id="mat-date" value="' + esc(formatDate(nowISO())) + '" readonly title="保存时自动填充"></td>' +
-                '<td><input type="text" id="mat-note" placeholder="备注"></td>' +
-              '</tr>' +
-              '<tr class="add-row">' +
-                '<td colspan="3"><input type="text" id="mat-url" placeholder="粘贴飞书文件/文件夹链接"></td>' +
-                '<td><button class="btn btn-primary btn-sm" onclick="submitMat()">保存</button></td>' +
-              '</tr>' +
-              rows +
-            '</tbody>' +
+            '<thead><tr><th>名称</th><th style="width:110px;">上传人</th><th style="width:130px;">更新时间</th><th style="min-width:140px;">备注</th><th style="width:90px;">操作</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
           '</table>' +
         '</div>';
       }
@@ -224,18 +233,61 @@
       var url = document.getElementById("mat-url").value.trim();
       var uploader = document.getElementById("mat-uploader").value.trim();
       var note = document.getElementById("mat-note").value.trim();
+      var idx = document.getElementById("mat-idx").value.trim();
 
       if(!url){ alert("请粘贴飞书链接"); return; }
       if(!name){ name = "未命名文件"; }
 
-      var item = { name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() };
-      var arr = [];
-      try { var raw = localStorage.getItem("proj-materials-" + p.id); if(raw) arr = JSON.parse(raw); } catch(e){}
-      arr.push(item);
-      localStorage.setItem("proj-materials-" + p.id, JSON.stringify(arr));
+      var arr = getLocalMaterials();
+      if(idx !== ""){
+        var i = parseInt(idx, 10);
+        if(arr[i]){ arr[i] = { name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() }; }
+      } else {
+        arr.push({ name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() });
+      }
+      saveLocalMaterials(arr);
       location.reload();
     }
     window.submitMat = submitMat;
+
+    function deleteMat(idx){
+      if(!confirm("确定删除这条资料吗？")) return;
+      var arr = getLocalMaterials();
+      if(idx >= 0 && idx < arr.length){
+        arr.splice(idx, 1);
+        saveLocalMaterials(arr);
+        location.reload();
+      }
+    }
+    window.deleteMat = deleteMat;
+
+    function editMat(idx){
+      var arr = getLocalMaterials();
+      var item = arr[idx];
+      if(!item) return;
+      document.getElementById("mat-name").value = item.name || "";
+      document.getElementById("mat-url").value = item.url || "";
+      document.getElementById("mat-uploader").value = (item.uploader === "—" ? "" : (item.uploader || ""));
+      document.getElementById("mat-note").value = item.note || "";
+      document.getElementById("mat-idx").value = idx;
+      document.getElementById("mat-submit-btn").textContent = "更新";
+      var cancel = document.getElementById("mat-cancel-btn");
+      if(cancel) cancel.style.display = "";
+      document.getElementById("mat-name").focus();
+    }
+    window.editMat = editMat;
+
+    function resetMatForm(){
+      document.getElementById("mat-name").value = "";
+      document.getElementById("mat-url").value = "";
+      document.getElementById("mat-uploader").value = "";
+      document.getElementById("mat-note").value = "";
+      document.getElementById("mat-idx").value = "";
+      document.getElementById("mat-submit-btn").textContent = "保存";
+      var cancel = document.getElementById("mat-cancel-btn");
+      if(cancel) cancel.style.display = "none";
+    }
+    window.resetMatForm = resetMatForm;
 
     function saveProjectProgress(){
       var content = document.getElementById("progressInput").value.trim();

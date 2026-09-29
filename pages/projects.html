@@ -173,7 +173,10 @@
         '<div style="font-size:12.5px; color:var(--muted); margin-bottom:8px;">' + latestBadge + countBadge + '</div>' +
         '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">' +
           '<div>' + tags + more + '</div>' +
-          '<a class="btn btn-sm" href="project-detail.html?id=' + esc(p.id) + '">查看详情 →</a>' +
+          '<div style="display:flex; gap:6px;">' +
+            '<button class="btn btn-sm btn-outline" onclick="openEditProjectModal(\'' + esc(p.id) + '\')">编辑</button>' +
+            '<a class="btn btn-sm" href="project-detail.html?id=' + esc(p.id) + '">查看详情 →</a>' +
+          '</div>' +
         '</div>' +
       '</div>';
     }
@@ -223,7 +226,7 @@
     modal.id = "addProjectModal";
     modal.className = "modal";
     modal.innerHTML = `<div class="modal-box" style="max-width:600px;">
-      <div class="modal-head"><b>添加新项目</b><button class="btn btn-sm btn-outline" onclick="closeAddProjectModal()">关闭</button></div>
+      <div class="modal-head"><b id="apTitle">添加新项目</b><button class="btn btn-sm btn-outline" onclick="closeAddProjectModal()">关闭</button></div>
       <div class="modal-body">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <div><label>项目编号 <span style="color:red">*</span></label><input type="text" id="apId" placeholder="如 P3"></div>
@@ -255,13 +258,59 @@
     </div>`;
     document.body.appendChild(modal);
 
+    function resetProjectForm(){
+      document.getElementById("apId").value = "";
+      document.getElementById("apName").value = "";
+      document.getElementById("apShortName").value = "";
+      document.getElementById("apLeader").value = "";
+      document.getElementById("apMembers").value = "";
+      document.getElementById("apSource").value = "";
+      document.getElementById("apCode").value = "";
+      document.getElementById("apFiscalCode").value = "";
+      document.getElementById("apStart").value = "";
+      document.getElementById("apEnd").value = "";
+      document.getElementById("apBudget").value = "";
+      document.getElementById("apStatus").value = "进行中";
+      document.getElementById("apStage").value = "";
+      document.getElementById("apProgress").value = "0";
+      document.getElementById("apPinned").checked = false;
+      document.getElementById("apTitle").textContent = "添加新项目";
+      document.getElementById("addProjectModal").dataset.mode = "add";
+    }
+
     function openAddProjectModal(){
+      resetProjectForm();
       document.getElementById("addProjectModal").classList.add("open");
     }
     window.openAddProjectModal = openAddProjectModal;
 
+    function openEditProjectModal(id){
+      var p = projects.find(function(x){ return x.id === id; });
+      if(!p) return;
+      document.getElementById("apId").value = p.id || "";
+      document.getElementById("apName").value = p.name || "";
+      document.getElementById("apShortName").value = p.shortName || "";
+      document.getElementById("apLeader").value = p.leader || "";
+      document.getElementById("apMembers").value = (p.members || []).join("。");
+      document.getElementById("apSource").value = (p.source || "").replace(/^（待补充：.*$/,"");
+      document.getElementById("apCode").value = (p.code || "").replace(/^（待补充：.*$/,"");
+      document.getElementById("apFiscalCode").value = (p.fiscalCode || "").replace(/^（待补充：.*$/,"");
+      document.getElementById("apStart").value = p.start || "";
+      document.getElementById("apEnd").value = p.end || "";
+      document.getElementById("apBudget").value = (p.budget || "").replace(/^（待补充：.*$/,"");
+      document.getElementById("apStatus").value = p.status || "进行中";
+      document.getElementById("apStage").value = (p.stage || "").replace(/^（待补充.*$/,"");
+      document.getElementById("apProgress").value = p.progress || 0;
+      document.getElementById("apPinned").checked = !!p.pinned;
+      document.getElementById("apTitle").textContent = "编辑项目";
+      document.getElementById("addProjectModal").dataset.mode = "edit";
+      document.getElementById("addProjectModal").classList.add("open");
+    }
+    window.openEditProjectModal = openEditProjectModal;
+
     function closeAddProjectModal(){
       document.getElementById("addProjectModal").classList.remove("open");
+      resetProjectForm();
     }
     window.closeAddProjectModal = closeAddProjectModal;
 
@@ -274,7 +323,7 @@
       var membersStr = document.getElementById("apMembers").value.trim();
       var members = membersStr ? membersStr.split(/[,，]/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
 
-      var p = {
+      var updates = {
         id: id,
         name: name,
         shortName: document.getElementById("apShortName").value.trim() || name,
@@ -289,22 +338,33 @@
         status: document.getElementById("apStatus").value,
         stage: document.getElementById("apStage").value.trim() || "—",
         progress: parseInt(document.getElementById("apProgress").value,10) || 0,
-        pinned: document.getElementById("apPinned").checked,
-        goal: "（待填写）",
-        okr: ["（待填写）"],
-        monthlyProgress: "（待填写）",
-        nextPlan: "（待填写）",
-        risks: "（待填写）",
-        setup: "（待补充）",
-        design: "（待补充）",
-        projectFolderUrl: "",
-        materials: [],
-        relatedMethods: [],
-        relatedSamples: [],
-        relatedDatasets: [],
-        relatedExpenses: [],
-        relatedAchievements: []
+        pinned: document.getElementById("apPinned").checked
       };
+
+      var mode = document.getElementById("addProjectModal").dataset.mode;
+      var existing = projects.find(function(x){ return x.id === id; });
+      var p;
+      if(mode === "edit" && existing){
+        // 编辑模式：保留原项目的 goal/okr/设置等字段
+        p = Object.assign({}, existing, updates);
+      } else {
+        p = Object.assign({}, updates, {
+          goal: "（待填写）",
+          okr: ["（待填写）"],
+          monthlyProgress: "（待填写）",
+          nextPlan: "（待填写）",
+          risks: "（待填写）",
+          setup: "（待补充）",
+          design: "（待补充）",
+          projectFolderUrl: "",
+          materials: [],
+          relatedMethods: [],
+          relatedSamples: [],
+          relatedDatasets: [],
+          relatedExpenses: [],
+          relatedAchievements: []
+        });
+      }
 
       var arr = getLocalProjects();
       var idx = arr.findIndex(function(x){ return x.id === id; });
