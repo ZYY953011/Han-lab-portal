@@ -76,15 +76,25 @@
           ? '<a class="file-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" title="' + esc(m.url) + '">' + esc(m.name || "未命名文件") + '</a>'
           : '<span class="file-name disabled" title="未填写链接">' + esc(m.name || "未命名文件") + '</span>';
         return '<div class="file-row">' +
-          '<div class="file-main">' + nameHtml +
+          '<div class="file-col file-col-name">' + nameHtml +
             (showCategory ? '<span class="file-cat">' + esc(catMap[normalizeCategory(m.category)] || m.category) + '</span>' : '') +
-            (m.note ? '<span class="file-note">' + esc(m.note) + '</span>' : '') +
           '</div>' +
-          '<div class="file-meta">' +
-            '<span>' + esc(m.date || "—") + '</span>' +
-            '<span>' + esc(m.uploader || "—") + '</span>' +
+          '<div class="file-col file-col-note" title="' + esc(m.note || "") + '">' + esc(m.note || "—") + '</div>' +
+          '<div class="file-col file-col-date">' + esc(m.date || "—") + '</div>' +
+          '<div class="file-col file-col-uploader">' + esc(m.uploader || "—") + '</div>' +
+          '<div class="file-col file-col-action">' +
             (m.url ? '<a class="btn btn-xs btn-outline feishu-btn" href="' + esc(m.url) + '" target="_blank" rel="noopener">打开 ↗</a>' : '<span class="file-no-link">未上传</span>') +
           '</div>' +
+        '</div>';
+      }
+
+      function emptyFileSlot(ckey, cname){
+        return '<div class="file-row file-row-empty" onclick="openProjMatModal(\'' + esc(p.id) + '\',\'' + esc(ckey) + '\')">' +
+          '<div class="file-col file-col-name"><span class="file-placeholder">＋ 点击添加资料</span></div>' +
+          '<div class="file-col file-col-note">粘贴飞书链接、填写文件名/日期/上传人/备注</div>' +
+          '<div class="file-col file-col-date">—</div>' +
+          '<div class="file-col file-col-uploader">—</div>' +
+          '<div class="file-col file-col-action"><span class="file-no-link">待添加</span></div>' +
         '</div>';
       }
 
@@ -140,6 +150,7 @@
         categories.forEach(function(c){
           var items = byCat[c.key] || [];
           var fileList = items.map(function(m){ return fileItem(m, false); }).join("");
+          var slots = emptyFileSlot(c.key, c.label) + emptyFileSlot(c.key, c.label);
 
           var hasItems = items.length > 0;
           html += '<details class="archive-details" data-cat="' + esc(c.key) + '" ' + (hasItems?'open':'') + '>' +
@@ -153,8 +164,7 @@
               '</span>' +
             '</summary>' +
             '<div class="archive-body">' +
-              (items.length ? '<div class="file-list">' + fileList + '</div>' :
-                '<div class="placeholder" style="margin-top:6px;">暂无「' + esc(c.label) + '」资料。点击右侧「添加」或去飞书文件夹上传。</div>') +
+              '<div class="file-list">' + fileList + slots + '</div>' +
             '</div>' +
           '</details>';
         });
