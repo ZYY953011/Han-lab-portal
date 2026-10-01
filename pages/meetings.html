@@ -54,7 +54,7 @@
     <div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本地添加的组会（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeMtExportBox()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/meetings.js</code> 的 <code>window.DATA.meetings</code> 数组中，全组即可看到。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员：把 <code>meetings</code> 数组里的内容（含新增/修改）贴入 <code>assets/js/data/meetings.js</code> 的 <code>window.DATA.meetings</code> 中（相同 id 覆盖），并从该数组中删除 <code>deleted</code> 里列出的 id，全组即可同步。</p>
         <textarea id="mtExportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>
@@ -76,8 +76,15 @@
     function saveLocalMeetings(arr){
       localStorage.setItem("meeting-local", JSON.stringify(arr));
     }
+    function getDeletedMeetings(){
+      try { var raw = localStorage.getItem("meeting-deleted"); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+    }
+    function saveDeletedMeetings(arr){
+      localStorage.setItem("meeting-deleted", JSON.stringify(arr));
+    }
     function allMeetings(){
-      var base = (window.DATA.meetings || []).slice();
+      var deleted = getDeletedMeetings();
+      var base = (window.DATA.meetings || []).slice().filter(function(b){ return deleted.indexOf(b.id) < 0; });
       getLocalMeetings().forEach(function(item, idx){
         var copy = Object.assign({}, item);
         copy.__localIdx = idx;
@@ -107,11 +114,10 @@
 
     // 历史列表
     document.getElementById("rows").innerHTML = list.map(function(m){
+      var isLocal = (typeof m.__localIdx === 'number');
       var actions = '<button class="btn btn-sm" onclick="showDetail(\'' + esc(m.id) + '\')">查看</button>' +
-                    ' <button class="btn btn-xs btn-outline" onclick="editMeetingById(\'' + esc(m.id) + '\')">编辑</button>';
-      if(typeof m.__localIdx === 'number'){
-        actions += ' <button class="btn btn-xs btn-danger" onclick="deleteMeeting(' + m.__localIdx + ')">删除</button>';
-      }
+                    ' <button class="btn btn-xs btn-outline" onclick="editMeetingById(\'' + esc(m.id) + '\')">编辑</button>' +
+                    ' <button class="btn btn-xs btn-danger" onclick="deleteMeetingById(\'' + esc(m.id) + '\', ' + isLocal + ')">删除</button>';
       return '<tr>' +
         '<td>' + esc(m.date) + '</td>' +
         '<td>' + esc(m.time) + '</td>' +
@@ -191,12 +197,19 @@
     }
     window.submitMeeting = submitMeeting;
 
-    function deleteMeeting(idx){
-      if(!confirm("确定删除这条组会吗？")) return;
-      var arr = getLocalMeetings();
-      if(idx >= 0 && idx < arr.length){ arr.splice(idx, 1); saveLocalMeetings(arr); location.reload(); }
+    function deleteMeetingById(id, isLocal){
+      if(!confirm("确定删除这条组会吗？删除后仅当前浏览器隐藏；如需全组同步，请点右上角「导出」并把结果发给管理员。")) return;
+      if(isLocal){
+        var arr = getLocalMeetings();
+        var i = arr.findIndex(function(x){ return x.id === id; });
+        if(i >= 0){ arr.splice(i, 1); saveLocalMeetings(arr); }
+      } else {
+        var del = getDeletedMeetings();
+        if(del.indexOf(id) < 0){ del.push(id); saveDeletedMeetings(del); }
+      }
+      location.reload();
     }
-    window.deleteMeeting = deleteMeeting;
+    window.deleteMeetingById = deleteMeetingById;
 
     function editMeeting(idx){
       var arr = getLocalMeetings();
@@ -255,8 +268,9 @@
 
     function exportLocalMeetings(){
       var arr = getLocalMeetings();
-      if(!arr.length){ alert("当前浏览器没有临时添加的组会"); return; }
-      document.getElementById("mtExportBox").value = JSON.stringify(arr, null, 2);
+      var del = getDeletedMeetings();
+      if(!arr.length && !del.length){ alert("当前浏览器没有临时添加或删除的组会"); return; }
+      document.getElementById("mtExportBox").value = JSON.stringify({ meetings: arr, deleted: del }, null, 2);
       document.getElementById("mtExportWrap").classList.add("open");
       document.getElementById("mtExportBox").select();
     }
