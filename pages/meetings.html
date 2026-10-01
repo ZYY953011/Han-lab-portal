@@ -12,6 +12,31 @@
     <div id="head"></div>
     <div class="note-box" style="margin-bottom:14px;">💡 组会信息只保留最需要发布的内容：时间、地点、汇报人、汇报材料、发布时间和发布人。</div>
 
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span id="form-title">添加组会</span>
+        <button class="btn btn-outline btn-sm" onclick="exportLocalMeetings()">导出我添加的组会（JSON）</button>
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">填写时间、地点、汇报人和材料链接，保存后仅当前浏览器可见；点导出后交给管理员合并。</p>
+      <div class="material-add-form" style="margin-bottom:8px;">
+        <input type="date" id="mt-date" placeholder="日期">
+        <input type="time" id="mt-time" placeholder="时间">
+        <input type="text" id="mt-place" placeholder="地点">
+        <input type="text" id="mt-reporter" placeholder="汇报人">
+        <input type="date" id="mt-publishDate" placeholder="发布日期">
+        <input type="text" id="mt-publisher" placeholder="发布人">
+        <input type="hidden" id="mt-base-id" value="">
+      </div>
+      <div class="material-add-form" style="margin-bottom:8px;">
+        <input type="text" id="mt-topic" placeholder="主题" style="flex:2;">
+        <input type="text" id="mt-pptUrl" placeholder="PPT 链接" style="flex:1.5;">
+        <input type="text" id="mt-docUrl" placeholder="文档/笔记链接" style="flex:1.5;">
+        <button class="btn btn-primary btn-sm" id="mt-submit-btn" onclick="submitMeeting()">保存</button>
+        <button class="btn btn-outline btn-sm" id="mt-cancel-btn" onclick="resetMeetingForm()" style="display:none;">取消</button>
+        <input type="hidden" id="mt-idx" value="">
+      </div>
+    </div>
+
     <div class="section-title">组会日历（最近 / 即将）</div>
     <div class="card" id="cal"></div>
 
@@ -24,6 +49,17 @@
     </div>
   </main>
 
+  <!-- 导出弹窗 -->
+  <div class="modal" id="mtExportWrap">
+    <div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本地添加的组会（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeMtExportBox()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/meetings.js</code> 的 <code>window.DATA.meetings</code> 数组中，全组即可看到。</p>
+        <textarea id="mtExportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>
+  </div>
+
   <script src="../assets/js/data/meetings.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
@@ -34,7 +70,26 @@
       [{name:"首页", url:"../index.html"}, {name:"组会安排与记录"}]
     );
 
-    var list = (window.DATA.meetings||[]).slice().sort(function(a,b){ return b.date.localeCompare(a.date); });
+    function getLocalMeetings(){
+      try { var raw = localStorage.getItem("meeting-local"); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+    }
+    function saveLocalMeetings(arr){
+      localStorage.setItem("meeting-local", JSON.stringify(arr));
+    }
+    function allMeetings(){
+      var base = (window.DATA.meetings || []).slice();
+      getLocalMeetings().forEach(function(item, idx){
+        var copy = Object.assign({}, item);
+        copy.__localIdx = idx;
+        // 如果本地项 id 与 base 重复，覆盖 base
+        var found = base.findIndex(function(b){ return b.id === copy.id; });
+        if(found >= 0){ base[found] = copy; }
+        else { base.push(copy); }
+      });
+      return base;
+    }
+
+    var list = allMeetings().sort(function(a,b){ return b.date.localeCompare(a.date); });
 
     // 日历：按月分组列出
     document.getElementById("cal").innerHTML = list.map(function(m){
@@ -52,6 +107,11 @@
 
     // 历史列表
     document.getElementById("rows").innerHTML = list.map(function(m){
+      var actions = '<button class="btn btn-sm" onclick="showDetail(\'' + esc(m.id) + '\')">查看</button>' +
+                    ' <button class="btn btn-xs btn-outline" onclick="editMeetingById(\'' + esc(m.id) + '\')">编辑</button>';
+      if(typeof m.__localIdx === 'number'){
+        actions += ' <button class="btn btn-xs btn-danger" onclick="deleteMeeting(' + m.__localIdx + ')">删除</button>';
+      }
       return '<tr>' +
         '<td>' + esc(m.date) + '</td>' +
         '<td>' + esc(m.time) + '</td>' +
@@ -59,7 +119,7 @@
         '<td>' + esc(m.reporter) + '</td>' +
         '<td><a href="#' + esc(m.id) + '" onclick="showDetail(\'' + esc(m.id) + '\')">' + esc(m.topic) + '</a></td>' +
         '<td>' + esc(m.publisher || "—") + '<br><span style="font-size:12px; color:var(--muted);">' + esc(m.publishDate || "") + '</span></td>' +
-        '<td><button class="btn btn-sm" onclick="showDetail(\'' + esc(m.id) + '\')">查看</button></td>' +
+        '<td>' + actions + '</td>' +
       '</tr>';
     }).join("");
 
@@ -69,7 +129,7 @@
     document.querySelector(".container").appendChild(box);
 
     function showDetail(id){
-      var m = (window.DATA.meetings||[]).find(function(x){ return x.id===id; });
+      var m = allMeetings().find(function(x){ return x.id===id; });
       if(!m) return;
       var materials = [];
       if(m.pptUrl) materials.push('<a class="btn btn-sm btn-outline" href="' + esc(m.pptUrl) + '" target="_blank">📊 PPT</a>');
@@ -89,6 +149,123 @@
       box.scrollIntoView({behavior:"smooth"});
     }
     window.showDetail = showDetail;
+
+    function submitMeeting(){
+      var date = document.getElementById("mt-date").value.trim();
+      var time = document.getElementById("mt-time").value.trim();
+      var place = document.getElementById("mt-place").value.trim();
+      var reporter = document.getElementById("mt-reporter").value.trim();
+      var topic = document.getElementById("mt-topic").value.trim();
+      var pptUrl = document.getElementById("mt-pptUrl").value.trim();
+      var docUrl = document.getElementById("mt-docUrl").value.trim();
+      var publishDate = document.getElementById("mt-publishDate").value.trim();
+      var publisher = document.getElementById("mt-publisher").value.trim();
+      var idx = document.getElementById("mt-idx").value.trim();
+      var baseId = document.getElementById("mt-base-id").value.trim();
+
+      if(!date){ alert("请填写日期"); return; }
+      if(!time){ alert("请填写时间"); return; }
+      if(!place){ alert("请填写地点"); return; }
+      if(!reporter){ alert("请填写汇报人"); return; }
+      if(!topic){ alert("请填写主题"); return; }
+
+      var arr = getLocalMeetings();
+      var id;
+      if(idx !== ""){
+        id = arr[parseInt(idx,10)] ? arr[parseInt(idx,10)].id : baseId || ("MT-" + date + "-" + reporter);
+      } else if(baseId) {
+        id = baseId;
+      } else {
+        id = "MT-" + date + "-" + reporter + "-" + Date.now();
+      }
+      var item = { id:id, date:date, time:time, place:place, reporter:reporter, topic:topic, pptUrl:pptUrl, docUrl:docUrl, publishDate:publishDate, publisher:publisher };
+
+      if(idx !== ""){
+        var i = parseInt(idx, 10);
+        if(arr[i]) arr[i] = item;
+      } else {
+        arr.push(item);
+      }
+      saveLocalMeetings(arr);
+      location.reload();
+    }
+    window.submitMeeting = submitMeeting;
+
+    function deleteMeeting(idx){
+      if(!confirm("确定删除这条组会吗？")) return;
+      var arr = getLocalMeetings();
+      if(idx >= 0 && idx < arr.length){ arr.splice(idx, 1); saveLocalMeetings(arr); location.reload(); }
+    }
+    window.deleteMeeting = deleteMeeting;
+
+    function editMeeting(idx){
+      var arr = getLocalMeetings();
+      var m = arr[idx];
+      if(!m) return;
+      fillMeetingForm(m, idx, "");
+    }
+    window.editMeeting = editMeeting;
+
+    function editMeetingById(id){
+      var m = allMeetings().find(function(x){ return x.id === id; });
+      if(!m) return;
+      if(typeof m.__localIdx === 'number'){
+        editMeeting(m.__localIdx);
+      } else {
+        fillMeetingForm(m, "", m.id);
+      }
+    }
+    window.editMeetingById = editMeetingById;
+
+    function fillMeetingForm(m, idx, baseId){
+      document.getElementById("mt-date").value = m.date || "";
+      document.getElementById("mt-time").value = m.time || "";
+      document.getElementById("mt-place").value = m.place || "";
+      document.getElementById("mt-reporter").value = m.reporter || "";
+      document.getElementById("mt-topic").value = m.topic || "";
+      document.getElementById("mt-pptUrl").value = m.pptUrl || "";
+      document.getElementById("mt-docUrl").value = m.docUrl || "";
+      document.getElementById("mt-publishDate").value = m.publishDate || "";
+      document.getElementById("mt-publisher").value = m.publisher || "";
+      document.getElementById("mt-idx").value = idx;
+      document.getElementById("mt-base-id").value = baseId;
+      document.getElementById("mt-submit-btn").textContent = "更新";
+      document.getElementById("mt-cancel-btn").style.display = "";
+      document.getElementById("form-title").textContent = "编辑组会";
+      document.getElementById("mt-date").focus();
+    }
+
+    function resetMeetingForm(){
+      document.getElementById("mt-date").value = "";
+      document.getElementById("mt-time").value = "";
+      document.getElementById("mt-place").value = "";
+      document.getElementById("mt-reporter").value = "";
+      document.getElementById("mt-topic").value = "";
+      document.getElementById("mt-pptUrl").value = "";
+      document.getElementById("mt-docUrl").value = "";
+      document.getElementById("mt-publishDate").value = "";
+      document.getElementById("mt-publisher").value = "";
+      document.getElementById("mt-idx").value = "";
+      document.getElementById("mt-base-id").value = "";
+      document.getElementById("mt-submit-btn").textContent = "保存";
+      document.getElementById("mt-cancel-btn").style.display = "none";
+      document.getElementById("form-title").textContent = "添加组会";
+    }
+    window.resetMeetingForm = resetMeetingForm;
+
+    function exportLocalMeetings(){
+      var arr = getLocalMeetings();
+      if(!arr.length){ alert("当前浏览器没有临时添加的组会"); return; }
+      document.getElementById("mtExportBox").value = JSON.stringify(arr, null, 2);
+      document.getElementById("mtExportWrap").classList.add("open");
+      document.getElementById("mtExportBox").select();
+    }
+    window.exportLocalMeetings = exportLocalMeetings;
+
+    function closeMtExportBox(){
+      document.getElementById("mtExportWrap").classList.remove("open");
+    }
+    window.closeMtExportBox = closeMtExportBox;
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>
