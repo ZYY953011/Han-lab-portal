@@ -31,6 +31,63 @@ function el(tag, attrs = {}, html = "") {
   return e;
 }
 
+/* ---------- 本地临时项目的读取与合并（项目列表页 / 项目详情页共用） ----------
+ * 通过「＋ 添加项目」弹窗保存的项目先存在浏览器 localStorage（键 proj-projects），
+ * 只有全站数据（projects.js / project-overrides.js）与本机数据合并后，
+ * 列表页和详情页才能一致地显示，避免"列表里有、点开详情却是空的"。
+ */
+function getLocalProjects() {
+  try {
+    var raw = localStorage.getItem("proj-projects");
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function isPlaceholderVal(v) {
+  if (v === null || v === undefined) return true;
+  var s = String(v).trim();
+  if (!s || s === "—") return true;
+  if (/^（待(补充|填写)/.test(s)) return true;
+  return false;
+}
+/* 合并规则：
+ * 1) id 相同  → 视为同一项目，本地字段优先（刚编辑过）；
+ * 2) 名称相同 → 视为同一项目的本地草稿，只用本地数据补全全站缺省的字段，
+ *    不再追加重复卡片（例如同一项目被添加过两次的情况）；
+ * 3) 其他     → 作为新项目追加。 */
+function mergeLocalProjects(list) {
+  var locals = getLocalProjects();
+  var listArr = list || [];
+  locals.forEach(function (p) {
+    if (!p || !p.id) return;
+    var idx = listArr.findIndex(function (x) { return x.id === p.id; });
+    if (idx >= 0) {
+      listArr[idx] = Object.assign({}, listArr[idx], p);
+      return;
+    }
+    var sameIdx = listArr.findIndex(function (x) { return (x.name || "").trim() === (p.name || "").trim(); });
+    if (sameIdx >= 0) {
+      var base = listArr[sameIdx];
+      Object.keys(p).forEach(function (k) {
+        if (k === "id") return;
+        var lv = p[k], bv = base[k];
+        if (k === "progress") {
+          if (Number(lv) > 0 && !Number(bv)) base[k] = lv;
+          return;
+        }
+        if (["members","okr","materials","relatedMethods","relatedSamples",
+             "relatedDatasets","relatedExpenses","relatedAchievements"].indexOf(k) !== -1) {
+          if ((!bv || !bv.length) && lv && lv.length) base[k] = lv;
+          return;
+        }
+        if (isPlaceholderVal(bv) && !isPlaceholderVal(lv)) base[k] = lv;
+      });
+    } else {
+      listArr.push(p);
+    }
+  });
+  return listArr;
+}
+
 /* ---------- 状态标签：把文字映射成带颜色的徽章 ---------- */
 function badge(text, color) {
   const colors = {

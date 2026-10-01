@@ -5,7 +5,7 @@
 
 // 课题组基本信息（请改成你们自己的）
 window.SITE = {
-  groupName: "作物生理生态与产量形成课题组",   // 课题组名称
+  groupName: "旱区高效农作制度与农田生态创新团队",   // 课题组名称
   siteName: "课题组科研与学生培养管理平台",     // 网站名称
   slogan: "信息找得到 · 过程可追踪 · 经验能继承 · 资源可共享",
   // 顶部欢迎语（首页使用）
@@ -49,6 +49,19 @@ window.HOME_CARDS = [
   { icon: "🗓️", name: "组会安排与记录", desc: "组会日历、历史记录与行动事项跟踪",  file: "meetings.html" },
   { icon: "🎓", name: "学生培养",     desc: "从入组到毕业全过程培养时间轴",        file: "students.html" },
   { icon: "👥", name: "成员与研究成果", desc: "成员信息 + 论文专利等成果展示",      file: "achievements.html" },
+];
+
+/* 首页背景轮播（课题组合照，每 5 秒自动切换，鼠标悬停暂停，点击可放大）
+ * src     = 图片路径（建议把图片统一放在 assets/images/group/ 目录下）
+ * caption = 照片说明，显示在右下角小标签上（可留空 ""）
+ * 加照片：把图片放进 assets/images/group/，再照格式加一行即可，无需改代码。
+ * 若某张图片还没上传，轮播会自动跳过它，不影响其他照片显示。
+ */
+window.GROUP_PHOTOS = [
+  { src: "assets/images/group/photo-1.jpg", caption: "课题组毕业季合影" },
+  { src: "assets/images/group/photo-2.jpg", caption: "" },
+  { src: "assets/images/group/photo-3.jpg", caption: "" },
+  { src: "assets/images/group/photo-4.jpg", caption: "" },
 ];
 
 /* 全站搜索配置：告诉搜索功能去哪些模块找、用哪个字段做标题

@@ -61,20 +61,8 @@
       return date.toLocaleString('zh-CN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
     }
 
-    // 合并本地弹窗添加的项目
-    function localProjectsKey(){ return "proj-projects"; }
-    function getLocalProjects(){
-      try { var raw = localStorage.getItem(localProjectsKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
-    }
-    function mergeLocalProjects(){
-      var locals = getLocalProjects();
-      locals.forEach(function(p){
-        var idx = projects.findIndex(function(x){ return x.id === p.id; });
-        if (idx >= 0){ projects[idx] = Object.assign({}, projects[idx], p); }
-        else { projects.push(p); }
-      });
-    }
-    mergeLocalProjects();
+    // 合并本地弹窗添加的项目（共用逻辑在 app.js：按 id 合并 + 同名项目去重，避免重复卡片）
+    mergeLocalProjects(projects);
 
     // 合并本地弹窗添加的资料
     function localMaterialsKey(pid){ return "proj-materials-" + pid; }

@@ -632,3 +632,97 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
   cursor: not-allowed;
   pointer-events: none;
 }
+
+/* =========================================================
+ * 首页「课题组合影」轮播背景
+ * 多张合照轮流做首页背景；照片本体按原始比例完整显示（不裁切人脸），
+ * 模糊放大版填充整块背景，点击照片可放大查看。
+ * ========================================================= */
+.hero-slideshow {
+  position: relative;
+  height: 420px;
+  margin-bottom: 22px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #16487e;
+  box-shadow: var(--shadow);
+}
+.hs-backdrop {                       /* 模糊放大版背景（填满整块，避免露白边） */
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transform: scale(1.15);
+  filter: blur(22px) brightness(.55) saturate(1.05);
+}
+.hs-mask {                           /* 左侧压暗，保证白色文字清晰可读 */
+  position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(100deg,
+    rgba(12, 32, 58, .94) 0%,
+    rgba(12, 32, 58, .82) 34%,
+    rgba(12, 32, 58, .42) 58%,
+    rgba(12, 32, 58, .15) 100%);
+}
+.hs-photo {                          /* 照片本体：完整显示，不裁切人脸 */
+  position: absolute; top: 0; bottom: 0; right: 0;
+  width: 62%; height: 100%;
+  object-fit: contain;
+  object-position: right center;
+  cursor: zoom-in;
+  z-index: 2;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, .35));
+  transition: opacity .7s ease;
+}
+.hs-photo.fading { opacity: 0; }
+.hs-text { position: absolute; left: 44px; top: 50%; transform: translateY(-50%); max-width: 44%; color: #fff; z-index: 3; }
+.hs-text h1 { font-size: 26px; margin-bottom: 10px; line-height: 1.35; text-shadow: 0 2px 6px rgba(0, 0, 0, .45); }
+.hs-text p { font-size: 14.5px; opacity: .96; text-shadow: 0 1px 4px rgba(0, 0, 0, .45); }
+.hs-cap {
+  position: absolute; right: 18px; bottom: 16px; z-index: 3;
+  padding: 5px 12px; border-radius: 999px;
+  background: rgba(10, 25, 45, .5);
+  color: #fff; font-size: 12.5px;
+  backdrop-filter: blur(4px);
+}
+.hs-dots { position: absolute; left: 44px; bottom: 22px; z-index: 3; display: flex; gap: 8px; }
+.hs-dot {
+  width: 9px; height: 9px; padding: 0; border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .45); cursor: pointer; transition: all .25s ease;
+}
+.hs-dot.active { width: 24px; background: #fff; }
+
+/* 手机端：照片完整显示在上方，文字落在下方深色区域，互不遮挡 */
+@media (max-width: 900px) {
+  .hero-slideshow { height: 470px; }
+  .hs-photo { width: 100%; height: 56%; bottom: auto; object-position: center center; }
+  .hs-mask {
+    background: linear-gradient(180deg,
+      rgba(10, 28, 50, .22) 0%,
+      rgba(10, 28, 50, .5) 40%,
+      rgba(12, 32, 58, .97) 56%,
+      rgba(12, 32, 58, .99) 100%);
+  }
+  .hs-text { left: 20px; right: 20px; max-width: none; top: 61%; bottom: auto; transform: none; }
+  .hs-text h1 { font-size: 21px; }
+  .hs-dots { left: 20px; bottom: 22px; }
+  .hs-cap { right: 14px; top: 12px; bottom: auto; font-size: 12px; }
+}
+
+/* 照片放大查看器 */
+.lightbox {
+  display: none;
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(10, 20, 35, .88);
+  align-items: center; justify-content: center;
+  flex-direction: column; gap: 12px; padding: 24px;
+  cursor: zoom-out;
+}
+.lightbox.show { display: flex; }
+.lightbox img {
+  max-width: min(1100px, 94vw);
+  max-height: 86vh;
+  width: auto; height: auto;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, .5);
+}
+.lightbox .lb-cap { color: #fff; font-size: 14px; opacity: .92; }

@@ -24,10 +24,21 @@
   <script>
     injectHeader("项目");
     var id = getParam("id");
+    // 先合并本机通过「＋ 添加项目」弹窗临时保存的项目，否则这些项目点开详情会是空的
+    if (typeof mergeLocalProjects === "function") mergeLocalProjects(window.DATA.projects || []);
     var p = (window.DATA.projects||[]).find(function(x){ return x.id===id; });
+    // 回退：若传入的是本地草稿的旧 id（合并同名后已并入正式项目），按名称找回
+    if(!p && typeof getLocalProjects === "function"){
+      var draft = getLocalProjects().find(function(x){ return x.id===id; });
+      if(draft){ p = (window.DATA.projects||[]).find(function(x){ return (x.name||"").trim()===(draft.name||"").trim(); }); }
+    }
     var folderUrl = (p && p.projectFolderUrl) || window.PROJECT_MATERIALS_FOLDER || "";
 
-    if(!p){ document.getElementById("main").innerHTML = emptyTip("未找到该项目"); }
+    if(!p){
+      document.getElementById("main").innerHTML =
+        emptyTip("未找到该项目（id=" + esc(id) + "）。若它刚在本机「＋ 添加项目」弹窗里创建，请回项目列表点「导出我添加的项目（JSON）」交给管理员合并到全站数据。") +
+        '<p style="text-align:center; margin-top:14px;"><a class="btn btn-outline btn-sm" href="projects.html">← 返回项目列表</a></p>';
+    }
     else {
       var nameOf = function(key,arr,field){
         return (window.DATA[arr]||[]).filter(function(x){ return (p[key]||[]).indexOf(x.id)!==-1; }).map(function(x){ return x[field]; }).join("。") || "—";

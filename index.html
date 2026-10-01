@@ -9,12 +9,17 @@
 </head>
 <body>
   <main class="container">
-    <!-- 欢迎区：使用课题组合照作为背景 -->
-    <section class="card hero" style="margin-bottom:22px; color:#fff; border:none; position:relative; overflow:hidden; background-image:linear-gradient(rgba(15,40,70,.55), rgba(15,40,70,.65)), url('assets/images/hero-group.jpg'); background-size:cover; background-position:center center;">
-      <div style="position:relative; z-index:1;">
-        <h1 style="font-size:26px; margin-bottom:8px; text-shadow:0 2px 4px rgba(0,0,0,.35);">欢迎进入课题组科研与学生培养管理平台</h1>
-        <p style="opacity:.95; max-width:760px; text-shadow:0 1px 3px rgba(0,0,0,.35);">这里集中管理项目、实验、样品、数据、报账、组会、学生培养与研究成果。信息找得到、过程可追踪、经验能继承、资源可共享。</p>
+    <!-- 欢迎区：课题组合照轮播背景（照片按原比例完整显示不裁切，模糊放大版填充背景） -->
+    <section class="hero-slideshow" id="heroSlideshow">
+      <img class="hs-backdrop" id="hsBackdropImg" src="" alt="">
+      <div class="hs-mask"></div>
+      <img class="hs-photo" id="hsPhotoImg" src="" alt="课题组合影" title="点击照片可放大查看">
+      <div class="hs-text">
+        <h1>欢迎进入课题组科研与学生培养管理平台</h1>
+        <p>这里集中管理项目、实验、样品、数据、报账、组会、学生培养与研究成果。信息找得到、过程可追踪、经验能继承、资源可共享。</p>
       </div>
+      <div class="hs-cap" id="hsCaption"></div>
+      <div class="hs-dots" id="hsDots"></div>
     </section>
 
     <!-- 8 个常用入口卡片 -->
@@ -45,6 +50,12 @@
     </div>
   </main>
 
+  <!-- 照片放大查看器（点击遮罩任意处关闭） -->
+  <div class="lightbox" id="photoViewer" onclick="this.classList.remove('show')">
+    <img id="photoViewerImg" src="" alt="课题组合照大图">
+    <div class="lb-cap" id="photoViewerCap"></div>
+  </div>
+
   <!-- 数据（第一版：本地示例数据，后续可替换为 API） -->
   <script src="assets/js/data/projects.js"></script>
   <script src="assets/js/data/methods.js"></script>
@@ -60,6 +71,62 @@
   <script>
     injectHeader("首页");
     renderEntryCards();
+
+    // 照片放大查看器（首页背景轮播里的照片点击后放大）
+    function openPhotoViewer(src, cap){
+      document.getElementById("photoViewerImg").src = src;
+      document.getElementById("photoViewerCap").textContent = cap || "";
+      document.getElementById("photoViewer").classList.add("show");
+    }
+    window.openPhotoViewer = openPhotoViewer;
+
+    // 首页背景轮播：合照轮流做背景，照片本身完整显示（不裁切人脸），模糊放大版填充背景
+    var hsPhotos = (window.GROUP_PHOTOS || []).filter(function(p){ return p && p.src; });
+    var hsIdx = 0, hsTimer = null;
+    var hsBack = document.getElementById("hsBackdropImg");
+    var hsFront = document.getElementById("hsPhotoImg");
+    var hsCap = document.getElementById("hsCaption");
+
+    function hsDotsHTML(){
+      document.getElementById("hsDots").innerHTML = hsPhotos.map(function(p, i){
+        return '<button class="hs-dot' + (i === hsIdx ? ' active' : '') + '" onclick="hsGo(' + i + ')" title="第 ' + (i + 1) + ' 张"></button>';
+      }).join("");
+    }
+    function hsShow(i){
+      if(!hsPhotos.length) return;
+      hsIdx = (i + hsPhotos.length) % hsPhotos.length;
+      var ph = hsPhotos[hsIdx];
+      hsFront.classList.add("fading");
+      var pre = new Image();
+      pre.onload = function(){                 // 先预载再切换，避免闪白
+        hsBack.src = ph.src;
+        hsFront.src = ph.src;
+        hsFront.classList.remove("fading");
+      };
+      pre.onerror = function(){                // 该照片还没上传：自动跳到下一张
+        hsFront.classList.remove("fading");
+        if(hsPhotos.length > 1) hsShow(hsIdx + 1);
+      };
+      pre.src = ph.src;
+      hsCap.textContent = (ph.caption || "课题组合影") + " · 点击放大";
+      hsDotsHTML();
+    }
+    function hsPlay(){
+      clearInterval(hsTimer);
+      if(hsPhotos.length > 1) hsTimer = setInterval(function(){ hsShow(hsIdx + 1); }, 5000);
+    }
+    function hsGo(i){ hsShow(i); hsPlay(); }
+    window.hsGo = hsGo;
+
+    var hsBox = document.getElementById("heroSlideshow");
+    hsBox.addEventListener("mouseenter", function(){ clearInterval(hsTimer); });  // 鼠标悬停暂停
+    hsBox.addEventListener("mouseleave", hsPlay);
+    hsFront.addEventListener("click", function(){
+      if(hsFront.naturalWidth === 0) return;
+      openPhotoViewer(hsFront.src, (hsPhotos[hsIdx] || {}).caption || "");
+    });
+    hsShow(0);
+    hsPlay();
 
     // 最近更新：合并会议/数据/项目，按日期取最新几条
     var updates = [];
