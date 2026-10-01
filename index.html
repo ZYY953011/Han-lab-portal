@@ -81,8 +81,8 @@
     document.getElementById("weekly-reminders").innerHTML = reminds.map(r =>
       `<li><span class="t">${esc(r.t)}</span><span class="d">${esc(r.d)}</span></li>`).join("");
 
-    // 常用资源（取推荐最高的几条）
-    var res = (window.DATA.resources||[]).filter(r=>r.recommend.indexOf("5")>=0).slice(0,6);
+    // 常用资源（取 5 星推荐的前几条）
+    var res = (window.DATA.resources||[]).filter(function(r){ return (r.recommend.match(/★/g)||[]).length >= 5; }).slice(0,6);
     document.getElementById("common-resources").innerHTML = res.map(r =>
       `<li><a class="t" href="${esc(r.url)}" target="_blank">${esc(r.title)}</a><span class="d">${esc(r.category)}</span></li>`).join("");
 

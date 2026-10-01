@@ -11,6 +11,37 @@
   <main class="container">
     <div id="head"></div>
     <div class="note-box" style="margin-bottom:14px;">💡 设计原则：<b>需要的时候能快速找到，平时不被过量信息干扰。</b>按分类筛选，按需查看。</div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span id="form-title">添加资源</span>
+        <button class="btn btn-outline btn-sm" onclick="exportLocalResources()">导出我添加的资源（JSON）</button>
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">填写名称、网址、分类和简介，点保存即可。新增的分类会自动出现在筛选下拉框里。</p>
+      <div class="material-add-form" style="margin-bottom:8px;">
+        <input type="text" id="res-title" placeholder="资源名称">
+        <input type="text" id="res-url" placeholder="网址（可空）" style="flex:2;">
+        <input type="text" id="res-addedBy" placeholder="添加人">
+        <button class="btn btn-primary btn-sm" id="res-submit-btn" onclick="submitResource()">保存</button>
+        <button class="btn btn-outline btn-sm" id="res-cancel-btn" onclick="resetResourceForm()" style="display:none;">取消</button>
+        <input type="hidden" id="res-idx" value="">
+      </div>
+      <div class="material-add-form" style="margin-bottom:8px;">
+        <select id="res-cat" style="flex:1; min-width:120px; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+          <option value="">选择已有分类</option>
+        </select>
+        <input type="text" id="res-newCat" placeholder="或输入新分类" style="flex:1; min-width:120px;">
+        <input type="text" id="res-intro" placeholder="简介 / 用途" style="flex:2; min-width:200px;">
+        <select id="res-recommend" style="width:110px; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+          <option value="★★★★★">★★★★★</option>
+          <option value="★★★★">★★★★</option>
+          <option value="★★★">★★★</option>
+          <option value="★★">★★</option>
+          <option value="★">★</option>
+        </select>
+      </div>
+    </div>
+
     <div class="toolbar">
       <select id="cat"></select>
       <input class="grow" id="kw" placeholder="搜索资源标题 / 简介…">
@@ -18,43 +49,173 @@
     <div class="grid grid-3" id="list"></div>
   </main>
 
+  <!-- 导出弹窗 -->
+  <div class="modal" id="resExportWrap">
+    <div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本地添加的资源（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeResExportBox()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/resources.js</code> 的 <code>window.DATA.resources</code> 数组中，全组即可看到。</p>
+        <textarea id="resExportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>
+  </div>
+
   <script src="../assets/js/data/resources.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("学习资源");
     document.getElementById("head").innerHTML = pageHead(
-      "学习资源库", "新生入门、文献检索、实验设计、数据分析、论文写作、报账指南等，按需取用。",
+      "学习资源库", "入组必读、文献检索与管理、翻译润色、科研绘图、数据分析、写作投稿、学术报告、报账指南等，按需取用。",
       [{name:"首页", url:"../index.html"}, {name:"学习资源"}]
     );
 
-    var cats = [...new Set((window.DATA.resources||[]).map(r=>r.category))];
-    document.getElementById("cat").innerHTML = `<option value="">全部分类</option>` + cats.map(c=>`<option>${esc(c)}</option>`).join("");
+    function getLocalResources(){
+      try { var raw = localStorage.getItem("resource-local"); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+    }
+    function saveLocalResources(arr){
+      localStorage.setItem("resource-local", JSON.stringify(arr));
+    }
+    function allResources(){
+      var list = (window.DATA.resources || []).slice();
+      getLocalResources().forEach(function(item, idx){
+        var copy = Object.assign({}, item);
+        copy.__localIdx = idx;
+        list.push(copy);
+      });
+      return list;
+    }
+
+    function getCategories(){
+      return [...new Set(allResources().map(r => r.category).filter(Boolean))].sort();
+    }
+
+    function updateCatSelect(){
+      var cats = getCategories();
+      document.getElementById("cat").innerHTML = '<option value="">全部分类</option>' + cats.map(c=>'<option>'+esc(c)+'</option>').join("");
+      var resCat = document.getElementById("res-cat");
+      resCat.innerHTML = '<option value="">选择已有分类</option>' + cats.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join("");
+    }
 
     function card(r){
-      return `<div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-          <h3 style="font-size:16px; color:var(--primary-dark);"><a href="${esc(r.url)}" target="_blank">${esc(r.title)}</a></h3>
-          <span style="color:var(--warn); font-size:13px; white-space:nowrap;">${esc(r.recommend)}</span>
-        </div>
-        <div style="margin:4px 0;"><span class="tag">${esc(r.category)}</span></div>
-        <p style="font-size:13.5px; color:#44505f;">${esc(r.intro)}</p>
-        <div style="font-size:12.5px; color:var(--muted); margin:6px 0;">
-          适合：${esc(r.forWho)} ｜ 何时看：${esc(r.when)} ｜ 约 ${esc(r.minutes)} 分钟
-        </div>
-        <a class="btn btn-sm" href="${esc(r.url)}" target="_blank">打开资源 →</a>
-      </div>`;
+      var actions = '';
+      if(typeof r.__localIdx === 'number'){
+        actions = '<div style="display:flex; gap:6px; margin-top:8px;">' +
+          '<button class="btn btn-xs btn-outline" onclick="editResource(' + r.__localIdx + ')">编辑</button>' +
+          '<button class="btn btn-xs btn-danger" onclick="deleteResource(' + r.__localIdx + ')">删除</button>' +
+          '</div>';
+      }
+      var titleHtml = r.url
+        ? '<a href="' + esc(r.url) + '" target="_blank">' + esc(r.title) + '</a>'
+        : '<span style="color:var(--text);">' + esc(r.title) + '</span>';
+      return '<div class="card">' +
+        '<div style="display:flex; justify-content:space-between; align-items:flex-start;">' +
+          '<h3 style="font-size:16px; color:var(--primary-dark); line-height:1.35;">' + titleHtml + '</h3>' +
+          '<span style="color:var(--warn); font-size:13px; white-space:nowrap;">' + esc(r.recommend) + '</span>' +
+        '</div>' +
+        '<div style="margin:4px 0;"><span class="tag">' + esc(r.category) + '</span></div>' +
+        '<p style="font-size:13.5px; color:#44505f;">' + esc(r.intro) + '</p>' +
+        '<div style="font-size:12.5px; color:var(--muted); margin:6px 0;">' +
+          '适合：' + esc(r.forWho || "—") + ' ｜ 约 ' + esc(r.minutes || "—") + ' 分钟' +
+        '</div>' +
+        actions +
+      '</div>';
     }
+
     function render(){
       var cat = document.getElementById("cat").value;
       var kw = document.getElementById("kw").value.trim().toLowerCase();
-      var list = (window.DATA.resources||[]).filter(r=>{
+      var list = allResources().filter(function(r){
         var ok1 = !cat || r.category===cat;
-        var ok2 = !kw || (r.title+r.intro).toLowerCase().includes(kw);
+        var ok2 = !kw || (r.title+r.intro+r.category).toLowerCase().includes(kw);
         return ok1 && ok2;
       });
       document.getElementById("list").innerHTML = list.length ? list.map(card).join("") : emptyTip("没有匹配的资源");
     }
+
+    function submitResource(){
+      var title = document.getElementById("res-title").value.trim();
+      var url = document.getElementById("res-url").value.trim();
+      var cat = document.getElementById("res-cat").value.trim();
+      var newCat = document.getElementById("res-newCat").value.trim();
+      var intro = document.getElementById("res-intro").value.trim();
+      var recommend = document.getElementById("res-recommend").value;
+      var addedBy = document.getElementById("res-addedBy").value.trim();
+      var idx = document.getElementById("res-idx").value.trim();
+
+      if(!title){ alert("请填写资源名称"); return; }
+      var category = newCat || cat || "其他";
+      if(!intro){ intro = "—"; }
+
+      var arr = getLocalResources();
+      var item = { title: title, url: url, category: category, intro: intro, forWho: addedBy || "—", when: "随时", minutes: 5, recommend: recommend, addedBy: addedBy || "—" };
+      if(idx !== ""){
+        var i = parseInt(idx, 10);
+        if(arr[i]) arr[i] = item;
+      } else {
+        arr.push(item);
+      }
+      saveLocalResources(arr);
+      location.reload();
+    }
+    window.submitResource = submitResource;
+
+    function deleteResource(idx){
+      if(!confirm("确定删除这条资源吗？")) return;
+      var arr = getLocalResources();
+      if(idx >= 0 && idx < arr.length){ arr.splice(idx, 1); saveLocalResources(arr); location.reload(); }
+    }
+    window.deleteResource = deleteResource;
+
+    function editResource(idx){
+      var arr = getLocalResources();
+      var r = arr[idx];
+      if(!r) return;
+      document.getElementById("res-title").value = r.title || "";
+      document.getElementById("res-url").value = r.url || "";
+      document.getElementById("res-cat").value = r.category || "";
+      document.getElementById("res-newCat").value = "";
+      document.getElementById("res-intro").value = (r.intro === "—" ? "" : (r.intro || ""));
+      document.getElementById("res-recommend").value = r.recommend || "★★★★★";
+      document.getElementById("res-addedBy").value = (r.addedBy === "—" ? "" : (r.addedBy || ""));
+      document.getElementById("res-idx").value = idx;
+      document.getElementById("res-submit-btn").textContent = "更新";
+      document.getElementById("res-cancel-btn").style.display = "";
+      document.getElementById("form-title").textContent = "编辑资源";
+      document.getElementById("res-title").focus();
+    }
+    window.editResource = editResource;
+
+    function resetResourceForm(){
+      document.getElementById("res-title").value = "";
+      document.getElementById("res-url").value = "";
+      document.getElementById("res-cat").value = "";
+      document.getElementById("res-newCat").value = "";
+      document.getElementById("res-intro").value = "";
+      document.getElementById("res-recommend").value = "★★★★★";
+      document.getElementById("res-addedBy").value = "";
+      document.getElementById("res-idx").value = "";
+      document.getElementById("res-submit-btn").textContent = "保存";
+      document.getElementById("res-cancel-btn").style.display = "none";
+      document.getElementById("form-title").textContent = "添加资源";
+    }
+    window.resetResourceForm = resetResourceForm;
+
+    function exportLocalResources(){
+      var arr = getLocalResources();
+      if(!arr.length){ alert("当前浏览器没有临时添加的资源"); return; }
+      document.getElementById("resExportBox").value = JSON.stringify(arr, null, 2);
+      document.getElementById("resExportWrap").classList.add("open");
+      document.getElementById("resExportBox").select();
+    }
+    window.exportLocalResources = exportLocalResources;
+
+    function closeResExportBox(){
+      document.getElementById("resExportWrap").classList.remove("open");
+    }
+    window.closeResExportBox = closeResExportBox;
+
+    updateCatSelect();
     document.getElementById("cat").addEventListener("change", render);
     document.getElementById("kw").addEventListener("input", render);
     render();

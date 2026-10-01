@@ -91,6 +91,7 @@
 | 成员 | `members` | id, name, role, join, grad, research, project, skills, help, contact, seat, status, after |
 | 成果 | `achievements` | id, type, title, authors, corresponding, journal, year, doi, zone, if, project, students, paperUrl, pdfUrl |
 | 学习资源 | `resources` | id, title, category, intro, forWho, when, minutes, url, recommend |
+| 日常用工具 | `tools` | id, category, name, url, desc, addedBy（category 取值见 config.js 的 TOOL_CATEGORIES） |
 
 **预留的第三方/接口字段（写在数据对象里即可）：**
 `external_url` · `document_url` · `storage_url` · `api_endpoint` · `external_id`
