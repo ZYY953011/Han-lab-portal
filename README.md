@@ -243,3 +243,42 @@
 > 因此**不要把财务金额、私人手机号、学生隐私等机密放进网站**。
 > 需要"精确到某个人能否进入、可单独加人/踢人"的正式权限，请用 **Cloudflare Access**（免费额度 50 人）：
 > 把仓库部署到 Cloudflare Pages，开启 Access 策略，允许指定邮箱（或 `@学校域名`）登录即可，详见 Cloudflare 官方文档。
+
+---
+
+## 十一、让首页合照自动跟随飞书云盘文件夹更新（进阶，可选项）
+
+网站是纯静态站，页面本身不能读取你的飞书云盘；要实现"往飞书文件夹丢照片 → 首页自动换新"，
+做法是让 **GitHub Actions 定时跑一个同步脚本**：脚本用飞书开放平台 API 读取文件夹里的图片，
+下载到 `assets/images/group/`，生成首页读取的清单 `assets/data/group-photos.json`，
+提交后 GitHub Pages 自动重新发布。
+
+```
+飞书云盘文件夹 ──(每天定时)──> sync_group_photos.py ──> 图片 + 照片清单 ──> GitHub Pages 首页轮播
+```
+
+### 一次性配置（约 15 分钟）
+
+1. **建飞书自建应用**：打开 [open.feishu.cn](https://open.feishu.cn) → 开发者后台 → 创建企业自建应用
+   → 权限管理勾选云盘权限 `drive:file`、`drive:file:readonly` → 创建版本并申请发布、等待管理员通过。
+   > 注意：**飞书个人版（my.feishu.cn）不能创建自建应用**，需要学校/单位的飞书企业版。
+2. **把文件夹共享给应用**：在飞书云盘打开目标文件夹 → 「…」→ 添加协作者 → 搜索并添加刚建的应用
+   （不加这一步，应用读不到文件夹内容）。复制文件夹链接，最后一段 `fldcn…` 就是 folder token。
+3. **配置 GitHub 密钥**：仓库 Settings → Secrets and variables → Actions → New repository secret，
+   添加三项：`FEISHU_APP_ID`（cli_ 开头）、`FEISHU_APP_SECRET`、`FEISHU_FOLDER_TOKEN`（fldcn 开头）。
+
+### 使用与验证
+
+- 自动：`.github/workflows/sync-group-photos.yml` 每天北京时间 10:17 跑一次（改 cron 可换时间）。
+- 手动：仓库 Actions 页 → 「同步飞书合照到首页」→ Run workflow，立即跑一次看效果。
+- 本地试跑：`python3 sync_group_photos.py --dry-run`（只打印不写文件），确认后去掉参数真跑。
+- 照片说明文字自动取**图片文件名**（如 `2025年秋光合影.jpg` → 显示"2025年秋光合影"）。
+
+### 读取优先级与回退
+
+首页按此顺序取照片：① `assets/data/group-photos.json`（同步生成）
+→ ② `config.js` 的 `window.GROUP_PHOTOS`（手工维护）。清单不存在或为空时自动回退，
+所以**没配置同步、或同步失败，网站都不会白屏**。启用同步后，飞书文件夹即首页照片的唯一来源，
+原来的 `photo-1.jpg` 等请一并上传到该文件夹。
+
+> 安全提醒：密钥只从环境变量读取（本地 export / GitHub Secrets），**不要写进代码或提交到仓库**。

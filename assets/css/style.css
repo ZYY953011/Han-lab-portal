@@ -644,7 +644,8 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
   margin-bottom: 22px;
   border-radius: var(--radius);
   overflow: hidden;
-  background: #16487e;
+  /* 与全站按钮填充色同色系的蓝色渐变（--primary #1f5fa8） */
+  background: linear-gradient(135deg, #1f5fa8 0%, #2a72b8 55%, #3785cc 100%);
   box-shadow: var(--shadow);
 }
 .hs-backdrop {                       /* 模糊放大版背景（填满整块，避免露白边） */
@@ -652,15 +653,15 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
   width: 100%; height: 100%;
   object-fit: cover;
   transform: scale(1.15);
-  filter: blur(22px) brightness(.55) saturate(1.05);
+  filter: blur(22px) brightness(.85) saturate(1.05);
 }
-.hs-mask {                           /* 左侧压暗，保证白色文字清晰可读 */
+.hs-mask {                           /* 蓝色遮罩：左侧接近实色蓝（保证白字清晰），右侧渐透让照片清爽透出 */
   position: absolute; inset: 0; z-index: 1;
   background: linear-gradient(100deg,
-    rgba(12, 32, 58, .94) 0%,
-    rgba(12, 32, 58, .82) 34%,
-    rgba(12, 32, 58, .42) 58%,
-    rgba(12, 32, 58, .15) 100%);
+    rgba(31, 95, 168, .97) 0%,
+    rgba(31, 95, 168, .88) 34%,
+    rgba(31, 95, 168, .52) 60%,
+    rgba(31, 95, 168, .18) 100%);
 }
 .hs-photo {                          /* 照片本体：完整显示，不裁切人脸 */
   position: absolute; top: 0; bottom: 0; right: 0;
@@ -679,7 +680,7 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
 .hs-cap {
   position: absolute; right: 18px; bottom: 16px; z-index: 3;
   padding: 5px 12px; border-radius: 999px;
-  background: rgba(10, 25, 45, .5);
+  background: rgba(22, 72, 126, .6);      /* 蓝色系半透明标签 */
   color: #fff; font-size: 12.5px;
   backdrop-filter: blur(4px);
 }
@@ -696,10 +697,10 @@ html.gate-locked body > *:not(#gate-overlay) { display: none !important; }
   .hs-photo { width: 100%; height: 56%; bottom: auto; object-position: center center; }
   .hs-mask {
     background: linear-gradient(180deg,
-      rgba(10, 28, 50, .22) 0%,
-      rgba(10, 28, 50, .5) 40%,
-      rgba(12, 32, 58, .97) 56%,
-      rgba(12, 32, 58, .99) 100%);
+      rgba(31, 95, 168, .3) 0%,
+      rgba(31, 95, 168, .55) 40%,
+      rgba(31, 95, 168, .97) 56%,
+      rgba(31, 95, 168, .99) 100%);
   }
   .hs-text { left: 20px; right: 20px; max-width: none; top: 61%; bottom: auto; transform: none; }
   .hs-text h1 { font-size: 21px; }

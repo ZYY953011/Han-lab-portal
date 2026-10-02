@@ -81,6 +81,8 @@
     window.openPhotoViewer = openPhotoViewer;
 
     // 首页背景轮播：合照轮流做背景，照片本身完整显示（不裁切人脸），模糊放大版填充背景
+    // 照片来源优先级：① 飞书同步生成的清单 assets/data/group-photos.json（启用自动同步后）
+    //                 ② config.js 的 window.GROUP_PHOTOS（手工维护，兜底）
     var hsPhotos = (window.GROUP_PHOTOS || []).filter(function(p){ return p && p.src; });
     var hsIdx = 0, hsTimer = null;
     var hsBack = document.getElementById("hsBackdropImg");
@@ -97,17 +99,18 @@
       hsIdx = (i + hsPhotos.length) % hsPhotos.length;
       var ph = hsPhotos[hsIdx];
       hsFront.classList.add("fading");
+      var src = ph.src + (ph.v ? "?v=" + ph.v : "");   // v 用于同步后刷新缓存
       var pre = new Image();
       pre.onload = function(){                 // 先预载再切换，避免闪白
-        hsBack.src = ph.src;
-        hsFront.src = ph.src;
+        hsBack.src = src;
+        hsFront.src = src;
         hsFront.classList.remove("fading");
       };
       pre.onerror = function(){                // 该照片还没上传：自动跳到下一张
         hsFront.classList.remove("fading");
         if(hsPhotos.length > 1) hsShow(hsIdx + 1);
       };
-      pre.src = ph.src;
+      pre.src = src;
       hsCap.textContent = (ph.caption || "课题组合影") + " · 点击放大";
       hsDotsHTML();
     }
@@ -122,11 +125,24 @@
     hsBox.addEventListener("mouseenter", function(){ clearInterval(hsTimer); });  // 鼠标悬停暂停
     hsBox.addEventListener("mouseleave", hsPlay);
     hsFront.addEventListener("click", function(){
-      if(hsFront.naturalWidth === 0) return;
+      if(hsFront.naturalWidth === 0) return;   // 只放大真正加载成功的照片
       openPhotoViewer(hsFront.src, (hsPhotos[hsIdx] || {}).caption || "");
     });
     hsShow(0);
     hsPlay();
+
+    // 若启用了飞书自动同步，用同步脚本生成的清单覆盖手工配置（无清单文件时静默忽略）
+    fetch("assets/data/group-photos.json?t=" + Date.now(), { cache: "no-store" })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data){
+        var list = data && (data.photos || data);
+        if(Array.isArray(list) && list.filter(function(p){ return p && p.src; }).length){
+          hsPhotos = list.filter(function(p){ return p && p.src; });
+          hsShow(0);
+          hsPlay();
+        }
+      })
+      .catch(function(){ /* 没有清单文件：继续用 config.js 的手工配置 */ });
 
     // 最近更新：合并会议/数据/项目，按日期取最新几条
     var updates = [];

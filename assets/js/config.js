@@ -59,9 +59,8 @@ window.HOME_CARDS = [
  */
 window.GROUP_PHOTOS = [
   { src: "assets/images/group/photo-1.jpg", caption: "课题组毕业季合影" },
-  { src: "assets/images/group/photo-2.jpg", caption: "" },
-  { src: "assets/images/group/photo-3.jpg", caption: "" },
-  { src: "assets/images/group/photo-4.jpg", caption: "" },
+  { src: "assets/images/group/photo-2.jpg", caption: "毕业季 · 农学院前合影" },
+  { src: "assets/images/group/photo-3.jpg", caption: "课题组大合影" },
 ];
 
 /* 全站搜索配置：告诉搜索功能去哪些模块找、用哪个字段做标题
