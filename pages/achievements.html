@@ -16,16 +16,22 @@
     <div class="toolbar">
       <select id="type"></select>
       <select id="year"></select>
+      <div style="display:flex; gap:6px; margin-left:auto;">
+        <button class="btn btn-primary btn-sm" onclick="openAchvModal()">＋ 添加成果</button>
+        <button class="btn btn-outline btn-sm" onclick="exportAchvLocal()">导出我添加的修改（JSON）</button>
+      </div>
     </div>
+    <p style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除先保存在本机浏览器；点「导出我添加的修改（JSON）」把内容发给管理员合并上传后，全组即可见。</p>
     <div class="table-wrap" style="margin-top:8px;">
       <table>
-        <thead><tr><th>类型</th><th>标题</th><th>作者</th><th>期刊/来源</th><th>年份</th><th>分区/IF</th><th>所属项目</th><th>链接</th></tr></thead>
+        <thead><tr><th>类型</th><th>标题</th><th>作者</th><th>期刊/来源</th><th>年份</th><th>分区/IF</th><th>所属项目</th><th>链接</th><th style="width:110px;">操作</th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
   </main>
 
   <script src="../assets/js/data/members.js"></script>
+  <script src="../assets/js/data/achievement-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
@@ -36,6 +42,171 @@
     );
 
     var types = [...new Set((window.DATA.achievements||[]).map(a=>a.type))];
+
+    // ---------- 本机临时修改（添加/编辑/删除，仅本机可见，可导出交给管理员合并） ----------
+    function getLocalItems(){ try{ return JSON.parse(localStorage.getItem("achv-items")||"[]"); }catch(e){ return []; } }
+    function saveLocalItems(arr){ localStorage.setItem("achv-items", JSON.stringify(arr)); }
+    function getLocalDeleted(){ try{ return JSON.parse(localStorage.getItem("achv-deleted")||"[]"); }catch(e){ return []; } }
+    function saveLocalDeleted(arr){ localStorage.setItem("achv-deleted", JSON.stringify(arr)); }
+
+    // 留存"全站原始数据"副本，用于区分"本机新增"与"修改官方条目"
+    window.__officialAchv = (window.DATA.achievements||[]).slice();
+
+    // 应用本机修改（须在统计与渲染前执行）
+    (function applyLocal(){
+      var list = window.DATA.achievements = window.DATA.achievements || [];
+      getLocalItems().forEach(function(p){
+        if(!p || !p.id) return;
+        var i = list.findIndex(x=>x.id===p.id);
+        if(i>=0) list[i] = Object.assign({}, list[i], p); else list.push(p);
+      });
+      var del = getLocalDeleted();
+      if(del.length) window.DATA.achievements = list.filter(a=>del.indexOf(a.id)<0);
+    })();
+
+    function nextAchvId(){
+      var max = 0;
+      (window.DATA.achievements||[]).forEach(function(x){
+        var m = /^([A-Za-z]+)(\d+)$/.exec(x.id||"");
+        if(m && m[1]==="A") max = Math.max(max, parseInt(m[2],10));
+      });
+      return "A" + String(max+1).padStart(3,"0");
+    }
+
+    // ---------- 添加 / 编辑弹窗 ----------
+    var achvModal = document.createElement("div");
+    achvModal.id = "achvModal";
+    achvModal.className = "modal";
+    var typeOptions = [...new Set(["期刊/会议论文","学位论文","获奖","专利","软著","基金"]
+      .concat((window.DATA.achievements||[]).map(a=>a.type)))];
+    var memberOptions = (window.DATA.members||[]).map(m=>`<option value="${esc(m.id)}">${esc(m.name)}（${esc(m.role||"")}）</option>`).join("");
+    achvModal.innerHTML = `<div class="modal-box" style="max-width:640px;">
+      <div class="modal-head"><b id="amTitle">添加成果</b><button class="btn btn-sm btn-outline" onclick="closeAchvModal()">关闭</button></div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div><label>类型 <span style="color:red">*</span></label>
+            <select id="amType" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              ${typeOptions.map(t=>`<option>${esc(t)}</option>`).join("")}
+            </select></div>
+          <div><label>年份</label><input type="text" id="amYear" placeholder="如 2025"></div>
+          <div style="grid-column:1/-1;"><label>标题 <span style="color:red">*</span></label><input type="text" id="amTitle2" placeholder="论文建议按 作者_期刊名_年份 填写，如 韩娟_Field Crops Research_2026"></div>
+          <div><label>作者（多人用逗号分隔）</label><input type="text" id="amAuthors" placeholder="如 韩娟,张三"></div>
+          <div><label>期刊/来源</label><input type="text" id="amJournal" placeholder="如 Field Crops Research"></div>
+          <div><label>分区/IF</label><input type="text" id="amZone" placeholder="如 中科院一区 / IF=7.5"></div>
+          <div><label>所属项目</label><input type="text" id="amProject" placeholder="如 P2（可在项目管理页查看编号）"></div>
+          <div><label>语言（仅论文需要）</label>
+            <select id="amLang" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option value="">自动判断（按期刊名）</option><option>SCI</option><option>中文</option>
+            </select></div>
+          <div><label>关联成员（显示在其成员卡片上）</label>
+            <select id="amMember" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option value="">不关联</option>${memberOptions}
+            </select></div>
+          <div style="grid-column:1/-1;"><label>链接（飞书/期刊原文链接）</label><input type="text" id="amUrl" placeholder="https://…"></div>
+          <div style="grid-column:1/-1;"><label>备注</label><input type="text" id="amNote" placeholder="选填"></div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitAchv()">保存</button>
+          <button class="btn btn-outline" onclick="closeAchvModal()" style="margin-left:8px;">取消</button>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅本机可见；请点工具栏「导出我添加的修改（JSON）」发给管理员合并，全组才可见。</p>
+      </div>
+    </div>`;
+    document.body.appendChild(achvModal);
+
+    function openAchvModal(id){
+      document.getElementById("amTitle").textContent = id ? "编辑成果" : "添加成果";
+      var a = id ? (window.DATA.achievements||[]).find(x=>x.id===id) : null;
+      document.getElementById("amType").value = a ? (a.type||"期刊/会议论文") : "期刊/会议论文";
+      document.getElementById("amTitle2").value = a ? (a.title||"") : "";
+      document.getElementById("amAuthors").value = a ? (a.authors||[]).join(",") : "";
+      document.getElementById("amJournal").value = a ? (a.journal||"") : "";
+      document.getElementById("amYear").value = a ? (a.year||"") : "";
+      document.getElementById("amZone").value = a ? (a.zone||"") : "";
+      document.getElementById("amProject").value = a ? (a.project||"") : "";
+      document.getElementById("amLang").value = a ? (a.lang||"") : "";
+      document.getElementById("amMember").value = a ? (a.relatedMember||"") : "";
+      document.getElementById("amUrl").value = a ? (a.url||"") : "";
+      document.getElementById("amNote").value = a ? (a.note||"") : "";
+      document.getElementById("achvModal").dataset.id = id || "";
+      document.getElementById("achvModal").classList.add("open");
+    }
+    window.openAchvModal = openAchvModal;
+
+    function closeAchvModal(){
+      document.getElementById("achvModal").classList.remove("open");
+    }
+    window.closeAchvModal = closeAchvModal;
+
+    function submitAchv(){
+      var id = document.getElementById("achvModal").dataset.id;
+      var type = document.getElementById("amType").value.trim();
+      var title = document.getElementById("amTitle2").value.trim();
+      if(!title){ alert("请填写标题"); return; }
+      var authors = document.getElementById("amAuthors").value.trim()
+        .split(/[,，、]/).map(s=>s.trim()).filter(Boolean);
+      var obj = {
+        id: id || nextAchvId(),
+        type: type,
+        title: title,
+        authors: authors,
+        journal: document.getElementById("amJournal").value.trim(),
+        year: document.getElementById("amYear").value.trim(),
+        zone: document.getElementById("amZone").value.trim(),
+        project: document.getElementById("amProject").value.trim(),
+        lang: document.getElementById("amLang").value,
+        relatedMember: document.getElementById("amMember").value,
+        url: document.getElementById("amUrl").value.trim(),
+        note: document.getElementById("amNote").value.trim()
+      };
+      var arr = getLocalItems();
+      var i = arr.findIndex(x=>x.id===obj.id);
+      if(i>=0) arr[i] = obj; else arr.push(obj);
+      saveLocalItems(arr);
+      location.reload();
+    }
+    window.submitAchv = submitAchv;
+
+    function deleteAchv(id){
+      if(!confirm("确定删除这条成果吗？\n（先仅本机生效；导出发给管理员合并后，全组生效）")) return;
+      var official = (window.__officialAchv||[]).some(x=>x.id===id);
+      // 本机新增的：直接从本机列表移除；官方条目：记入隐藏名单
+      saveLocalItems(getLocalItems().filter(x=>x.id!==id));
+      if(official){
+        var del = getLocalDeleted();
+        if(del.indexOf(id)<0){ del.push(id); saveLocalDeleted(del); }
+      }
+      location.reload();
+    }
+    window.deleteAchv = deleteAchv;
+
+    // 导出：内容即为管理员覆盖 achievement-overrides.js 的完整文件
+    function exportAchvLocal(){
+      var items = getLocalItems(), del = getLocalDeleted();
+      if(!items.length && !del.length){ alert("当前浏览器没有待合并的修改。"); return; }
+      document.getElementById("aexBox").value =
+        "window.DATA = window.DATA || {};\n" +
+        "window.DATA.achievementOverrides = " + JSON.stringify(items, null, 2) + ";\n" +
+        "window.DATA.achievementDeletions = " + JSON.stringify(del, null, 2) + ";\n";
+      document.getElementById("achvExportWrap").classList.add("open");
+      document.getElementById("aexBox").select();
+    }
+    window.exportAchvLocal = exportAchvLocal;
+
+    function closeAchvExport(){ document.getElementById("achvExportWrap").classList.remove("open"); }
+    window.closeAchvExport = closeAchvExport;
+
+    var achvExportWrap = document.createElement("div");
+    achvExportWrap.id = "achvExportWrap";
+    achvExportWrap.className = "modal";
+    achvExportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本机成果修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeAchvExport()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员；管理员用它<b>整体覆盖</b> <code>assets/js/data/achievement-overrides.js</code> 并上传 GitHub，全组即可见。</p>
+        <textarea id="aexBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>`;
+    document.body.appendChild(achvExportWrap);
     document.getElementById("type").innerHTML = `<option value="">全部类型</option>` + types.map(t=>`<option>${esc(t)}</option>`).join("");
     var years = [...new Set((window.DATA.achievements||[]).map(a=>a.year).filter(Boolean))].sort((a,b)=>b-a);
     document.getElementById("year").innerHTML = `<option value="">全部年份</option>` + years.map(y=>`<option>${y}</option>`).join("");
@@ -47,10 +218,12 @@
       var theses = all.filter(a=>a.type==="学位论文");
       var awards = all.filter(a=>a.type==="获奖");
 
-      // 语言判定：优先用数据里手工指定的 lang 字段（"SCI"/"中文"）；
+      // 语言判定：优先用数据里手工指定的 lang 字段（"SCI"/"英文" 或 "中文"，不限大小写）；
       // 未指定时按常见"作者_期刊名_年份"格式取期刊名，含中文 → 中文，否则 → SCI（英文期刊）
       function lang(a){
-        if(a.lang) return a.lang;
+        var v = (a.lang||"").trim().toLowerCase();
+        if(v==="sci"||v==="en"||v==="英文") return "sci";
+        if(v==="zh"||v==="cn"||v==="中文") return "zh";
         var seg = (a.title||"").split("_");
         var jname = seg.length >= 2 ? seg[1] : (a.journal || a.title || "");
         return /[\u4e00-\u9fff]/.test(jname) ? "zh" : "sci";
@@ -90,12 +263,16 @@
           <td>${esc((a.authors||[]).join("、"))}</td>
           <td>${esc(a.journal)||"—"}</td>
           <td>${a.year||"—"}</td>
-          <td>—</td>
+          <td>${esc(a.zone)||"—"}</td>
           <td>${esc(a.project)}</td>
           <td>
             ${a.type==="获奖" ? `<span style="color:var(--muted);font-size:12px;">${esc(a.note||"若需要证书等证明文件，请联系获奖本人或网页管理员。")}</span>` : (a.url?`<a href="${esc(a.url)}" target="_blank" rel="noopener">查看/下载</a>`:"—")}
           </td>
-        </tr>`).join("") : `<tr><td colspan="8">${emptyTip("没有匹配的成果")}</td></tr>`;
+          <td style="white-space:nowrap;">
+            <button class="btn btn-xs btn-outline" onclick="openAchvModal('${esc(a.id)}')">编辑</button>
+            <button class="btn btn-xs btn-danger" onclick="deleteAchv('${esc(a.id)}')">删除</button>
+          </td>
+        </tr>`).join("") : `<tr><td colspan="9">${emptyTip("没有匹配的成果")}</td></tr>`;
     }
     document.getElementById("type").addEventListener("change", render);
     document.getElementById("year").addEventListener("change", render);

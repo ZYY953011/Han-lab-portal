@@ -21,11 +21,17 @@
         <option value="硕士生">硕士生</option>
         <option value="已毕业成员">已毕业成员</option>
       </select>
+      <div style="display:flex; gap:6px; margin-left:auto;">
+        <button class="btn btn-primary btn-sm" onclick="openMemberModal()">＋ 添加成员</button>
+        <button class="btn btn-outline btn-sm" onclick="exportMemberLocal()">导出我添加的修改（JSON）</button>
+      </div>
     </div>
-    <div class="grid grid-3" id="list"></div>
+    <p style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除先保存在本机浏览器；点「导出我添加的修改（JSON）」把内容发给管理员合并上传后，全组即可见。录入手机号、邮箱前请先征得本人同意。</p>
+    <div class="grid grid-3" id="list" style="margin-top:10px;"></div>
   </main>
 
   <script src="../assets/js/data/members.js"></script>
+  <script src="../assets/js/data/member-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
@@ -34,6 +40,36 @@
       "成员信息", "组内成员概况、擅长技能、可互助内容与联系方式（联系方式等敏感信息未来需权限控制）。",
       [{name:"首页", url:"../index.html"}, {name:"成员"}]
     );
+
+    // ---------- 本机临时修改（添加/编辑/删除，仅本机可见，可导出交给管理员合并） ----------
+    function getMemberItems(){ try{ return JSON.parse(localStorage.getItem("member-items")||"[]"); }catch(e){ return []; } }
+    function saveMemberItems(arr){ localStorage.setItem("member-items", JSON.stringify(arr)); }
+    function getMemberDeleted(){ try{ return JSON.parse(localStorage.getItem("member-deleted")||"[]"); }catch(e){ return []; } }
+    function saveMemberDeleted(arr){ localStorage.setItem("member-deleted", JSON.stringify(arr)); }
+
+    // 留存"全站原始数据"副本，用于区分"本机新增"与"修改官方条目"
+    window.__officialMembers = (window.DATA.members||[]).slice();
+
+    // 应用本机修改（须在统计与渲染前执行）
+    (function applyMemberLocal(){
+      var list = window.DATA.members = window.DATA.members || [];
+      getMemberItems().forEach(function(p){
+        if(!p || !p.id) return;
+        var i = list.findIndex(x=>x.id===p.id);
+        if(i>=0) list[i] = Object.assign({}, list[i], p); else list.push(p);
+      });
+      var del = getMemberDeleted();
+      if(del.length) window.DATA.members = list.filter(m=>del.indexOf(m.id)<0);
+    })();
+
+    function nextMemberId(){
+      var max = 0;
+      (window.DATA.members||[]).forEach(function(x){
+        var m = /^([A-Za-z]+)(\d+)$/.exec(x.id||"");
+        if(m && m[1]==="M") max = Math.max(max, parseInt(m[2],10));
+      });
+      return "M" + String(max+1).padStart(3,"0");
+    }
 
     // ---------- 成员统计栏 ----------
     (function(){
@@ -69,7 +105,11 @@
       return `<div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
           <h3 style="font-size:17px; color:var(--primary-dark);">${esc(m.name)}</h3>
-          ${badge(m.role)}
+          <div style="display:flex; gap:4px; flex-shrink:0; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end;">
+            ${badge(m.role)}
+            <button class="btn btn-xs btn-outline" onclick="openMemberModal('${esc(m.id)}')">编辑</button>
+            <button class="btn btn-xs btn-danger" onclick="deleteMember('${esc(m.id)}')">删除</button>
+          </div>
         </div>
         <dl class="kv" style="margin-top:8px;">
           ${(m.grade||m.category)?`<dt>年级/类别</dt><dd>${esc(m.grade)}${m.grade&&m.category?" · ":""}${esc(m.category)}</dd>`:""}
@@ -98,6 +138,134 @@
     }
     document.getElementById("role").addEventListener("change", render);
     render();
+
+    // ---------- 添加 / 编辑成员弹窗 ----------
+    var memberModal = document.createElement("div");
+    memberModal.id = "memberModal";
+    memberModal.className = "modal";
+    memberModal.innerHTML = `<div class="modal-box" style="max-width:640px;">
+      <div class="modal-head"><b id="mmTitle">添加成员</b><button class="btn btn-sm btn-outline" onclick="closeMemberModal()">关闭</button></div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div><label>姓名 <span style="color:red">*</span></label><input type="text" id="mmName" placeholder="姓名"></div>
+          <div><label>身份 <span style="color:red">*</span></label>
+            <select id="mmRole" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option>硕士生</option><option>博士生</option><option>博士后</option><option>本科生</option><option>教师</option>
+            </select></div>
+          <div><label>年级</label><input type="text" id="mmGrade" placeholder="如 2026级"></div>
+          <div><label>类别</label><input type="text" id="mmCategory" placeholder="如 硕士 / 全日制专业学位硕士"></div>
+          <div><label>学号</label><input type="text" id="mmStudentNo"></div>
+          <div><label>在校状态</label>
+            <select id="mmStatus" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option>在籍在校</option><option>不在籍在校</option><option>不在籍不在校</option>
+            </select></div>
+          <div style="grid-column:1/-1;"><label>研究方向</label><input type="text" id="mmResearch" placeholder="选填"></div>
+          <div><label>试验地</label><input type="text" id="mmFieldSite" placeholder="选填，如 杨凌素丰+生物炭+小麦"></div>
+          <div><label>工位</label><input type="text" id="mmSeat" placeholder="选填，如 农科楼807"></div>
+          <div><label>邮箱</label><input type="text" id="mmContact" placeholder="选填（公开可见，请本人同意）"></div>
+          <div><label>手机</label><input type="text" id="mmPhone" placeholder="选填（公开可见，请本人同意）"></div>
+          <div><label>微信</label><input type="text" id="mmWechat" placeholder="选填（公开可见，请本人同意）"></div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitMember()">保存</button>
+          <button class="btn btn-outline" onclick="closeMemberModal()" style="margin-left:8px;">取消</button>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅本机可见；请点工具栏「导出我添加的修改（JSON）」发给管理员合并，全组才可见。</p>
+      </div>
+    </div>`;
+    document.body.appendChild(memberModal);
+
+    function openMemberModal(id){
+      document.getElementById("mmTitle").textContent = id ? "编辑成员" : "添加成员";
+      var m = id ? (window.DATA.members||[]).find(x=>x.id===id) : null;
+      document.getElementById("mmName").value = m ? (m.name||"") : "";
+      document.getElementById("mmRole").value = m ? (m.role||"硕士生") : "硕士生";
+      document.getElementById("mmGrade").value = m ? (m.grade||"") : "";
+      document.getElementById("mmCategory").value = m ? (m.category||"") : "";
+      document.getElementById("mmStudentNo").value = m ? (m.studentNo||"") : "";
+      document.getElementById("mmStatus").value = m ? (m.status||"在籍在校") : "在籍在校";
+      document.getElementById("mmResearch").value = m ? (m.research||"") : "";
+      document.getElementById("mmFieldSite").value = m ? (m.fieldSite||"") : "";
+      document.getElementById("mmSeat").value = m ? (m.seat||"") : "";
+      document.getElementById("mmContact").value = m ? (m.contact||"") : "";
+      document.getElementById("mmPhone").value = m ? (m.phone||"") : "";
+      document.getElementById("mmWechat").value = m ? (m.wechat||"") : "";
+      document.getElementById("memberModal").dataset.id = id || "";
+      document.getElementById("memberModal").classList.add("open");
+    }
+    window.openMemberModal = openMemberModal;
+
+    function closeMemberModal(){
+      document.getElementById("memberModal").classList.remove("open");
+    }
+    window.closeMemberModal = closeMemberModal;
+
+    function submitMember(){
+      var id = document.getElementById("memberModal").dataset.id;
+      var name = document.getElementById("mmName").value.trim();
+      if(!name){ alert("请填写姓名"); return; }
+      var obj = {
+        id: id || nextMemberId(),
+        name: name,
+        role: document.getElementById("mmRole").value,
+        grade: document.getElementById("mmGrade").value.trim(),
+        category: document.getElementById("mmCategory").value.trim(),
+        studentNo: document.getElementById("mmStudentNo").value.trim(),
+        status: document.getElementById("mmStatus").value,
+        research: document.getElementById("mmResearch").value.trim(),
+        fieldSite: document.getElementById("mmFieldSite").value.trim(),
+        seat: document.getElementById("mmSeat").value.trim(),
+        contact: document.getElementById("mmContact").value.trim(),
+        phone: document.getElementById("mmPhone").value.trim(),
+        wechat: document.getElementById("mmWechat").value.trim()
+      };
+      var arr = getMemberItems();
+      var i = arr.findIndex(x=>x.id===obj.id);
+      if(i>=0) arr[i] = obj; else arr.push(obj);
+      saveMemberItems(arr);
+      location.reload();
+    }
+    window.submitMember = submitMember;
+
+    function deleteMember(id){
+      if(!confirm("确定删除这位成员吗？\n（先仅本机生效；导出发给管理员合并后，全组生效）")) return;
+      var official = (window.__officialMembers||[]).some(x=>x.id===id);
+      saveMemberItems(getMemberItems().filter(x=>x.id!==id));
+      if(official){
+        var del = getMemberDeleted();
+        if(del.indexOf(id)<0){ del.push(id); saveMemberDeleted(del); }
+      }
+      location.reload();
+    }
+    window.deleteMember = deleteMember;
+
+    // 导出：内容即为管理员覆盖 member-overrides.js 的完整文件
+    function exportMemberLocal(){
+      var items = getMemberItems(), del = getMemberDeleted();
+      if(!items.length && !del.length){ alert("当前浏览器没有待合并的修改。"); return; }
+      document.getElementById("mexBox").value =
+        "window.DATA = window.DATA || {};\n" +
+        "window.DATA.memberOverrides = " + JSON.stringify(items, null, 2) + ";\n" +
+        "window.DATA.memberDeletions = " + JSON.stringify(del, null, 2) + ";\n";
+      document.getElementById("memberExportWrap").classList.add("open");
+      document.getElementById("mexBox").select();
+    }
+    window.exportMemberLocal = exportMemberLocal;
+
+    function closeMemberExport(){ document.getElementById("memberExportWrap").classList.remove("open"); }
+    window.closeMemberExport = closeMemberExport;
+
+    var memberExportWrap = document.createElement("div");
+    memberExportWrap.id = "memberExportWrap";
+    memberExportWrap.className = "modal";
+    memberExportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本机成员修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeMemberExport()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员；管理员用它<b>整体覆盖</b> <code>assets/js/data/member-overrides.js</code> 并上传 GitHub，全组即可见。</p>
+        <textarea id="mexBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>`;
+    document.body.appendChild(memberExportWrap);
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>
