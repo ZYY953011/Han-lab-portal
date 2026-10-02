@@ -28,6 +28,7 @@ window.NAV = [
   { name: "项目",       file: "projects.html" },
   { name: "实验方法",   file: "methods.html" },
   { name: "样品",       file: "samples.html" },
+  { name: "仪器耗材",   file: "equipment.html" },
   { name: "数据",       file: "datasets.html" },
   { name: "报账",       file: "expenses.html" },
   { name: "组会",       file: "meetings.html" },
@@ -37,13 +38,14 @@ window.NAV = [
   { name: "学习资源",   file: "resources.html" },
 ];
 
-/* 首页 8 个常用入口卡片
+/* 首页 9 个常用入口卡片（3 列布局，正好排成 3×3；想加第 10 个也照格式加一行即可）
  * icon 是 emoji 图标（可直接替换），file 是跳转页面
  */
 window.HOME_CARDS = [
   { icon: "📋", name: "项目管理",     desc: "组里有哪些项目、谁负责、做到哪一步",  file: "projects.html" },
   { icon: "🧪", name: "实验方法",     desc: "可继承、可追踪版本的 SOP 实验方法库", desc2: "", file: "methods.html" },
   { icon: "🧫", name: "样品管理",     desc: "样品在哪里、属于哪个项目、还剩多少",  file: "samples.html" },
+  { icon: "🔧", name: "仪器耗材",     desc: "仪器设备与耗材台账：在哪、谁登记、说明书在哪", file: "equipment.html" },
   { icon: "📊", name: "数据管理",     desc: "只存索引与链接，原始数据在服务器/云盘", file: "datasets.html" },
   { icon: "💰", name: "报账与采购",   desc: "报账流程说明 + 报账记录与费用统计",    file: "expenses.html" },
   { icon: "🗓️", name: "组会安排与记录", desc: "组会日历、历史记录与行动事项跟踪",  file: "meetings.html" },
@@ -74,6 +76,7 @@ window.SEARCH_CONFIG = [
   { key: "projects",      title: "name",    sub: "leader",    url: "project-detail.html",  param: "id", typeName: "项目" },
   { key: "methods",       title: "name",    sub: "category",  url: "method-detail.html",   param: "id", typeName: "实验方法" },
   { key: "samples",       title: "name",    sub: "code",      url: "sample-detail.html",   param: "id", typeName: "样品" },
+  { key: "equipment",     title: "name",    sub: "location",  url: "equipment.html",       param: "",  typeName: "仪器耗材" },
   { key: "datasets",      title: "name",    sub: "project",   url: "datasets.html",        param: "",  typeName: "数据" },
   { key: "expenses",      title: "purpose", sub: "category",  url: "expenses.html",        param: "",  typeName: "报账" },
   { key: "meetings",      title: "topic",   sub: "reporter",  url: "meetings.html",        param: "",  typeName: "组会" },

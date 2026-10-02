@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>仪器耗材 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+<script>document.documentElement.classList.add("gate-locked");</script>
+</head>
+<body>
+  <main class="container">
+    <div id="head"></div>
+    <!-- 统计栏：按当前（合并后）台账自动汇总 -->
+    <div class="stat-row" id="stats" style="margin-top:4px;"></div>
+    <p id="statNote" style="font-size:12.5px; color:var(--muted); margin:8px 0 0;"></p>
+
+    <div class="toolbar">
+      <input class="grow" id="kw" placeholder="搜索名称 / 型号规格 / 品牌 / 位置 / 登记人 / 备注…" style="min-width:200px;">
+      <select id="locFilter"><option value="">全部位置</option></select>
+      <select id="statusFilter"><option value="">全部状态</option></select>
+      <select id="sortBy">
+        <option value="location">按存放位置</option>
+        <option value="name">按名称</option>
+        <option value="latest">最新添加在前</option>
+        <option value="qty">数量从多到少</option>
+      </select>
+      <div style="display:flex; gap:6px; margin-left:auto;">
+        <button class="btn btn-primary btn-sm" onclick="openEqModal()">＋ 添加条目</button>
+        <button class="btn btn-outline btn-sm" onclick="exportEqLocal()">导出我添加的修改（JSON）</button>
+      </div>
+    </div>
+    <p style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除先保存在本机浏览器；点「导出我添加的修改（JSON）」发给管理员合并上传后，全组即可见。</p>
+
+    <!-- 仪器设备 -->
+    <div class="section-title" style="margin-top:18px;">仪器设备 <span id="instCount" style="font-size:14px; color:var(--muted); font-weight:400;"></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="min-width:150px;">名称</th><th>型号 / 规格</th><th>品牌 / 厂家</th>
+          <th style="width:78px;">数量</th><th style="min-width:130px;">存放位置</th><th style="width:100px;">购置 / 登记人</th>
+          <th style="width:90px;">购置日期</th><th style="width:90px;">状态</th><th style="width:110px;">说明书 / 材料</th>
+          <th style="min-width:140px;">备注</th><th style="width:110px;">操作</th>
+        </tr></thead>
+        <tbody id="instRows"></tbody>
+      </table>
+    </div>
+
+    <!-- 耗材 -->
+    <div class="section-title" style="margin-top:22px;">耗材 <span id="consCount" style="font-size:14px; color:var(--muted); font-weight:400;"></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="min-width:150px;">名称</th><th>规格</th><th>品牌 / 厂家</th>
+          <th style="width:100px;">剩余数量</th><th style="min-width:130px;">存放位置</th><th style="width:100px;">购置 / 登记人</th>
+          <th style="width:90px;">购置日期</th><th style="width:90px;">状态</th><th style="width:110px;">说明书 / 材料</th>
+          <th style="min-width:140px;">备注</th><th style="width:110px;">操作</th>
+        </tr></thead>
+        <tbody id="consRows"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="../assets/js/data/equipment.js"></script>
+  <script src="../assets/js/data/equipment-overrides.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("仪器耗材");
+    document.getElementById("head").innerHTML = pageHead(
+      "仪器设备及耗材", "组内仪器设备与耗材台账：有什么、有多少、放在哪里、谁登记的、说明书在哪。支持搜索、按位置归类与手工增删，轻松维护。",
+      [{name:"首页", url:"../index.html"}, {name:"仪器耗材"}]
+    );
+
+    /* ---------- 本机临时修改（添加/编辑/删除，可导出交管理员合并） ---------- */
+    function getEqItems(){ try{ return JSON.parse(localStorage.getItem("equip-items")||"[]"); }catch(e){ return []; } }
+    function saveEqItems(arr){ localStorage.setItem("equip-items", JSON.stringify(arr)); }
+    function getEqDeleted(){ try{ return JSON.parse(localStorage.getItem("equip-deleted")||"[]"); }catch(e){ return []; } }
+    function saveEqDeleted(arr){ localStorage.setItem("equip-deleted", JSON.stringify(arr)); }
+
+    // 留存"全站原始数据"副本，用于区分"本机新增"与"修改官方条目"
+    window.__officialEq = (window.DATA.equipment||[]).slice();
+
+    (function applyEqLocal(){
+      var list = window.DATA.equipment = window.DATA.equipment || [];
+      getEqItems().forEach(function(p){
+        if(!p || !p.id) return;
+        var i = list.findIndex(x=>x.id===p.id);
+        if(i>=0) list[i] = Object.assign({}, list[i], p); else list.push(p);
+      });
+      var del = getEqDeleted();
+      if(del.length) window.DATA.equipment = list.filter(e=>del.indexOf(e.id)<0);
+    })();
+
+    function nextEqId(){
+      var max = 0;
+      (window.DATA.equipment||[]).forEach(function(x){
+        var m = /^([A-Za-z]+)(\d+)$/.exec(x.id||"");
+        if(m) max = Math.max(max, parseInt(m[2],10));
+      });
+      return "E" + String(max+1).padStart(3,"0");
+    }
+
+    /* ---------- 统计栏 ---------- */
+    (function(){
+      var all = window.DATA.equipment || [];
+      var inst = all.filter(e=>e.category!=="耗材");
+      var cons = all.filter(e=>e.category==="耗材");
+      var locs  = [...new Set(all.map(e=>e.location).filter(Boolean))];
+      var alert = all.filter(e=>["需采购","偏少","维修中","已报废"].indexOf(e.status)>=0);
+      function instQty(){
+        return inst.reduce(function(s,e){ return s + (parseFloat(e.qty)||0); },0);
+      }
+      document.getElementById("stats").innerHTML =
+        '<div class="stat"><div class="num">' + inst.length + '</div><div class="lab">仪器设备（' + instQty() + ' 台/件）</div></div>' +
+        '<div class="stat"><div class="num">' + cons.length + '</div><div class="lab">耗材种类</div></div>' +
+        '<div class="stat"><div class="num">' + locs.length + '</div><div class="lab">存放位置（处）</div></div>' +
+        '<div class="stat"><div class="num">' + alert.length + '</div><div class="lab">需关注（需采购/偏少/维修/报废）</div></div>';
+      document.getElementById("statNote").textContent =
+        "统计口径：按当前台账实时汇总——仪器设备按数量合计，耗材按种类计；状态为需采购、偏少、维修中、已报废的条目计入「需关注」。";
+    })();
+
+    /* ---------- 筛选器初始化 ---------- */
+    (function initFilters(){
+      var all = window.DATA.equipment || [];
+      var locSel = document.getElementById("locFilter");
+      [...new Set(all.map(e=>e.location).filter(Boolean))].sort().forEach(function(l){
+        var o = document.createElement("option"); o.value = l; o.textContent = l; locSel.appendChild(o);
+      });
+      var stSel = document.getElementById("statusFilter");
+      [...new Set(all.map(e=>e.status).filter(Boolean))].sort().forEach(function(s){
+        var o = document.createElement("option"); o.value = s; o.textContent = s; stSel.appendChild(o);
+      });
+    })();
+
+    /* ---------- 列表渲染 ---------- */
+    function filtered(){
+      var kw = document.getElementById("kw").value.trim().toLowerCase();
+      var loc = document.getElementById("locFilter").value;
+      var st  = document.getElementById("statusFilter").value;
+      var sort = document.getElementById("sortBy").value;
+      var list = (window.DATA.equipment||[]).filter(function(e){
+        var s = ((e.name||"")+(e.model||"")+(e.brand||"")+(e.location||"")+(e.keeper||"")+(e.note||"")).toLowerCase();
+        return (!kw || s.indexOf(kw)>=0) && (!loc || e.location===loc) && (!st || e.status===st);
+      });
+      if(sort==="name")   list.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+      else if(sort==="latest") list.reverse();
+      else if(sort==="qty")    list.sort((a,b)=>(parseFloat(b.qty)||0)-(parseFloat(a.qty)||0));
+      else list.sort((a,b)=>(a.location||"").localeCompare(b.location||"") || (a.name||"").localeCompare(b.name||""));
+      return list;
+    }
+
+    function row(e){
+      var stColor = {"在用":"green","充足":"green","闲置":"gray","偏少":"orange","借用中":"blue",
+                     "维修中":"orange","需采购":"red","已报废":"gray"}[e.status] || "gray";
+      return '<tr>' +
+        '<td><b>' + esc(e.name) + '</b></td>' +
+        '<td>' + esc(e.model||"—") + '</td>' +
+        '<td>' + esc(e.brand||"—") + '</td>' +
+        '<td>' + esc(e.qty||"—") + ' ' + esc(e.unit||"") + '</td>' +
+        '<td>' + esc(e.location||"—") + '</td>' +
+        '<td>' + esc(e.keeper||"—") + '</td>' +
+        '<td>' + esc(e.purchaseDate||"—") + '</td>' +
+        '<td>' + (e.status ? badge(e.status, stColor) : "—") + '</td>' +
+        '<td>' + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener">查看/下载 ↗</a>' : '<span style="color:var(--muted);">—</span>') + '</td>' +
+        '<td style="color:#44505f;">' + esc(e.note||"") + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button class="btn btn-xs btn-outline" onclick="openEqModal(\'' + esc(e.id) + '\')">编辑</button> ' +
+          '<button class="btn btn-xs btn-danger" onclick="deleteEq(\'' + esc(e.id) + '\')">删除</button>' +
+        '</td>' +
+      '</tr>';
+    }
+
+    function render(){
+      var list = filtered();
+      var inst = list.filter(e=>e.category!=="耗材");
+      var cons = list.filter(e=>e.category==="耗材");
+      document.getElementById("instCount").textContent = "（" + inst.length + " 条）";
+      document.getElementById("consCount").textContent = "（" + cons.length + " 条）";
+      document.getElementById("instRows").innerHTML = inst.length ? inst.map(row).join("")
+        : '<tr><td colspan="11">' + emptyTip("暂无仪器设备记录，点右上角「＋ 添加条目」录入") + '</td></tr>';
+      document.getElementById("consRows").innerHTML = cons.length ? cons.map(row).join("")
+        : '<tr><td colspan="11">' + emptyTip("暂无耗材记录，点右上角「＋ 添加条目」录入") + '</td></tr>';
+    }
+
+    /* ---------- 添加 / 编辑弹窗 ---------- */
+    var eqModal = document.createElement("div");
+    eqModal.id = "eqModal";
+    eqModal.className = "modal";
+    eqModal.innerHTML = `<div class="modal-box" style="max-width:680px;">
+      <div class="modal-head"><b id="eqTitle">添加条目</b><button class="btn btn-sm btn-outline" onclick="closeEqModal()">关闭</button></div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div><label>类别 <span style="color:red">*</span></label>
+            <select id="eqCategory" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option>仪器设备</option><option>耗材</option>
+            </select></div>
+          <div><label>名称 <span style="color:red">*</span></label><input type="text" id="eqName" placeholder="如 土壤呼吸测定系统 / 离心管"></div>
+          <div><label>型号 / 规格</label><input type="text" id="eqModel" placeholder="仪器填型号，耗材填规格，如 50 mL 尖底"></div>
+          <div><label>品牌 / 厂家</label><input type="text" id="eqBrand" placeholder="选填"></div>
+          <div><label>数量</label><input type="text" id="eqQty" placeholder="仪器一般填 1，耗材填余量"></div>
+          <div><label>单位</label><input type="text" id="eqUnit" placeholder="台 / 套 / 支 / 盒 / 瓶 / 包 …"></div>
+          <div><label>存放位置 <span style="color:red">*</span></label><input type="text" id="eqLocation" placeholder="如 农科楼 311 室 3 号柜"></div>
+          <div><label>购置 / 登记人</label><input type="text" id="eqKeeper" placeholder="姓名"></div>
+          <div><label>购置日期</label><input type="text" id="eqPurchaseDate" placeholder="如 2025-09"></div>
+          <div><label>购置金额</label><input type="text" id="eqPrice" placeholder="选填，如 2.8 万元"></div>
+          <div><label>状态</label>
+            <select id="eqStatus" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option>在用</option><option>闲置</option><option>借用中</option><option>维修中</option><option>已报废</option>
+              <option>充足</option><option>偏少</option><option>需采购</option>
+            </select></div>
+          <div style="grid-column:1/-1;"><label>电子说明书 / 购置材料链接（飞书链接）</label><input type="text" id="eqUrl" placeholder="https://my.feishu.cn/…"></div>
+          <div style="grid-column:1/-1;"><label>备注</label><input type="text" id="eqNote" placeholder="借用规则、安全须知、低于多少请补货等"></div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitEq()">保存</button>
+          <button class="btn btn-outline" onclick="closeEqModal()" style="margin-left:8px;">取消</button>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅本机可见；请点工具栏「导出我添加的修改（JSON）」发给管理员合并，全组才可见。</p>
+      </div>
+    </div>`;
+    document.body.appendChild(eqModal);
+
+    function openEqModal(id){
+      document.getElementById("eqTitle").textContent = id ? "编辑条目" : "添加条目";
+      var e = id ? (window.DATA.equipment||[]).find(x=>x.id===id) : null;
+      document.getElementById("eqCategory").value = e ? (e.category||"仪器设备") : "仪器设备";
+      document.getElementById("eqName").value         = e ? (e.name||"") : "";
+      document.getElementById("eqModel").value        = e ? (e.model||"") : "";
+      document.getElementById("eqBrand").value        = e ? (e.brand||"") : "";
+      document.getElementById("eqQty").value          = e ? (e.qty||"") : "";
+      document.getElementById("eqUnit").value         = e ? (e.unit||"") : "";
+      document.getElementById("eqLocation").value     = e ? (e.location||"") : "";
+      document.getElementById("eqKeeper").value       = e ? (e.keeper||"") : "";
+      document.getElementById("eqPurchaseDate").value = e ? (e.purchaseDate||"") : "";
+      document.getElementById("eqPrice").value        = e ? (e.price||"") : "";
+      document.getElementById("eqStatus").value       = e && e.status ? e.status : "在用";
+      document.getElementById("eqUrl").value          = e ? (e.url||"") : "";
+      document.getElementById("eqNote").value         = e ? (e.note||"") : "";
+      document.getElementById("eqModal").dataset.id = id || "";
+      document.getElementById("eqModal").classList.add("open");
+    }
+    window.openEqModal = openEqModal;
+
+    function closeEqModal(){ document.getElementById("eqModal").classList.remove("open"); }
+    window.closeEqModal = closeEqModal;
+
+    function submitEq(){
+      var id = document.getElementById("eqModal").dataset.id;
+      var name = document.getElementById("eqName").value.trim();
+      var loc  = document.getElementById("eqLocation").value.trim();
+      if(!name){ alert("请填写名称"); return; }
+      if(!loc){ alert("请填写存放位置，方便大家找到它"); return; }
+      var obj = {
+        id: id || nextEqId(),
+        category: document.getElementById("eqCategory").value,
+        name: name,
+        model: document.getElementById("eqModel").value.trim(),
+        brand: document.getElementById("eqBrand").value.trim(),
+        qty: document.getElementById("eqQty").value.trim(),
+        unit: document.getElementById("eqUnit").value.trim(),
+        location: loc,
+        keeper: document.getElementById("eqKeeper").value.trim(),
+        purchaseDate: document.getElementById("eqPurchaseDate").value.trim(),
+        price: document.getElementById("eqPrice").value.trim(),
+        status: document.getElementById("eqStatus").value,
+        url: document.getElementById("eqUrl").value.trim(),
+        note: document.getElementById("eqNote").value.trim()
+      };
+      var arr = getEqItems();
+      var i = arr.findIndex(x=>x.id===obj.id);
+      if(i>=0) arr[i] = obj; else arr.push(obj);
+      saveEqItems(arr);
+      location.reload();
+    }
+    window.submitEq = submitEq;
+
+    function deleteEq(id){
+      if(!confirm("确定删除这条记录吗？\n（先仅本机生效；导出发给管理员合并后，全组生效）")) return;
+      var official = (window.__officialEq||[]).some(x=>x.id===id);
+      saveEqItems(getEqItems().filter(x=>x.id!==id));
+      if(official){
+        var del = getEqDeleted();
+        if(del.indexOf(id)<0){ del.push(id); saveEqDeleted(del); }
+      }
+      location.reload();
+    }
+    window.deleteEq = deleteEq;
+
+    /* ---------- 导出：内容即管理员覆盖 equipment-overrides.js 的完整文件 ---------- */
+    function exportEqLocal(){
+      var items = getEqItems(), del = getEqDeleted();
+      if(!items.length && !del.length){ alert("当前浏览器没有待合并的修改。"); return; }
+      document.getElementById("eexBox").value =
+        "window.DATA = window.DATA || {};\n" +
+        "window.DATA.equipmentOverrides = " + JSON.stringify(items, null, 2) + ";\n" +
+        "window.DATA.equipmentDeletions = " + JSON.stringify(del, null, 2) + ";\n";
+      document.getElementById("eqExportWrap").classList.add("open");
+      document.getElementById("eexBox").select();
+    }
+    window.exportEqLocal = exportEqLocal;
+
+    function closeEqExport(){ document.getElementById("eqExportWrap").classList.remove("open"); }
+    window.closeEqExport = closeEqExport;
+
+    var eqExportWrap = document.createElement("div");
+    eqExportWrap.id = "eqExportWrap";
+    eqExportWrap.className = "modal";
+    eqExportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
+      <div class="modal-head"><b>导出本机仪器耗材修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeEqExport()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员；管理员用它<b>整体覆盖</b> <code>assets/js/data/equipment-overrides.js</code> 并上传 GitHub，全组即可见。</p>
+        <textarea id="eexBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>`;
+    document.body.appendChild(eqExportWrap);
+
+    /* ---------- 事件绑定 ---------- */
+    ["kw","locFilter","statusFilter","sortBy"].forEach(function(elId){
+      var elm = document.getElementById(elId);
+      elm.addEventListener(elId==="kw" ? "input" : "change", render);
+    });
+    render();
+  </script>
+<script src="../assets/js/gate.js"></script>
+</body>
+</html>
