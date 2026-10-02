@@ -10,6 +10,9 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <!-- 成果统计栏：数字由下方脚本按数据自动汇总，改数据即自动更新 -->
+    <div class="stat-row" id="stats" style="margin-top:4px;"></div>
+    <p id="statNote" style="font-size:12.5px; color:var(--muted); margin:8px 0 0;"></p>
     <div class="toolbar">
       <select id="type"></select>
       <select id="year"></select>
@@ -28,7 +31,7 @@
   <script>
     injectHeader("成果");
     document.getElementById("head").innerHTML = pageHead(
-      "研究成果", "论文、专利、软著、获奖、基金等。支持按年份、类型、项目筛选（成员筛选可在数据中查看作者）。<br><span style='color:var(--muted);font-size:14px;'>说明：获奖证书等证明文件因涉及隐私未公开上传，如需查看请联系获奖本人或网页管理员。</span>",
+      "研究成果", "论文、专利、软著、获奖、基金等，支持按年份、类型筛选。获奖证书等证明文件因涉及隐私未公开上传，如需查看请联系获奖本人或网页管理员。",
       [{name:"首页", url:"../index.html"}, {name:"研究成果"}]
     );
 
@@ -36,6 +39,41 @@
     document.getElementById("type").innerHTML = `<option value="">全部类型</option>` + types.map(t=>`<option>${esc(t)}</option>`).join("");
     var years = [...new Set((window.DATA.achievements||[]).map(a=>a.year).filter(Boolean))].sort((a,b)=>b-a);
     document.getElementById("year").innerHTML = `<option value="">全部年份</option>` + years.map(y=>`<option>${y}</option>`).join("");
+
+    // ---------- 成果统计栏 ----------
+    (function(){
+      var all = window.DATA.achievements || [];
+      var papers = all.filter(a=>a.type==="期刊/会议论文");
+      var theses = all.filter(a=>a.type==="学位论文");
+      var awards = all.filter(a=>a.type==="获奖");
+
+      // 语言判定：优先用数据里手工指定的 lang 字段（"SCI"/"中文"）；
+      // 未指定时按常见"作者_期刊名_年份"格式取期刊名，含中文 → 中文，否则 → SCI（英文期刊）
+      function lang(a){
+        if(a.lang) return a.lang;
+        var seg = (a.title||"").split("_");
+        var jname = seg.length >= 2 ? seg[1] : (a.journal || a.title || "");
+        return /[\u4e00-\u9fff]/.test(jname) ? "zh" : "sci";
+      }
+      var sci = papers.filter(a=>lang(a)==="sci").length;
+      var zh  = papers.filter(a=>lang(a)==="zh").length;
+      var bo   = theses.filter(a=>(a.title||"").indexOf("博士")>=0).length;
+      var shuo = theses.length - bo;
+      var ys = all.map(a=>a.year).filter(Boolean).map(Number);
+      var span = ys.length ? Math.min.apply(null,ys) + "–" + Math.max.apply(null,ys) : "—";
+
+      document.getElementById("stats").innerHTML =
+        '<div class="stat"><div class="num">' + papers.length + '</div><div class="lab">发表论文（期刊/会议）</div></div>' +
+        '<div class="stat"><div class="num">' + sci + '</div><div class="lab">SCI 论文（英文期刊）</div></div>' +
+        '<div class="stat"><div class="num">' + zh + '</div><div class="lab">中文论文</div></div>' +
+        '<div class="stat"><div class="num">' + theses.length + '</div><div class="lab">学位论文 · 硕士' + shuo + ' 博士' + bo + '</div></div>' +
+        '<div class="stat"><div class="num">' + awards.length + '</div><div class="lab">学生获奖（项）</div></div>' +
+        '<div class="stat"><div class="num" style="font-size:22px; padding-top:4px;">' + span + '</div><div class="lab">统计年份跨度</div></div>';
+
+      document.getElementById("statNote").textContent =
+        "统计口径：以上数字由页面自动汇总当前已录入的成果，录入新成果后自动更新；SCI/中文按期刊名称自动判断，个别期刊如判断有误，可在该成果数据中加 lang:\"SCI\" 或 lang:\"中文\" 手工指定；部分记录未填年份，不影响总数统计。";
+    })();
+
 
     function render(){
       var t = document.getElementById("type").value;

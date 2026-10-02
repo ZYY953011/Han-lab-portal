@@ -10,6 +10,9 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <!-- 成员统计栏：数字由下方脚本按数据自动汇总，改数据即自动更新 -->
+    <div class="stat-row" id="stats" style="margin-top:4px;"></div>
+    <p id="statNote" style="font-size:12.5px; color:var(--muted); margin:8px 0 0;"></p>
     <div class="toolbar">
       <select id="role">
         <option value="">全部身份</option>
@@ -31,6 +34,31 @@
       "成员信息", "组内成员概况、擅长技能、可互助内容与联系方式（联系方式等敏感信息未来需权限控制）。",
       [{name:"首页", url:"../index.html"}, {name:"成员"}]
     );
+
+    // ---------- 成员统计栏 ----------
+    (function(){
+      var all = window.DATA.members || [];
+      // 口径：博士后单列；其余按在校状态分——"在籍"=在读，"不在籍"=已毕业
+      var cur  = all.filter(m=>m.role!=="博士后" && m.status && m.status.indexOf("不在籍")<0);
+      var grad = all.filter(m=>m.role!=="博士后" && m.status && m.status.indexOf("不在籍")>=0);
+      var post = all.filter(m=>m.role==="博士后");
+      function cnt(arr, role){ return arr.filter(m=>m.role===role).length; }
+      function breakdown(arr){
+        // 依次统计 硕士/博士/本科（有人才显示），如"硕士18 博士7"
+        return ["硕士生","博士生","本科生"]
+          .filter(r=>cnt(arr,r)>0)
+          .map(r=>r.slice(0,2) + cnt(arr,r))
+          .join(" · ") || "—";
+      }
+      document.getElementById("stats").innerHTML =
+        '<div class="stat"><div class="num">' + all.length + '</div><div class="lab">成员总数</div></div>' +
+        '<div class="stat"><div class="num">' + cur.length + '</div><div class="lab">在读学生 · ' + breakdown(cur) + '</div></div>' +
+        '<div class="stat"><div class="num">' + grad.length + '</div><div class="lab">已毕业人次 · ' + breakdown(grad) + '</div></div>' +
+        '<div class="stat"><div class="num">' + post.length + '</div><div class="lab">博士后</div></div>';
+      document.getElementById("statNote").textContent =
+        "统计口径：按成员数据里的「在校状态」自动汇总——在籍 = 在读，不在籍 = 已毕业；博士后单列不计入学生。新增或修改成员后数字自动更新。";
+    })();
+
 
     function card(m){
       var all = (window.DATA.achievements||[]).filter(a=>a.relatedMember===m.id);
@@ -63,7 +91,7 @@
       var r = document.getElementById("role").value;
       var list = (window.DATA.members||[]).filter(m=>{
         if(!r || r==="全部身份") return true;
-        if(r==="已毕业成员") return m.status && m.status.indexOf("不在籍")>=0;
+        if(r==="已毕业成员") return m.role!=="博士后" && m.status && m.status.indexOf("不在籍")>=0;
         return m.role===r;
       });
       document.getElementById("list").innerHTML = list.length ? list.map(card).join("") : emptyTip("没有匹配的成员");
