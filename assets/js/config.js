@@ -31,6 +31,19 @@ window.AREA_PASSWORDS = {
   dataFolders:  ""    // 数据管理页的「试验地云盘文件夹」区
 };
 
+/* GitHub 仓库地址（用于生成「去 GitHub 发布」按钮链接）
+ * 填成你们仓库，如 "https://github.com/yourname/han-lab-portal"；留空则不显示该按钮。
+ * 组员点该按钮 → New Issue → 选模板填写 → 提交，1-2 分钟网站自动更新（不需要管理员）。
+ */
+window.REPO_URL = "";
+
+/* 一键发布链接：优先用 Issue 模板选择页（最省事），没有就用新建 Issue 页 */
+window.ISSUE_NEW_URL = function () {
+  if (!window.REPO_URL) return "";
+  var base = window.REPO_URL.replace(/\/+$/, "");
+  return base + "/issues/new/choose";
+};
+
 /* 顶部导航菜单
  * name = 显示文字，file = 对应的页面文件（放在 pages/ 目录下）
  * 想加菜单：照着下面复制一行即可。

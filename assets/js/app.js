@@ -274,12 +274,20 @@ function areaLockHtml(key, title, inputId, errId, extraNote) {
  * 用法：document.getElementById("head").insertAdjacentHTML("afterend", unpublishedBar(n, "exportXxx()"));
  */
 function unpublishedBar(count, exportCall, extraBtnHtml) {
-  if (!count) return "";
+  var issueUrl = (typeof window.ISSUE_NEW_URL === "function") ? window.ISSUE_NEW_URL() : "";
+  var issueBtn = issueUrl
+    ? `<a class="btn btn-outline btn-sm" href="${issueUrl}" target="_blank" rel="noopener">🚀 去 GitHub 发布（1–2 分钟自动更新）</a>`
+    : "";
+  if (!count && !issueUrl) return "";
+  var left = count
+    ? `<span>⚠️ 你有 <b>${count}</b> 条修改<b>只保存在这台电脑</b>（换电脑或别人打开看不到）。</span>`
+    : `<span>📌 想让全组都看到新内容？</span>`;
   return `<div class="warn-box" style="margin:10px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-    <span>⚠️ 你有 <b>${count}</b> 条修改<b>只保存在这台电脑</b>（换电脑或别人打开看不到）。点导出发给管理员，合并后全组才可见。</span>
-    <span style="display:flex; gap:8px;">
-      <button class="btn btn-primary btn-sm" onclick="${exportCall}">导出我的修改</button>
+    ${left}
+    <span style="display:flex; gap:8px; flex-wrap:wrap;">
+      ${count ? `<button class="btn btn-primary btn-sm" onclick="${exportCall}">导出我的修改</button>` : ""}
       ${extraBtnHtml || ""}
+      ${issueBtn}
     </span>
   </div>`;
 }

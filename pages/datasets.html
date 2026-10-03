@@ -11,106 +11,261 @@
   <main class="container">
     <div id="head"></div>
     <div class="note-box" style="margin-bottom:14px;">
-      💡 本网站第一版<b>不直接保存大型原始数据</b>，只保存“数据索引和链接”。点击按钮将跳转到学校服务器 / NAS / 云盘中的原始文件。
+      💡 本页只保存<b>“试验地 + 数据文件夹链接”索引</b>，原始数据本体放在<b>飞书云盘</b>里。谁上传谁登记，一行一个试验地。
+      文件夹权限在<b>飞书</b>里按人授权（谁被授权谁打得开），本页只提供入口。
     </div>
-    <div id="folders"></div>
-    <div class="toolbar" style="margin-top:14px;">
-      <input class="grow" id="kw" placeholder="搜索数据名称 / 项目 / 实验…">
-      <select id="proj"></select>
+
+    <div class="toolbar">
+      <input class="grow" id="kw" placeholder="搜索试验地名称 / 上传人 / 备注…">
     </div>
+
     <div id="list"></div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span id="dsFormTitle">添加数据文件夹</span>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" onclick="exportDsLocal()">导出我添加的修改（JSON）</button>
+        </div>
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">
+        在飞书云盘建好该试验地的数据文件夹（记得共享给对应成员），把链接粘到这里。保存后自动记录当前时间，并累积到上方表格。
+      </p>
+      <div class="material-add-form" style="margin-bottom:6px;">
+        <input type="text" id="ds-site" placeholder="试验地名称（如 杨凌试验站）" style="flex:1.2;">
+        <input type="text" id="ds-uploader" placeholder="上传人" style="max-width:130px;">
+        <input type="text" id="ds-date" placeholder="上传时间（如 2026-10-05，留空自动填今天）" style="max-width:230px;">
+        <input type="text" id="ds-url" placeholder="数据文件夹链接（飞书云盘）" style="flex:1.6;">
+      </div>
+      <div class="material-add-form" style="margin-bottom:0;">
+        <input type="text" id="ds-note" placeholder="备注（如：2025 年春玉米取样原始数据，已授权组内 3 人）" style="flex:2;">
+        <button class="btn btn-primary btn-sm" id="ds-submit-btn" onclick="submitDs()">保存</button>
+        <button class="btn btn-outline btn-sm" id="ds-cancel-btn" onclick="resetDsForm()" style="display:none;">取消</button>
+        <input type="hidden" id="ds-idx" value="">
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="section-title" style="margin-top:0;">📁 试验地与项目资料夹（备用）</div>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">
+        如果某个试验地的文件夹权限需要更细的管理（按年份、按成员分开授权），可以在<b>飞书云盘</b>里做成“试验地 → 年份 → 成员”子文件夹，各自共享给对应的人。本区块只放入口链接。
+      </p>
+      <div id="folderLinks"></div>
+    </div>
   </main>
+
+  <!-- 导出弹窗 -->
+  <div class="modal" id="dsExportWrap">
+    <div class="modal-box" style="max-width:760px;">
+      <div class="modal-head"><b>导出数据管理修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeDsExport()">关闭</button></div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">
+          两种发布方式（任选其一）：<br>
+          <b>① 最省事（推荐）</b>：把下面这段内容复制，去 GitHub 仓库开一个 <b>New Issue</b>，选「数据文件夹登记」模板粘进去提交，机器人会在 1–2 分钟内自动写入并更新网站；<br>
+          <b>② 交给管理员</b>：把内容发给管理员，由「管理合并」页合并发布。
+        </p>
+        <textarea id="dsExportBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
+      </div>
+    </div>
+  </div>
 
   <script src="../assets/js/data/datasets.js"></script>
   <script src="../assets/js/data/data-folders.js"></script>
+  <script src="../assets/js/data/dataset-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("数据");
     document.getElementById("head").innerHTML = pageHead(
-      "数据管理", "只保存索引与链接，原始数据存放在服务器 / NAS / OneDrive / 对象存储。",
+      "数据管理", "登记每个试验地的数据文件夹入口：试验地名称、上传人、上传时间、文件夹链接、备注。原始数据本体存放在飞书云盘，权限由飞书按人控制。",
       [{name:"首页", url:"../index.html"}, {name:"数据管理"}]
     );
 
-    /* ---------- 试验地云盘文件夹（权限由飞书控制，网站只放入口） ---------- */
-    (function renderFolders(){
-      var box = document.getElementById("folders");
-      if(!areaUnlocked("dataFolders")){
-        box.innerHTML = '<div class="card" style="margin-bottom:14px;">' +
-          areaLockHtml("dataFolders", "试验地云盘文件夹", "dfPass", "dfErr",
-            "每个试验地一个文件夹 → 按年份 → 按接收该试验的成员分子文件夹，<b>在飞书云盘里把文件夹共享给具体成员</b>即可精确到人、随时收回。") +
-          '</div>';
-        return;
-      }
-      var folders = window.DATA.dataFolders || [];
-      if(!folders.length){ box.innerHTML = ""; return; }
-      box.innerHTML = '<div class="card" style="margin-bottom:14px;">' +
-        '<div class="section-title" style="margin-top:0;">试验地云盘文件夹 ' +
-          '<span style="font-size:12px; color:var(--muted); font-weight:400;">🔒 权限由飞书云盘控制：谁被授权谁打得开</span></div>' +
-        '<p style="font-size:12.5px; color:var(--muted); margin:0 0 10px;">' +
-          '结构：<b>试验地 → 年份 → 成员子文件夹</b>。管理员在飞书云盘建好文件夹后，把链接填到 ' +
-          '<code>assets/js/data/data-folders.js</code>，并把文件夹<b>共享给对应成员</b>；未授权的人点开会提示无权限。</p>' +
-        folders.map(function(f){
-          return '<div style="border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px;">' +
-            '<div style="font-size:15px; font-weight:600; color:var(--primary-dark);">📍 ' + esc(f.site) + '</div>' +
-            '<div style="font-size:12.5px; color:var(--muted); margin:4px 0 8px;">' + esc(f.note || "") + '</div>' +
-            (f.years || []).map(function(y){
-              return '<div style="margin-top:8px;">' +
-                '<div style="font-size:13px; font-weight:600;">' + esc(y.year) + ' 年</div>' +
-                '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">' +
-                  (y.members || []).map(function(m){
-                    return m.url
-                      ? '<a class="btn btn-sm btn-outline" href="' + esc(m.url) + '" target="_blank" rel="noopener">📁 ' + esc(m.name) + ' ↗</a>'
-                      : '<span class="tag">📁 ' + esc(m.name) + '：链接待补' + (m.note ? '（' + esc(m.note) + '）' : '') + '</span>';
-                  }).join("") +
-                '</div>' +
-              '</div>';
-            }).join("") +
-          '</div>';
-        }).join("") +
-      '</div>';
+    /* ---------- 本机草稿（与其他栏目同一套模式） ---------- */
+    function getDsItems(){ try{ return JSON.parse(localStorage.getItem("ds-items")||"[]"); }catch(e){ return []; } }
+    function saveDsItems(arr){ localStorage.setItem("ds-items", JSON.stringify(arr)); }
+    function getDsDeleted(){ try{ return JSON.parse(localStorage.getItem("ds-deleted")||"[]"); }catch(e){ return []; } }
+    function saveDsDeleted(arr){ localStorage.setItem("ds-deleted", JSON.stringify(arr)); }
+    window.__officialDs = (window.DATA.datasetFolders || []).slice();
+
+    (function applyLocal(){
+      var list = window.DATA.datasetFolders = (window.DATA.datasetFolders || []).slice();
+      getDsItems().forEach(function(p){
+        if(!p || !p.id) return;
+        var i = list.findIndex(function(x){ return x.id === p.id; });
+        if(i >= 0) list[i] = Object.assign({}, list[i], p); else list.push(p);
+      });
+      var del = getDsDeleted();
+      if(del.length) window.DATA.datasetFolders = list.filter(function(x){ return del.indexOf(x.id) < 0; });
     })();
 
-    var projs = [...new Set((window.DATA.datasets||[]).map(d=>d.project))];
-    document.getElementById("proj").innerHTML = `<option value="">全部项目</option>` + projs.map(p=>`<option>${esc(p)}</option>`).join("");
+    document.getElementById("head").insertAdjacentHTML("afterend",
+      unpublishedBar(getDsItems().length + getDsDeleted().length, "exportDsLocal()"));
 
-    function linkBtn(label, url){
-      return url ? `<a class="btn btn-sm btn-outline" href="${esc(url)}" target="_blank">${esc(label)} ↗</a>` : `<span class="tag">${esc(label)}：待补</span>`;
+    function nextDsId(){
+      var max = 0;
+      (window.DATA.datasetFolders||[]).forEach(function(x){
+        var m = /^D(\d+)$/.exec(x.id||"");
+        if(m) max = Math.max(max, parseInt(m[1],10));
+      });
+      return "D" + String(max+1).padStart(3,"0");
     }
-    function card(d){
-      return `<div class="card" style="margin-bottom:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-          <h3 style="font-size:17px; color:var(--primary-dark);">${esc(d.name)}</h3>
-          <span class="tag">${esc(d.project)}</span>
-        </div>
-        <div style="color:var(--muted); font-size:13px; margin:6px 0;">
-          实验：${esc(d.experiment)} ｜ 日期：${esc(d.date)} ｜ 处理：${esc(d.treatment)} ｜ 重复：${esc(d.replicate)}
-        </div>
-        <div style="font-size:13.5px; color:#44505f;">测量变量：${esc(d.variables)} ｜ 操作者：${esc(d.operator)} ｜ 仪器：${esc(d.instrument)}</div>
-        <div style="font-size:13px; color:var(--muted); margin:6px 0;">说明：${esc(d.note)}</div>
-        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
-          ${linkBtn("打开原始数据", d.raw_data_url)}
-          ${linkBtn("打开清洗数据", d.clean_data_url)}
-          ${linkBtn("打开分析文件", d.analysis_url)}
-          ${linkBtn("查看图表", d.figure_url)}
-        </div>
-        <div style="margin-top:8px; font-size:12px; color:var(--muted);">
-          版本 ${esc(d.version)} ｜ 更新 ${esc(d.updated)} ｜ 存储位置：${esc(d.storage_url)}
-        </div>
-      </div>`;
+    function todayStr(){
+      var d = new Date();
+      return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
     }
+
+    /* ---------- 表格 ---------- */
+    function linkCell(url){
+      if(!url) return '<span style="color:var(--muted);">链接待补</span>';
+      var isHttp = /^https?:\/\//.test(url);
+      return isHttp
+        ? '<a href="' + esc(url) + '" target="_blank" rel="noopener" title="' + esc(url) + '">📁 打开数据文件夹 ↗</a>'
+        : '<span title="' + esc(url) + '">' + esc(url) + '</span>';
+    }
+
     function render(){
       var kw = document.getElementById("kw").value.trim().toLowerCase();
-      var proj = document.getElementById("proj").value;
-      var list = (window.DATA.datasets||[]).filter(d=>{
-        var ok1 = !kw || (d.name+d.project+d.experiment+d.variables).toLowerCase().includes(kw);
-        var ok2 = !proj || d.project===proj;
-        return ok1 && ok2;
+      var list = (window.DATA.datasetFolders||[]).filter(function(d){
+        if(!kw) return true;
+        return [d.site, d.uploader, d.note, d.url].join(" ").toLowerCase().includes(kw);
       });
-      document.getElementById("list").innerHTML = list.length ? list.map(card).join("") : emptyTip("没有匹配的数据");
+      list.sort(function(a,b){
+        return String(b.date||"").localeCompare(String(a.date||"")) || String(a.site||"").localeCompare(String(b.site||""));
+      });
+      var box = document.getElementById("list");
+      if(!list.length){
+        box.innerHTML = emptyTip("还没有数据文件夹登记。请在上方填写试验地名称、上传人、时间、文件夹链接和备注后保存。");
+        return;
+      }
+      box.innerHTML = '<div class="table-wrap"><table>' +
+        '<thead><tr><th style="min-width:150px;">试验地名称</th><th style="width:110px;">上传人</th><th style="width:120px;">上传时间</th><th style="min-width:180px;">数据文件夹链接</th><th style="min-width:180px;">备注</th><th style="width:120px;">操作</th></tr></thead>' +
+        '<tbody>' + list.map(function(d){
+          var official = (window.__officialDs||[]).some(function(x){ return x.id === d.id; });
+          var actions = official
+            ? '<button class="btn btn-xs btn-outline" onclick="openDsEdit(\'' + esc(d.id) + '\')">编辑</button> ' +
+              '<button class="btn btn-xs btn-danger" onclick="deleteDs(\'' + esc(d.id) + '\')">删除</button>'
+            : '<button class="btn btn-xs btn-outline" onclick="openDsEdit(\'' + esc(d.id) + '\')">编辑</button> ' +
+              '<button class="btn btn-xs btn-danger" onclick="deleteDs(\'' + esc(d.id) + '\')">删除</button>';
+          return '<tr>' +
+            '<td><b>' + esc(d.site || "—") + '</b></td>' +
+            '<td>' + esc(d.uploader || "—") + '</td>' +
+            '<td>' + esc(d.date || "—") + '</td>' +
+            '<td>' + linkCell(d.url) + '</td>' +
+            '<td style="font-size:13px; color:#44505f;">' + (esc(d.note || "") || "") + '</td>' +
+            '<td style="white-space:nowrap;">' + actions + '</td>' +
+          '</tr>';
+        }).join("") + '</tbody></table></div>';
     }
+    window.render = render;
     document.getElementById("kw").addEventListener("input", render);
-    document.getElementById("proj").addEventListener("change", render);
+
+    /* ---------- 增 / 改 / 删 ---------- */
+    function submitDs(){
+      var site = document.getElementById("ds-site").value.trim();
+      var uploader = document.getElementById("ds-uploader").value.trim();
+      var date = document.getElementById("ds-date").value.trim() || todayStr();
+      var url = document.getElementById("ds-url").value.trim();
+      var note = document.getElementById("ds-note").value.trim();
+      var idx = document.getElementById("ds-idx").value.trim();
+      if(!site){ alert("请填写试验地名称"); return; }
+      if(!url){ alert("请粘贴数据文件夹链接（飞书云盘）"); return; }
+
+      var arr = getDsItems();
+      var editingId = idx !== "" ? document.getElementById("ds-edit-id").value : "";
+      if(idx !== ""){
+        // 编辑：官方条目或本机条目，统一以本机草稿覆盖同 id
+        var targetId = editingId || nextDsId();
+        var obj = { id: targetId, site: site, uploader: uploader || "—", date: date, url: url, note: note };
+        var i = arr.findIndex(function(x){ return x.id === targetId; });
+        if(i >= 0) arr[i] = obj; else arr.push(obj);
+      } else {
+        arr.push({ id: nextDsId(), site: site, uploader: uploader || "—", date: date, url: url, note: note });
+      }
+      saveDsItems(arr);
+      location.reload();
+    }
+    window.submitDs = submitDs;
+
+    function openDsEdit(id){
+      var d = (window.DATA.datasetFolders||[]).find(function(x){ return x.id === id; });
+      if(!d) return;
+      document.getElementById("ds-site").value = d.site || "";
+      document.getElementById("ds-uploader").value = (d.uploader === "—" ? "" : (d.uploader || ""));
+      document.getElementById("ds-date").value = d.date || "";
+      document.getElementById("ds-url").value = d.url || "";
+      document.getElementById("ds-note").value = d.note || "";
+      document.getElementById("ds-idx").value = "1";
+      var hid = document.getElementById("ds-edit-id");
+      if(!hid){ hid = document.createElement("input"); hid.type = "hidden"; hid.id = "ds-edit-id"; document.getElementById("ds-idx").parentNode.appendChild(hid); }
+      hid.value = id;
+      document.getElementById("ds-submit-btn").textContent = "更新";
+      document.getElementById("ds-cancel-btn").style.display = "";
+      document.getElementById("dsFormTitle").textContent = "编辑数据文件夹";
+      document.getElementById("ds-site").focus();
+      window.scrollTo({ top: document.getElementById("ds-site").getBoundingClientRect().top + window.scrollY - 120, behavior: "smooth" });
+    }
+    window.openDsEdit = openDsEdit;
+
+    function resetDsForm(){
+      ["ds-site","ds-uploader","ds-date","ds-url","ds-note"].forEach(function(id){ document.getElementById(id).value = ""; });
+      document.getElementById("ds-idx").value = "";
+      var hid = document.getElementById("ds-edit-id"); if(hid) hid.value = "";
+      document.getElementById("ds-submit-btn").textContent = "保存";
+      document.getElementById("ds-cancel-btn").style.display = "none";
+      document.getElementById("dsFormTitle").textContent = "添加数据文件夹";
+    }
+    window.resetDsForm = resetDsForm;
+
+    function deleteDs(id){
+      if(!confirm("确定删除这条数据文件夹登记吗？\n（先仅本机生效；导出发给管理员或提交 Issue 合并后，全组生效）")) return;
+      var official = (window.__officialDs||[]).some(function(x){ return x.id === id; });
+      saveDsItems(getDsItems().filter(function(x){ return x.id !== id; }));
+      if(official){
+        var del = getDsDeleted();
+        if(del.indexOf(id) < 0){ del.push(id); saveDsDeleted(del); }
+      }
+      location.reload();
+    }
+    window.deleteDs = deleteDs;
+
+    /* ---------- 导出 ---------- */
+    function exportDsLocal(){
+      var items = getDsItems(), del = getDsDeleted();
+      if(!items.length && !del.length){ alert("当前浏览器没有待合并的修改。"); return; }
+      document.getElementById("dsExportBox").value =
+        "window.DATA = window.DATA || {};\n" +
+        "window.DATA.datasetOverrides = " + JSON.stringify(items, null, 2) + ";\n" +
+        "window.DATA.datasetDeletions = " + JSON.stringify(del, null, 2) + ";\n";
+      document.getElementById("dsExportWrap").classList.add("open");
+      document.getElementById("dsExportBox").select();
+    }
+    window.exportDsLocal = exportDsLocal;
+
+    function closeDsExport(){ document.getElementById("dsExportWrap").classList.remove("open"); }
+    window.closeDsExport = closeDsExport;
+
+    /* ---------- 试验地入口链接（备用，只读展示） ---------- */
+    (function renderFolderLinks(){
+      var folders = window.DATA.dataFolders || [];
+      var box = document.getElementById("folderLinks");
+      if(!folders.length){ box.innerHTML = '<div class="placeholder" style="font-size:13px;">暂无。可在 assets/js/data/data-folders.js 里补充试验地入口。</div>'; return; }
+      box.innerHTML = folders.map(function(f){
+        return '<div style="border:1px dashed var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px;">' +
+          '<div style="font-size:14px; font-weight:600;">📍 ' + esc(f.site) + '</div>' +
+          '<div style="font-size:12.5px; color:var(--muted); margin:4px 0 6px;">' + esc(f.note || "") + '</div>' +
+          (f.years || []).map(function(y){
+            return '<div style="font-size:12.5px; margin-top:4px;">' + esc(y.year) + ' 年：' +
+              (y.members || []).map(function(m){
+                return m.url
+                  ? '<a class="btn btn-xs btn-outline" href="' + esc(m.url) + '" target="_blank" rel="noopener">' + esc(m.name) + ' ↗</a>'
+                  : '<span class="tag">' + esc(m.name) + '：待补</span>';
+              }).join(" ") + '</div>';
+          }).join("") +
+        '</div>';
+      }).join("");
+    })();
+
     render();
   </script>
 <script src="../assets/js/gate.js"></script>
