@@ -41,7 +41,9 @@
       [{name:"首页", url:"../index.html"}, {name:"研究成果"}]
     );
 
-    var types = [...new Set((window.DATA.achievements||[]).map(a=>a.type))];
+    // 类型筛选下拉：固定基础类型（即使暂无数据也显示，便于录入前后筛选）+ 数据中实际出现的类型
+    var baseTypes = ["期刊/会议论文","学位论文","获奖","专利","软著","专著","基金"];
+    var types = [...new Set(baseTypes.concat((window.DATA.achievements||[]).map(a=>a.type).filter(Boolean)))];
 
     // ---------- 本机临时修改（添加/编辑/删除，仅本机可见，可导出交给管理员合并） ----------
     function getLocalItems(){ try{ return JSON.parse(localStorage.getItem("achv-items")||"[]"); }catch(e){ return []; } }
@@ -77,8 +79,8 @@
     var achvModal = document.createElement("div");
     achvModal.id = "achvModal";
     achvModal.className = "modal";
-    var typeOptions = [...new Set(["期刊/会议论文","学位论文","获奖","专利","软著","基金"]
-      .concat((window.DATA.achievements||[]).map(a=>a.type)))];
+    var typeOptions = [...new Set(baseTypes
+      .concat((window.DATA.achievements||[]).map(a=>a.type).filter(Boolean)))];
     var memberOptions = (window.DATA.members||[]).map(m=>`<option value="${esc(m.id)}">${esc(m.name)}（${esc(m.role||"")}）</option>`).join("");
     achvModal.innerHTML = `<div class="modal-box" style="max-width:640px;">
       <div class="modal-head"><b id="amTitle">添加成果</b><button class="btn btn-sm btn-outline" onclick="closeAchvModal()">关闭</button></div>
@@ -217,6 +219,8 @@
       var papers = all.filter(a=>a.type==="期刊/会议论文");
       var theses = all.filter(a=>a.type==="学位论文");
       var awards = all.filter(a=>a.type==="获奖");
+      var patents = all.filter(a=>a.type==="专利");
+      var books  = all.filter(a=>a.type==="专著"||a.type==="软著");
 
       // 语言判定：优先用数据里手工指定的 lang 字段（"SCI"/"英文" 或 "中文"，不限大小写）；
       // 未指定时按常见"作者_期刊名_年份"格式取期刊名，含中文 → 中文，否则 → SCI（英文期刊）
@@ -241,13 +245,16 @@
         '<div class="stat"><div class="num">' + zh + '</div><div class="lab">中文论文</div></div>' +
         '<div class="stat"><div class="num">' + theses.length + '</div><div class="lab">学位论文 · 硕士' + shuo + ' 博士' + bo + '</div></div>' +
         '<div class="stat"><div class="num">' + awards.length + '</div><div class="lab">学生获奖（项）</div></div>' +
+        '<div class="stat"><div class="num">' + patents.length + '</div><div class="lab">专利（项）</div></div>' +
+        '<div class="stat"><div class="num">' + books.length + '</div><div class="lab">专著/软著（部）</div></div>' +
         '<div class="stat"><div class="num" style="font-size:22px; padding-top:4px;">' + span + '</div><div class="lab">统计年份跨度</div></div>';
 
       document.getElementById("statNote").textContent =
-        "统计口径：以上数字由页面自动汇总当前已录入的成果，录入新成果后自动更新；SCI/中文按期刊名称自动判断，个别期刊如判断有误，可在该成果数据中加 lang:\"SCI\" 或 lang:\"中文\" 手工指定；部分记录未填年份，不影响总数统计。";
+        "统计口径：以上数字由页面自动汇总当前已录入的成果，录入新成果后自动更新；SCI/中文按期刊名称自动判断，个别期刊如判断有误，可在该成果数据中加 lang:\"SCI\" 或 lang:\"中文\" 手工指定；专利按类型「专利」计数，专著与软著合并计数；部分记录未填年份，不影响总数统计。";
     })();
 
 
+    var typeColor = {"期刊/会议论文":"blue","学位论文":"purple","获奖":"orange","专利":"green","软著":"blue","专著":"blue","基金":"gray"};
     function render(){
       var t = document.getElementById("type").value;
       var y = document.getElementById("year").value;
@@ -258,7 +265,7 @@
       });
       document.getElementById("rows").innerHTML = list.length ? list.map(a=>`
         <tr>
-          <td>${badge(a.type,"purple")}</td>
+          <td>${badge(a.type, typeColor[a.type]||"purple")}</td>
           <td>${esc(a.title)}</td>
           <td>${esc((a.authors||[]).join("、"))}</td>
           <td>${esc(a.journal)||"—"}</td>

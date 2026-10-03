@@ -163,6 +163,330 @@
           '</div>';
       }
 
+      /* ==========================================================
+       * 经费使用台账（预算拆分 + 手动登记 + 定期对账，不联通财务系统）
+       * 数据挂载在项目对象 p.funding = { asOf, remark, budget:[], expenses:[] }
+       * 本机草稿：fund-budget-<id>（导师/助理编辑的预算）、fund-exp-<id>（大家登记的支出）
+       * ========================================================== */
+      var BUDGET_TPL = [
+        { cat:"设备费", amount:"", can:"项目所需小型仪器设备、工具、电脑等购置/租赁/升级改造", cannot:"大型贵重仪器（须走学校采购招标流程）" },
+        { cat:"材料费", amount:"", can:"试验耗材、药品试剂、生物炭/肥料等试验材料购置与加工", cannot:"与项目无关的通用办公用品、个人物品" },
+        { cat:"测试化验加工费", amount:"", can:"样品检测、土壤/植物分析化验、委托外部测试与加工", cannot:"应由公共平台免费提供的服务" },
+        { cat:"燃料动力费", amount:"", can:"田间试验及温室用水、电、燃气、燃油等", cannot:"个人生活用水用电" },
+        { cat:"差旅/会议/国际合作交流费", amount:"", can:"学术会议注册、科研调研差旅、合作交流", cannot:"旅游性质支出、与项目无关人员的差旅" },
+        { cat:"出版/文献/信息传播/知识产权事务费", amount:"", can:"论文版面费、专著出版费、专利申请与维持费、文献查阅费", cannot:"与项目无关的出版物费用" },
+        { cat:"劳务费", amount:"", can:"参与项目的研究生、博士后、临时聘用人员劳务补助", cannot:"在职在编教师工资性支出" },
+        { cat:"专家咨询费", amount:"", can:"临时聘请的咨询/评审专家劳务费", cannot:"本单位在职人员以专家名义领取" },
+        { cat:"间接费用", amount:"", can:"由学校统筹（水电房租、绩效等），一般不能直接报账", cannot:"不得直接用于日常报销" }
+      ];
+
+      function fundBudgetKey(){ return "fund-budget-" + p.id; }
+      function fundExpKey(){ return "fund-exp-" + p.id; }
+      function getLocalBudget(){
+        try { var raw = localStorage.getItem(fundBudgetKey()); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+      }
+      function saveLocalBudget(obj){ localStorage.setItem(fundBudgetKey(), JSON.stringify(obj)); }
+      function getLocalExp(){
+        try { var raw = localStorage.getItem(fundExpKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+      }
+      function saveLocalExp(arr){ localStorage.setItem(fundExpKey(), JSON.stringify(arr)); }
+
+      // 合并后的台账视图：本机预算草稿优先（预览未发布的修改），官方支出 + 本机支出合并
+      function fundingData(){
+        var local = getLocalBudget();
+        var official = p.funding || {};
+        var f = {
+          asOf: local ? (local.asOf || "") : (official.asOf || ""),
+          remark: local ? (local.remark || "") : (official.remark || ""),
+          budget: (local && local.budget && local.budget.length) ? local.budget : (official.budget || []),
+          expenses: (official.expenses ? official.expenses.slice() : [])
+        };
+        getLocalExp().forEach(function(e, idx){
+          var c = Object.assign({}, e); c.__localIdx = idx; f.expenses.push(c);
+        });
+        f.expenses.sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
+        return f;
+      }
+
+      function w2(x){ var n = Number(x); return isNaN(n) ? "0.00" : n.toFixed(2); }
+      function curDateStr(){ var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+
+      function renderFunding(){
+        var f = fundingData();
+        var hasData = f.budget.length > 0;
+
+        if(!hasData){
+          return '<div class="section-title" style="margin-top:0;">经费使用台账</div>' +
+            '<div class="placeholder" style="text-align:left; line-height:2.1;">' +
+            '本项目的经费台账还没有建立。本网站无法与学校财务处系统联通，采用<b>「预算拆分 + 手动登记 + 定期对账」</b>的准实时办法维护：<br>' +
+            '① <b>建预算</b>（导师/经费助理，一次性）：点下方按钮按「国家自然科学基金」预算科目生成空预算表，填好各科目<b>额度、能报什么、不能报什么</b>；<br>' +
+            '② <b>随手登记</b>（全组成员）：谁去报账，谁回来在下方「登记一笔支出」，台账即时更新；<br>' +
+            '③ <b>月底对账</b>（经费助理，每月 5 分钟）：对照学校财务系统查一次各科目余额，改「数据截至」日期并修正差额——页面上的剩余金额就始终贴近实时，并注明以财务处为准。<br>' +
+            '<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">' +
+            '<button class="btn btn-primary btn-sm" onclick="initBudgetTpl()">初始化预算模板（国自然科目）</button>' +
+            '<button class="btn btn-outline btn-sm" onclick="initBudgetBlank()">从空白开始</button>' +
+            '</div></div>';
+        }
+
+        // 按类目汇总支出
+        var spentByCat = {};
+        var spent = 0;
+        f.expenses.forEach(function(e){
+          var amt = Number(e.amount)||0;
+          spent += amt;
+          spentByCat[e.cat] = (spentByCat[e.cat]||0) + amt;
+        });
+        var total = 0;
+        f.budget.forEach(function(b){ total += Number(b.amount)||0; });
+        var remain = total - spent;
+        var overCats = f.budget.filter(function(b){ var a=Number(b.amount)||0; return a>0 && (spentByCat[b.cat]||0) > a; }).length;
+
+        var asOfWarn = '（网站不联通学校财务系统，剩余金额为手动登记结果，请以财务处查询为准' + (f.asOf ? '，数据截至 ' + esc(f.asOf) : '') + '）';
+
+        // 预算类目表
+        var budgetRows = f.budget.map(function(b){
+          var amt = Number(b.amount)||0;
+          var sp = spentByCat[b.cat]||0;
+          var rm = amt - sp;
+          var pct = amt > 0 ? Math.round(sp/amt*100) : 0;
+          var pctBar = amt > 0
+            ? '<div class="progress" style="width:110px; height:8px; display:inline-block; vertical-align:middle;"><span style="width:' + Math.min(100,pct) + '%;' + (pct>=100?'background:#c43d3d;':(pct>=80?'background:#b97400;':'')) + '"></span></div>' +
+              '<span style="font-size:12px; color:' + (pct>=100?'#c43d3d':(pct>=80?'#b97400':'var(--muted)')) + ';"> ' + pct + '%' + (pct>=100?' 超支':'') + '</span>'
+            : '<span style="color:var(--muted); font-size:12px;">未填额度</span>';
+          var rmHtml = amt > 0
+            ? '<b style="color:' + (rm<0?'#c43d3d':(rm/amt<=0.2?'#b97400':'var(--primary)')) + ';">' + w2(rm) + '</b>' + (rm<0?' ⚠':'')
+            : '—';
+          return '<tr>' +
+            '<td><b>' + esc(b.cat) + '</b></td>' +
+            '<td>' + (b.amount!=="" && b.amount!==undefined ? w2(amt) : '—') + '</td>' +
+            '<td>' + w2(sp) + '</td>' +
+            '<td>' + rmHtml + '</td>' +
+            '<td>' + pctBar + '</td>' +
+            '<td style="min-width:180px; font-size:12.5px;">✅ ' + esc(b.can || "—") + '</td>' +
+            '<td style="min-width:180px; font-size:12.5px;">⛔ ' + esc(b.cannot || "—") + '</td>' +
+          '</tr>';
+        }).join("");
+
+        // 支出流水表
+        var expRows = f.expenses.length ? f.expenses.map(function(e){
+          var actions = "";
+          if(typeof e.__localIdx === 'number'){
+            actions = '<button class="btn btn-xs btn-danger" onclick="deleteExp(' + e.__localIdx + ')">删除</button>';
+          }
+          return '<tr>' +
+            '<td>' + esc(e.date || "—") + '</td>' +
+            '<td>' + esc(e.cat || "—") + '</td>' +
+            '<td>' + esc(e.item || "—") + '</td>' +
+            '<td><b>' + w2(e.amount) + '</b></td>' +
+            '<td>' + esc(e.person || "—") + '</td>' +
+            '<td>' + (e.receipt ? '<a href="' + esc(e.receipt) + '" target="_blank" rel="noopener">凭证/材料 ↗</a>' : '—') + '</td>' +
+            '<td>' + esc(e.note || "") + '</td>' +
+            '<td style="white-space:nowrap;">' + (actions || '<span style="color:var(--muted); font-size:12px;">管理员数据</span>') + '</td>' +
+          '</tr>';
+        }).join("") : '<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:18px;">还没有登记支出。谁去报账谁登记，记一笔少一笔。</td></tr>';
+
+        var catOptions = f.budget.map(function(b){ return '<option>' + esc(b.cat) + '</option>'; }).join("");
+
+        return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+            '<span>经费使用台账 <span style="font-size:12px; color:var(--muted); font-weight:400;">单位：万元</span></span>' +
+            '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+              '<a class="btn btn-primary btn-sm" href="#fundExpForm">登记一笔支出</a>' +
+              '<button class="btn btn-outline btn-sm" onclick="openBudgetModal()">编辑预算与可报范围</button>' +
+              '<button class="btn btn-outline btn-sm" onclick="exportFunding()">导出台账修改（JSON）</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex; gap:16px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">' +
+            '<span>总预算：<b style="color:var(--primary);">' + w2(total) + '</b> 万元</span>' +
+            '<span>已登记支出：<b>' + w2(spent) + '</b> 万元</span>' +
+            '<span>剩余：<b style="color:' + (remain<0?'#c43d3d':'#2e9e5b') + ';">' + w2(remain) + '</b> 万元</span>' +
+            (overCats ? '<span style="color:#c43d3d;">⚠ ' + overCats + ' 个科目已超支</span>' : '') +
+          '</div>' +
+          '<p style="font-size:12.5px; color:var(--muted); margin:0 0 12px;">' + asOfWarn + (f.remark ? '　' + esc(f.remark) : '') + '</p>' +
+          '<div class="table-wrap" style="margin-bottom:16px;">' +
+            '<table>' +
+              '<thead><tr><th>预算科目</th><th>额度(万)</th><th>已支出(万)</th><th>剩余(万)</th><th>使用进度</th><th>✅ 能报什么</th><th>⛔ 不能报什么</th></tr></thead>' +
+              '<tbody>' + budgetRows + '</tbody>' +
+            '</table>' +
+          '</div>' +
+          '<div class="section-title" style="margin-top:0; font-size:15px;">支出流水（' + f.expenses.length + ' 笔）</div>' +
+          '<div class="table-wrap">' +
+            '<table>' +
+              '<thead><tr><th>日期</th><th>科目</th><th>事由</th><th>金额(万)</th><th>经办人</th><th>凭证/材料</th><th>备注</th><th style="width:70px;">操作</th></tr></thead>' +
+              '<tbody>' + expRows + '</tbody>' +
+            '</table>' +
+          '</div>' +
+          '<div id="fundExpForm" style="margin-top:14px; background:var(--bg,#f7f8fa); border-radius:10px; padding:12px 14px;">' +
+            '<div style="font-size:13.5px; margin-bottom:8px;"><b>登记一笔支出</b>（保存后仅本机可见，点「导出台账修改」交给管理员合并）</div>' +
+            '<div class="material-add-form" style="margin-bottom:6px;">' +
+              '<input type="date" id="fe-date" style="max-width:150px;">' +
+              '<select id="fe-cat" style="max-width:220px;">' + catOptions + '</select>' +
+              '<input type="text" id="fe-item" placeholder="事由（买了什么 / 办了什么）" style="flex:2;">' +
+              '<input type="number" id="fe-amount" placeholder="金额（万元）" step="0.01" min="0" style="max-width:130px;">' +
+            '</div>' +
+            '<div class="material-add-form" style="margin-bottom:0;">' +
+              '<input type="text" id="fe-person" placeholder="经办人" style="max-width:120px;">' +
+              '<input type="text" id="fe-receipt" placeholder="凭证/发票飞书链接（选填）" style="flex:1.5;">' +
+              '<input type="text" id="fe-note" placeholder="备注（选填）" style="flex:1;">' +
+              '<button class="btn btn-primary btn-sm" id="fe-submit" onclick="submitExp()">保存</button>' +
+            '</div>' +
+          '</div>';
+      }
+
+      function initBudgetTpl(){
+        if(!confirm("将按「国家自然科学基金」预算科目生成本项目的空预算表（含能报/不能报的常用说明，可再编辑）。\n先保存在本机，编辑好后点「导出台账修改」交给管理员合并。继续？")) return;
+        saveLocalBudget({ asOf: curDateStr(), remark: "", budget: BUDGET_TPL.map(function(x){ return Object.assign({}, x); }) });
+        location.reload();
+      }
+      window.initBudgetTpl = initBudgetTpl;
+
+      function initBudgetBlank(){
+        if(!confirm("从空白预算表开始（只有一行示例科目，自行增删）？")) return;
+        saveLocalBudget({ asOf: curDateStr(), remark: "", budget: [{ cat:"设备费", amount:"", can:"", cannot:"" }] });
+        location.reload();
+      }
+      window.initBudgetBlank = initBudgetBlank;
+
+      /* ---------- 编辑预算弹窗（导师 / 经费助理用） ---------- */
+      var budgetModal = document.createElement("div");
+      budgetModal.id = "budgetModal";
+      budgetModal.className = "modal";
+      budgetModal.innerHTML = '<div class="modal-box" style="max-width:860px;">' +
+        '<div class="modal-head"><b>编辑预算与可报范围</b><button class="btn btn-sm btn-outline" onclick="closeBudgetModal()">关闭</button></div>' +
+        '<div class="modal-body">' +
+          '<p style="font-size:13px; color:var(--muted); margin-bottom:10px;">建议由<b>导师/经费助理</b>按项目预算书与学校财务规定填写；「能报什么 / 不能报什么」是写给全组看的，越具体越好。金额单位：万元。</p>' +
+          '<div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">' +
+            '<label>数据截至：<input type="date" id="bm-asOf" style="max-width:160px;"></label>' +
+            '<label style="flex:1; min-width:220px;">总体备注：<input type="text" id="bm-remark" placeholder="如：以财务处系统查询为准" style="width:100%;"></label>' +
+            '<button class="btn btn-outline btn-sm" onclick="addBudgetRow()">＋ 添加科目</button>' +
+          '</div>' +
+          '<div class="table-wrap" style="max-height:420px; overflow:auto;">' +
+            '<table>' +
+              '<thead><tr><th style="width:220px;">科目名称</th><th style="width:110px;">额度(万)</th><th>✅ 能报什么</th><th>⛔ 不能报什么</th><th style="width:60px;"></th></tr></thead>' +
+              '<tbody id="bmRows"></tbody>' +
+            '</table>' +
+          '</div>' +
+          '<div style="margin-top:14px;">' +
+            '<button class="btn btn-primary" onclick="submitBudget()">保存（本机）</button>' +
+            '<button class="btn btn-outline" onclick="closeBudgetModal()" style="margin-left:8px;">取消</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+      document.body.appendChild(budgetModal);
+
+      window.__budgetEdit = [];
+
+      function openBudgetModal(){
+        var f = fundingData();
+        window.__budgetEdit = f.budget.map(function(b){ return Object.assign({}, b); });
+        document.getElementById("bm-asOf").value = f.asOf || curDateStr();
+        document.getElementById("bm-remark").value = f.remark || "";
+        renderBudgetRows();
+        document.getElementById("budgetModal").classList.add("open");
+      }
+      window.openBudgetModal = openBudgetModal;
+
+      function closeBudgetModal(){ document.getElementById("budgetModal").classList.remove("open"); }
+      window.closeBudgetModal = closeBudgetModal;
+
+      function renderBudgetRows(){
+        document.getElementById("bmRows").innerHTML = window.__budgetEdit.map(function(b, i){
+          return '<tr>' +
+            '<td><input type="text" value="' + esc(b.cat || "") + '" oninput="window.__budgetEdit[' + i + '].cat=this.value" style="width:100%;"></td>' +
+            '<td><input type="number" value="' + esc(b.amount===undefined?"":b.amount) + '" step="0.01" min="0" oninput="window.__budgetEdit[' + i + '].amount=this.value" style="width:100%;"></td>' +
+            '<td><input type="text" value="' + esc(b.can || "") + '" oninput="window.__budgetEdit[' + i + '].can=this.value" style="width:100%;"></td>' +
+            '<td><input type="text" value="' + esc(b.cannot || "") + '" oninput="window.__budgetEdit[' + i + '].cannot=this.value" style="width:100%;"></td>' +
+            '<td><button class="btn btn-xs btn-danger" onclick="removeBudgetRow(' + i + ')">删</button></td>' +
+          '</tr>';
+        }).join("");
+      }
+      window.renderBudgetRows = renderBudgetRows;
+
+      function addBudgetRow(){
+        window.__budgetEdit.push({ cat:"", amount:"", can:"", cannot:"" });
+        renderBudgetRows();
+      }
+      window.addBudgetRow = addBudgetRow;
+
+      function removeBudgetRow(i){
+        window.__budgetEdit.splice(i, 1);
+        renderBudgetRows();
+      }
+      window.removeBudgetRow = removeBudgetRow;
+
+      function submitBudget(){
+        var rows = window.__budgetEdit.filter(function(b){ return (b.cat||"").trim(); });
+        if(!rows.length){ alert("请至少保留一个科目并填写科目名称"); return; }
+        rows.forEach(function(b){ b.cat = (b.cat||"").trim(); });
+        saveLocalBudget({
+          asOf: document.getElementById("bm-asOf").value.trim() || curDateStr(),
+          remark: document.getElementById("bm-remark").value.trim(),
+          budget: rows
+        });
+        location.reload();
+      }
+      window.submitBudget = submitBudget;
+
+      /* ---------- 支出登记 / 删除 ---------- */
+      function submitExp(){
+        var date = document.getElementById("fe-date").value.trim();
+        var cat = document.getElementById("fe-cat").value.trim();
+        var item = document.getElementById("fe-item").value.trim();
+        var amount = document.getElementById("fe-amount").value.trim();
+        var person = document.getElementById("fe-person").value.trim();
+        var receipt = document.getElementById("fe-receipt").value.trim();
+        var note = document.getElementById("fe-note").value.trim();
+        if(!date){ alert("请选择日期"); return; }
+        if(!item){ alert("请填写事由"); return; }
+        if(amount === "" || isNaN(Number(amount)) || Number(amount) <= 0){ alert("请填写正确金额（万元）"); return; }
+        var arr = getLocalExp();
+        arr.push({ date:date, cat:cat, item:item, amount:Number(amount), person:person || "—", receipt:receipt, note:note, loggedAt:nowISO() });
+        saveLocalExp(arr);
+        location.reload();
+      }
+      window.submitExp = submitExp;
+
+      function deleteExp(idx){
+        if(!confirm("确定删除这笔本机登记的支出吗？（管理员已合并的支出不受影响）")) return;
+        var arr = getLocalExp();
+        if(idx >= 0 && idx < arr.length){ arr.splice(idx,1); saveLocalExp(arr); location.reload(); }
+      }
+      window.deleteExp = deleteExp;
+
+      /* ---------- 导出台账修改（管理员贴入 project-overrides.js 对应项目） ---------- */
+      function exportFunding(){
+        var f = fundingData();
+        var officialExp = (p.funding && p.funding.expenses ? p.funding.expenses : []);
+        var out = {
+          projectId: p.id,
+          projectName: p.name,
+          funding: {
+            asOf: f.asOf || curDateStr(),
+            remark: f.remark,
+            budget: f.budget,
+            expenses: officialExp.concat(getLocalExp())
+          }
+        };
+        document.getElementById("fundExportBox").value = JSON.stringify(out, null, 2);
+        document.getElementById("fundExportWrap").classList.add("open");
+        document.getElementById("fundExportBox").select();
+      }
+      window.exportFunding = exportFunding;
+
+      var fundExportWrap = document.createElement("div");
+      fundExportWrap.id = "fundExportWrap";
+      fundExportWrap.className = "modal";
+      fundExportWrap.innerHTML = '<div class="modal-box" style="max-width:720px;">' +
+        '<div class="modal-head"><b>导出经费台账修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeFundExportBox()">关闭</button></div>' +
+        '<div class="modal-body">' +
+          '<p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员：管理员在 <code>assets/js/data/project-overrides.js</code> 中找到 <code>projectId</code> 对应的项目对象，把其中的 <code>funding</code> 字段替换为本内容里的 <code>funding</code>（没有该字段就新增），上传 GitHub 后全组即可见。</p>' +
+          '<textarea id="fundExportBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>' +
+        '</div>' +
+      '</div>';
+      document.body.appendChild(fundExportWrap);
+
+      function closeFundExportBox(){ document.getElementById("fundExportWrap").classList.remove("open"); }
+      window.closeFundExportBox = closeFundExportBox;
+
       document.getElementById("main").innerHTML =
         '<div class="breadcrumb"><a href="../index.html">首页</a> / <a href="projects.html">项目管理</a> / 项目详情</div>' +
         '<div class="detail-head">' +
@@ -201,6 +525,8 @@
             '<div class="warn-box" style="font-size:13.5px; margin:0;">' + esc(p.risks) + '</div>' +
           '</div>' +
         '</div>' +
+
+        '<div class="card" style="margin-top:16px;">' + renderFunding() + '</div>' +
 
         '<div class="card" style="margin-top:16px;">' + renderMaterials() + '</div>' +
 
