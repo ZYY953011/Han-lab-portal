@@ -66,6 +66,8 @@
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("仪器耗材");
+    document.getElementById("head").insertAdjacentHTML("afterend",
+      unpublishedBar((getEqItems() || []).length + (getEqDeleted() || []).length, "exportEqLocal()"));
     document.getElementById("head").innerHTML = pageHead(
       "仪器设备及耗材", "组内仪器设备与耗材台账：有什么、有多少、放在哪里、谁登记的、说明书在哪。支持搜索、按位置归类与手工增删，轻松维护。",
       [{name:"首页", url:"../index.html"}, {name:"仪器耗材"}]

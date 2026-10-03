@@ -77,12 +77,17 @@
   </div>
 
   <script src="../assets/js/data/meetings.js"></script>
+  <script src="../assets/js/data/meeting-overrides.js"></script>
   <script src="../assets/js/data/members.js"></script>
   <script src="../assets/js/data/plan-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("组会");
+    document.getElementById("head").insertAdjacentHTML("afterend",
+      unpublishedBar(getLocalMeetings().length + getDeletedMeetings().length + getLocalPlans().length + getPlanDeleted().length,
+        "exportLocalMeetings()",
+        '<button class="btn btn-outline btn-sm" onclick="exportPlans()">导出月度计划</button>'));
     document.getElementById("head").innerHTML = pageHead(
       "组会安排与记录", "会议时间、地点、汇报人、汇报材料、发布时间和发布人。",
       [{name:"首页", url:"../index.html"}, {name:"组会安排与记录"}]
@@ -290,8 +295,11 @@
       if(!arr.length && !del.length){ alert("当前浏览器没有临时添加或删除的组会"); return; }
       document.getElementById("mtExportWrap").querySelector(".modal-head b").textContent = "导出本地添加的组会（JSON）";
       document.getElementById("mtExportWrap").querySelector(".modal-body p").innerHTML =
-        '复制下方内容，交给管理员：把 <code>meetings</code> 数组里的内容（含新增/修改）贴入 <code>assets/js/data/meetings.js</code> 的 <code>window.DATA.meetings</code> 中（相同 id 覆盖），并从该数组中删除 <code>deleted</code> 里列出的 id，全组即可同步。';
-      document.getElementById("mtExportBox").value = JSON.stringify({ meetings: arr, deleted: del }, null, 2);
+        '把下方内容<b>全部复制</b>发给管理员（也可直接粘到「管理合并」页）：管理员用它<b>整体覆盖</b> <code>assets/js/data/meeting-overrides.js</code> 并上传 GitHub，全组即可见。';
+      document.getElementById("mtExportBox").value =
+        "window.DATA = window.DATA || {};\n" +
+        "window.DATA.meetingOverrides = " + JSON.stringify(arr, null, 2) + ";\n" +
+        "window.DATA.meetingDeletions = " + JSON.stringify(del, null, 2) + ";\n";
       document.getElementById("mtExportWrap").classList.add("open");
       document.getElementById("mtExportBox").select();
     }

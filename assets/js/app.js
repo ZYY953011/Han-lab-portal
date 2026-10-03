@@ -232,3 +232,54 @@ function pageHead(title, desc, crumbs) {
 function emptyTip(text) {
   return `<div class="placeholder">${esc(text || "暂无数据（示例数据占位）")}</div>`;
 }
+
+/* ---------- 分区口令（轻量过滤，非真权限） ----------
+ * 真实权限请放在飞书云盘里按人授权，这里的口令只是"别让不相干的人随手点开"。
+ * 配置：config.js 的 window.AREA_PASSWORDS；留空表示不设限。
+ */
+function areaUnlocked(key) {
+  var pass = (window.AREA_PASSWORDS && window.AREA_PASSWORDS[key]) || "";
+  if (!pass) return true;
+  try { return localStorage.getItem("area_" + key) === "1"; } catch (e) { return false; }
+}
+function unlockArea(key, inputId, errId) {
+  var el = document.getElementById(inputId);
+  var v = el ? (el.value || "").trim() : "";
+  var pass = (window.AREA_PASSWORDS && window.AREA_PASSWORDS[key]) || "";
+  if (pass && v === pass) {
+    try { localStorage.setItem("area_" + key, "1"); } catch (e) {}
+    location.reload();
+  } else {
+    var e = document.getElementById(errId);
+    if (e) e.textContent = "口令不正确，请重试";
+  }
+}
+function areaLockHtml(key, title, inputId, errId, extraNote) {
+  return `<div class="section-title" style="margin-top:0;">${esc(title)} 🔒</div>
+    <div class="placeholder" style="text-align:left; line-height:2;">
+      该区域仅对<b>被授权的成员</b>开放（口令由导师 / 项目负责人告知，输一次本机记住）。<br>
+      ${extraNote || "文件本体存放在飞书云盘、<b>按人授权</b>；本页口令只是轻量过滤，真正的权限由飞书控制。"}
+      <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input type="password" id="${inputId}" placeholder="区域口令" style="max-width:180px;">
+        <button class="btn btn-primary btn-sm" onclick="unlockArea('${key}','${inputId}','${errId}')">解锁（本机记住）</button>
+      </div>
+      <div id="${errId}" style="color:#c43d3d; font-size:13px;"></div>
+    </div>`;
+}
+
+/* ---------- 「仅本机可见」提示条 ----------
+ * 网站是纯静态站，大家在页面上添加的内容先存在本人浏览器的 localStorage，
+ * 换电脑/换浏览器就看不到；只有管理员发布后才对全组可见。
+ * 这里在页面顶部显式提醒，避免误以为“已经上传了”。
+ * 用法：document.getElementById("head").insertAdjacentHTML("afterend", unpublishedBar(n, "exportXxx()"));
+ */
+function unpublishedBar(count, exportCall, extraBtnHtml) {
+  if (!count) return "";
+  return `<div class="warn-box" style="margin:10px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <span>⚠️ 你有 <b>${count}</b> 条修改<b>只保存在这台电脑</b>（换电脑或别人打开看不到）。点导出发给管理员，合并后全组才可见。</span>
+    <span style="display:flex; gap:8px;">
+      <button class="btn btn-primary btn-sm" onclick="${exportCall}">导出我的修改</button>
+      ${extraBtnHtml || ""}
+    </span>
+  </div>`;
+}

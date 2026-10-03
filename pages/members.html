@@ -36,6 +36,8 @@
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("成员");
+    document.getElementById("head").insertAdjacentHTML("afterend",
+      unpublishedBar((getMemberItems() || []).length + (getMemberDeleted() || []).length, "exportMemberLocal()"));
     document.getElementById("head").innerHTML = pageHead(
       "成员信息", "组内成员概况、擅长技能、可互助内容与联系方式（联系方式等敏感信息未来需权限控制）。",
       [{name:"首页", url:"../index.html"}, {name:"成员"}]

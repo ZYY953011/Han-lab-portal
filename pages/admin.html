@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理合并 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+<script>document.documentElement.classList.add("gate-locked");</script>
+</head>
+<body>
+  <main class="container">
+    <div id="head"></div>
+
+    <div class="note-box" style="margin-bottom:14px;">
+      🧰 <b>管理员专用</b>：把组员发来的 JSON 粘进来，本页自动识别类型、按 id 去重合并，生成可发布的数据文件内容——
+      <b>① 复制/下载文件手动上传</b>，或 <b>② 填一次 GitHub 信息后「一键提交」</b>（不用再打开 Git 或网页端上传）。
+      普通组员不用进这一页。
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title" style="margin-top:0;">① 粘贴组员发来的内容</div>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">
+        支持两种格式：组员点「导出」得到的<b>整段 JS/JSON 文本</b>，或管理员自己整理的 <b>JSON 数组</b>。
+        可<b>连续粘贴多人的内容</b>，本页会按 id 自动去重合并（后粘贴的覆盖先粘贴的），最后一次性发布。
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+        <select id="forceType" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px;">
+          <option value="">自动识别类型</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="parseAndMerge()">解析并合并</button>
+        <button class="btn btn-outline btn-sm" onclick="clearPending()">清空待发布</button>
+      </div>
+      <textarea id="inBox" rows="8" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-family:monospace; font-size:12.5px;" placeholder="在此粘贴组员发来的内容…"></textarea>
+      <div id="parseMsg" style="margin-top:10px; font-size:13.5px;"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title" style="margin-top:0;">② 待发布清单</div>
+      <div id="pendingBox"></div>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="generateFiles()">生成可发布文件内容</button>
+        <span style="font-size:12.5px; color:var(--muted); align-self:center;">生成后可「复制」或「下载」，再覆盖仓库里同名文件即可。</span>
+      </div>
+    </div>
+
+    <div id="filesBox"></div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="section-title" style="margin-top:0;">③ 一键提交到 GitHub（可选，最省事）</div>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">
+        填写一次后本机会记住（只存在你自己浏览器，不会写进网站）。令牌需要勾选 <code>repo</code> 权限：
+        GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → 勾选 repo 生成。
+        提交后 GitHub Pages 约 1–2 分钟更新，全组即可见。
+      </p>
+      <div class="material-add-form" style="margin-bottom:6px;">
+        <input type="text" id="ghOwner" placeholder="仓库所有者，如 username">
+        <input type="text" id="ghRepo" placeholder="仓库名，如 han-lab-portal">
+        <input type="text" id="ghBranch" placeholder="分支，如 main" style="max-width:130px;">
+      </div>
+      <div class="material-add-form" style="margin-bottom:6px;">
+        <input type="password" id="ghToken" placeholder="GitHub 个人访问令牌（repo 权限）" style="flex:2;">
+        <button class="btn btn-outline btn-sm" onclick="saveGh()">记住（本机）</button>
+        <button class="btn btn-primary btn-sm" onclick="pushAll()">提交全部改动到 GitHub</button>
+      </div>
+      <div id="ghLog" style="margin-top:10px; font-size:13px; line-height:1.9;"></div>
+    </div>
+
+    <p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="../index.html">← 返回首页</a></p>
+  </main>
+
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script>
+    injectHeader("管理合并");
+    document.getElementById("head").innerHTML = pageHead(
+      "管理合并中心", "把组员在本机添加的修改合并进全站数据，并一键发布到 GitHub。",
+      [{name:"首页", url:"../index.html"}, {name:"管理合并"}]
+    );
+
+    /* ---------- 类型定义：导出内容 → 目标文件 / 变量名 ---------- */
+    var TYPES = {
+      meetings:    { label:"组会",     file:"assets/js/data/meeting-overrides.js",     ov:"meetingOverrides",     del:"meetingDeletions",     dataKey:"meetings" },
+      plans:       { label:"月度计划", file:"assets/js/data/plan-overrides.js",        ov:"planOverrides",        del:"planDeletions",        dataKey:"plans" },
+      achievements:{ label:"研究成果", file:"assets/js/data/achievement-overrides.js", ov:"achievementOverrides", del:"achievementDeletions", dataKey:"achievements" },
+      members:     { label:"成员",     file:"assets/js/data/member-overrides.js",      ov:"memberOverrides",      del:"memberDeletions",      dataKey:"members" },
+      equipment:   { label:"仪器耗材", file:"assets/js/data/equipment-overrides.js",   ov:"equipmentOverrides",   del:"equipmentDeletions",   dataKey:"equipment" },
+      projects:    { label:"项目",     file:"assets/js/data/project-overrides.js",     ov:"projectOverrides",     del:"",                     dataKey:"projects" }
+    };
+
+    Object.keys(TYPES).forEach(function(k){
+      var o = document.createElement("option");
+      o.value = k; o.textContent = TYPES[k].label + "（" + TYPES[k].file.replace("assets/js/data/","") + "）";
+      document.getElementById("forceType").appendChild(o);
+    });
+
+    var pending = {};   // { type: { items:[], deletions:[] } }
+
+    function esc2(s){ return esc(s); }
+
+    /* ---------- 解析：支持「整段 JS 文本」和「纯 JSON」两种 ---------- */
+    function extractArrays(text){
+      var out = {};
+      // window.DATA.xxx = [...];
+      var re = /window\.DATA\.(\w+)\s*=\s*(\[[\s\S]*?\])\s*;/g, m;
+      while((m = re.exec(text))){
+        try { out[m[1]] = JSON.parse(m[2]); } catch(e){}
+      }
+      // "xxx": [...] 形式的 JSON 键
+      var re2 = /"?(\w+)"?\s*:\s*(\[[\s\S]*?\])\s*[,}]/g, m2;
+      while((m2 = re2.exec(text))){
+        if(out[m2[1]] === undefined){
+          try { out[m2[1]] = JSON.parse(m2[2]); } catch(e){}
+        }
+      }
+      return out;
+    }
+
+    function guessType(items){
+      if(!items || !items.length) return "";
+      var a = items[0];
+      if(a.funding && a.projectId) return "projects";
+      if(a.month && a.content) return "plans";
+      if(a.category && (a.location || a.keeper)) return "equipment";
+      if(a.role !== undefined && a.status !== undefined && a.name) return "members";
+      if(a.reporter && a.place !== undefined && a.topic !== undefined) return "meetings";
+      if(a.type !== undefined && a.title !== undefined) return "achievements";
+      if(a.leader !== undefined || a.progress !== undefined) return "projects";
+      return "";
+    }
+
+    function mergeInto(type, items, deletions){
+      if(!type) return 0;
+      pending[type] = pending[type] || { items: [], deletions: [] };
+      var n = 0;
+      (items || []).forEach(function(it){
+        if(!it || !it.id) return;
+        var i = pending[type].items.findIndex(function(x){ return x.id === it.id; });
+        if(i >= 0) pending[type].items[i] = Object.assign({}, pending[type].items[i], it);
+        else pending[type].items.push(it);
+        n++;
+      });
+      (deletions || []).forEach(function(id){
+        if(pending[type].deletions.indexOf(id) < 0) pending[type].deletions.push(id);
+      });
+      return n;
+    }
+
+    function parseAndMerge(){
+      var text = document.getElementById("inBox").value.trim();
+      var msg = document.getElementById("parseMsg");
+      if(!text){ msg.innerHTML = '<span style="color:#c43d3d;">请先粘贴内容</span>'; return; }
+      var forced = document.getElementById("forceType").value;
+      var total = 0, notes = [];
+
+      // 1. 提取所有数组
+      var arrs = extractArrays(text);
+      // 2. 先看是否有明确的 xOverrides / xDeletions
+      Object.keys(TYPES).forEach(function(t){
+        var T = TYPES[t];
+        if(arrs[T.ov] && arrs[T.ov].length){
+          total += mergeInto(t, arrs[T.ov], arrs[T.del]);
+          notes.push(T.label + "：" + arrs[T.ov].length + " 条" + (arrs[T.del] ? "，隐藏 " + arrs[T.del].length + " 条" : ""));
+        }
+      });
+      // 3. 旧格式：{ meetings:[...], deleted:[...] } 或 { plans:[...], deleted:[...] }
+      Object.keys(TYPES).forEach(function(t){
+        var T = TYPES[t];
+        if(arrs[T.dataKey] && arrs[T.dataKey].length && !arrs[T.ov]){
+          total += mergeInto(t, arrs[T.dataKey], arrs.deleted || arrs["deleted"]);
+          notes.push(T.label + "（旧格式）：" + arrs[T.dataKey].length + " 条");
+        }
+      });
+      // 4. 项目经费补丁：{ projectId, funding }
+      if(!total){
+        var obj = null;
+        try { obj = JSON.parse(text); } catch(e){}
+        if(obj && obj.projectId && obj.funding){
+          total += mergeInto("projects", [{ id: obj.projectId, funding: obj.funding, __fundingOnly: true }], []);
+          notes.push("项目经费台账：" + obj.projectId + "（作为项目补丁合并）");
+        }
+      }
+      // 5. 兜底：纯数组 + 强制类型 / 启发式
+      if(!total){
+        var arr = null;
+        try { arr = JSON.parse(text); } catch(e){}
+        if(Array.isArray(arr)){
+          var t = forced || guessType(arr);
+          if(t){ total += mergeInto(t, arr, []); notes.push(TYPES[t].label + "：" + arr.length + " 条（按内容识别）"); }
+        }
+      }
+      if(!total){ msg.innerHTML = '<span style="color:#c43d3d;">没能识别出内容。请确认粘贴的是导出框里的完整内容；也可手动在上方选择类型后再点解析。</span>'; return; }
+
+      document.getElementById("inBox").value = "";
+      msg.innerHTML = '<span style="color:#2e9e5b;">✅ 已合并 ' + total + ' 条：' + notes.map(esc2).join("；") + '</span>';
+      renderPending();
+    }
+    window.parseAndMerge = parseAndMerge;
+
+    function renderPending(){
+      var box = document.getElementById("pendingBox");
+      var keys = Object.keys(pending).filter(function(k){ return pending[k].items.length || pending[k].deletions.length; });
+      if(!keys.length){ box.innerHTML = '<div class="placeholder" style="font-size:13px;">暂无待发布内容。先在上方粘贴组员发来的 JSON。</div>'; return; }
+      box.innerHTML = keys.map(function(k){
+        var T = TYPES[k], p = pending[k];
+        return '<div style="border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:10px;">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+            '<b>' + esc2(T.label) + '</b>' +
+            '<span style="font-size:12.5px; color:var(--muted);">' + esc2(T.file) + '</span>' +
+            '<span>' + p.items.length + ' 条新增/修改' + (p.deletions.length ? '，' + p.deletions.length + ' 条隐藏' : '') + '</span>' +
+            '<button class="btn btn-xs btn-danger" onclick="dropType(\'' + k + '\')">移除</button>' +
+          '</div>' +
+          '<div style="font-size:12.5px; color:var(--muted); margin-top:6px;">' +
+            p.items.map(function(it){ return esc2(it.id + (it.name ? " " + it.name : "") + (it.title ? " " + it.title.slice(0,24) : "")); }).join(" ｜ ") +
+          '</div>' +
+        '</div>';
+      }).join("");
+    }
+    function clearPending(){ pending = {}; renderPending(); document.getElementById("filesBox").innerHTML = ""; document.getElementById("parseMsg").innerHTML = "已清空。"; }
+    window.clearPending = clearPending;
+    function dropType(k){ delete pending[k]; renderPending(); document.getElementById("filesBox").innerHTML = ""; }
+    window.dropType = dropType;
+
+    /* ---------- 生成文件内容 ---------- */
+    function genContent(k){
+      var T = TYPES[k], p = pending[k];
+      var now = new Date().toLocaleString("zh-CN");
+      var head = '/* ' + T.label + ' —— 全站级覆盖文件（由「管理合并」页生成，' + now + '）\n' +
+        ' * 用法：整体覆盖 ' + T.file + ' 并上传 GitHub，全组即可见。\n' +
+        ' * 合并规则：同 id 覆盖原数据；' + (T.del ? 'deletions 里的 id 被隐藏（数据不删，误删可恢复）。' : '') + '\n' +
+        ' */\n';
+      var body = "window.DATA = window.DATA || {};\n";
+      if(k === "projects"){
+        var items = p.items.map(function(it){
+          var c = Object.assign({}, it); delete c.__fundingOnly; return c;
+        });
+        body += "window.DATA.projectOverrides = " + JSON.stringify(items, null, 2) + ";\n";
+      } else if(k === "meetings"){
+        body += "window.DATA.meetings = window.DATA.meetings || [];\n";
+        body += "window.DATA.meetingOverrides = " + JSON.stringify(p.items, null, 2) + ";\n";
+        body += "window.DATA.meetingDeletions = " + JSON.stringify(p.deletions, null, 2) + ";\n";
+      } else if(k === "plans"){
+        body += "window.DATA.plans = window.DATA.plans || [];\n";
+        body += "window.DATA.planOverrides = " + JSON.stringify(p.items, null, 2) + ";\n";
+        body += "window.DATA.planDeletions = " + JSON.stringify(p.deletions, null, 2) + ";\n";
+      } else {
+        body += "window.DATA." + T.ov + " = " + JSON.stringify(p.items, null, 2) + ";\n";
+        if(T.del) body += "window.DATA." + T.del + " = " + JSON.stringify(p.deletions, null, 2) + ";\n";
+      }
+      var iife = "\n(function () {\n" +
+        "  var list = window.DATA." + (k === "achievements" ? "achievements" : (k === "members" ? "members" : (k === "equipment" ? "equipment" : (k === "meetings" ? "meetings" : "plans")))) + " || (window.DATA." + (k === "achievements" ? "achievements" : (k === "members" ? "members" : (k === "equipment" ? "equipment" : (k === "meetings" ? "meetings" : "plans")))) + " = []);\n" +
+        "  (window.DATA." + T.ov + " || []).forEach(function (p) {\n" +
+        "    if (!p || !p.id) return;\n" +
+        "    var i = list.findIndex(function (x) { return x.id === p.id; });\n" +
+        "    if (i >= 0) list[i] = Object.assign({}, list[i], p); else list.push(p);\n" +
+        "  });\n" +
+        (T.del ? "  var del = window.DATA." + T.del + " || [];\n" +
+                "  if (del.length) window.DATA." + (k === "achievements" ? "achievements" : (k === "members" ? "members" : (k === "equipment" ? "equipment" : (k === "meetings" ? "meetings" : "plans")))) + " = list.filter(function (x) { return del.indexOf(x.id) < 0; });\n" : "") +
+        "})();\n";
+      if(k === "projects"){
+        iife = "\n(function () {\n" +
+          "  var overrides = window.DATA.projectOverrides || [];\n" +
+          "  var projects = window.DATA.projects || [];\n" +
+          "  overrides.forEach(function (p) {\n" +
+          "    if (!p || !p.id) return;\n" +
+          "    var idx = projects.findIndex(function (x) { return x.id === p.id; });\n" +
+          "    if (idx >= 0) projects[idx] = Object.assign({}, projects[idx], p);\n" +
+          "    else projects.push(p);\n" +
+          "  });\n" +
+          "})();\n";
+      }
+      return head + body + iife;
+    }
+
+    function generateFiles(){
+      var keys = Object.keys(pending).filter(function(k){ return pending[k].items.length || pending[k].deletions.length; });
+      var box = document.getElementById("filesBox");
+      if(!keys.length){ box.innerHTML = '<div class="card" style="margin-top:14px;"><div class="placeholder">还没有待发布内容。</div></div>'; return; }
+      box.innerHTML = keys.map(function(k){
+        var T = TYPES[k];
+        return '<div class="card" style="margin-top:14px;">' +
+          '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">' +
+            '<span>' + esc2(T.label) + ' → <code>' + esc2(T.file) + '</code></span>' +
+            '<span style="display:flex; gap:8px;">' +
+              '<button class="btn btn-outline btn-sm" onclick="copyFile(\'' + k + '\')">复制</button>' +
+              '<button class="btn btn-primary btn-sm" onclick="downloadFile(\'' + k + '\')">下载文件</button>' +
+            '</span>' +
+          '</div>' +
+          '<textarea id="file-' + k + '" rows="10" style="width:100%; font-family:monospace; font-size:12px; margin-top:8px;">' + esc2(genContent(k)) + '</textarea>' +
+        '</div>';
+      }).join("");
+    }
+    window.generateFiles = generateFiles;
+
+    function copyFile(k){
+      var ta = document.getElementById("file-" + k);
+      ta.select();
+      try { document.execCommand("copy"); alert("已复制，去覆盖仓库里的同名文件即可。"); }
+      catch(e){ alert("复制失败，请手动全选复制。"); }
+    }
+    window.copyFile = copyFile;
+
+    function downloadFile(k){
+      var T = TYPES[k];
+      var blob = new Blob([genContent(k)], { type: "text/javascript;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = T.file.split("/").pop();
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    }
+    window.downloadFile = downloadFile;
+
+    /* ---------- GitHub 一键提交 ---------- */
+    function saveGh(){
+      localStorage.setItem("gh_owner", document.getElementById("ghOwner").value.trim());
+      localStorage.setItem("gh_repo", document.getElementById("ghRepo").value.trim());
+      localStorage.setItem("gh_branch", document.getElementById("ghBranch").value.trim() || "main");
+      localStorage.setItem("gh_token", document.getElementById("ghToken").value.trim());
+      alert("已记住在本机（仅本浏览器可见）。");
+    }
+    window.saveGh = saveGh;
+
+    (function restoreGh(){
+      document.getElementById("ghOwner").value = localStorage.getItem("gh_owner") || "";
+      document.getElementById("ghRepo").value = localStorage.getItem("gh_repo") || "";
+      document.getElementById("ghBranch").value = localStorage.getItem("gh_branch") || "main";
+      document.getElementById("ghToken").value = localStorage.getItem("gh_token") || "";
+    })();
+
+    function ghCfg(){
+      return {
+        owner: document.getElementById("ghOwner").value.trim(),
+        repo: document.getElementById("ghRepo").value.trim(),
+        branch: document.getElementById("ghBranch").value.trim() || "main",
+        token: document.getElementById("ghToken").value.trim()
+      };
+    }
+    function b64(str){ return btoa(unescape(encodeURIComponent(str))); }
+
+    async function ghApi(path, method, body){
+      var c = ghCfg();
+      var url = "https://api.github.com/repos/" + c.owner + "/" + c.repo + "/contents/" + path + (method === "GET" ? "?ref=" + c.branch : "");
+      var res = await fetch(url, {
+        method: method,
+        headers: { "Authorization": "token " + c.token, "Accept": "application/vnd.github+json", "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      var json = null;
+      try { json = await res.json(); } catch(e){}
+      return { ok: res.ok, status: res.status, json: json };
+    }
+
+    async function pushAll(){
+      var c = ghCfg();
+      var log = document.getElementById("ghLog");
+      if(!c.owner || !c.repo || !c.token){ log.innerHTML = '<span style="color:#c43d3d;">请填写仓库所有者、仓库名和令牌。</span>'; return; }
+      var keys = Object.keys(pending).filter(function(k){ return pending[k].items.length || pending[k].deletions.length; });
+      if(!keys.length){ log.innerHTML = '<span style="color:#c43d3d;">没有待发布内容。</span>'; return; }
+      log.innerHTML = "开始提交…<br>";
+      for(var i=0;i<keys.length;i++){
+        var k = keys[i], T = TYPES[k];
+        var content = genContent(k);
+        log.innerHTML += "→ " + esc2(T.file) + " … ";
+        var get = await ghApi(T.file, "GET");
+        var body = { message: "更新" + T.label + "数据（管理合并页自动提交）", content: b64(content), branch: c.branch };
+        if(get.ok && get.json && get.json.sha) body.sha = get.json.sha;
+        var put = await ghApi(T.file, "PUT", body);
+        log.innerHTML += put.ok
+          ? '<span style="color:#2e9e5b;">✅ 已提交</span><br>'
+          : '<span style="color:#c43d3d;">❌ 失败（' + put.status + ' ' + esc2((put.json && put.json.message) || "") + '）</span><br>';
+      }
+      log.innerHTML += '<br><b>完成。</b>GitHub Pages 约 1–2 分钟后更新。';
+    }
+    window.pushAll = pushAll;
+
+    renderPending();
+  </script>
+<script src="../assets/js/gate.js"></script>
+</body>
+</html>

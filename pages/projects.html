@@ -46,6 +46,8 @@
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("项目");
+    document.getElementById("head").insertAdjacentHTML("afterend",
+      unpublishedBar((typeof getLocalProjects === "function" ? getLocalProjects() : []).length, "exportLocalProjects()"));
     document.getElementById("head").innerHTML = pageHead(
       "项目管理", "让所有成员知道：组里有哪些项目、谁负责、做到哪一步，以及在哪里找到历史资料。",
       [{name:"首页", url:"../index.html"}, {name:"项目管理"}]

@@ -13,7 +13,8 @@
     <div class="note-box" style="margin-bottom:14px;">
       💡 本网站第一版<b>不直接保存大型原始数据</b>，只保存“数据索引和链接”。点击按钮将跳转到学校服务器 / NAS / 云盘中的原始文件。
     </div>
-    <div class="toolbar">
+    <div id="folders"></div>
+    <div class="toolbar" style="margin-top:14px;">
       <input class="grow" id="kw" placeholder="搜索数据名称 / 项目 / 实验…">
       <select id="proj"></select>
     </div>
@@ -21,6 +22,7 @@
   </main>
 
   <script src="../assets/js/data/datasets.js"></script>
+  <script src="../assets/js/data/data-folders.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
   <script>
@@ -29,6 +31,45 @@
       "数据管理", "只保存索引与链接，原始数据存放在服务器 / NAS / OneDrive / 对象存储。",
       [{name:"首页", url:"../index.html"}, {name:"数据管理"}]
     );
+
+    /* ---------- 试验地云盘文件夹（权限由飞书控制，网站只放入口） ---------- */
+    (function renderFolders(){
+      var box = document.getElementById("folders");
+      if(!areaUnlocked("dataFolders")){
+        box.innerHTML = '<div class="card" style="margin-bottom:14px;">' +
+          areaLockHtml("dataFolders", "试验地云盘文件夹", "dfPass", "dfErr",
+            "每个试验地一个文件夹 → 按年份 → 按接收该试验的成员分子文件夹，<b>在飞书云盘里把文件夹共享给具体成员</b>即可精确到人、随时收回。") +
+          '</div>';
+        return;
+      }
+      var folders = window.DATA.dataFolders || [];
+      if(!folders.length){ box.innerHTML = ""; return; }
+      box.innerHTML = '<div class="card" style="margin-bottom:14px;">' +
+        '<div class="section-title" style="margin-top:0;">试验地云盘文件夹 ' +
+          '<span style="font-size:12px; color:var(--muted); font-weight:400;">🔒 权限由飞书云盘控制：谁被授权谁打得开</span></div>' +
+        '<p style="font-size:12.5px; color:var(--muted); margin:0 0 10px;">' +
+          '结构：<b>试验地 → 年份 → 成员子文件夹</b>。管理员在飞书云盘建好文件夹后，把链接填到 ' +
+          '<code>assets/js/data/data-folders.js</code>，并把文件夹<b>共享给对应成员</b>；未授权的人点开会提示无权限。</p>' +
+        folders.map(function(f){
+          return '<div style="border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px;">' +
+            '<div style="font-size:15px; font-weight:600; color:var(--primary-dark);">📍 ' + esc(f.site) + '</div>' +
+            '<div style="font-size:12.5px; color:var(--muted); margin:4px 0 8px;">' + esc(f.note || "") + '</div>' +
+            (f.years || []).map(function(y){
+              return '<div style="margin-top:8px;">' +
+                '<div style="font-size:13px; font-weight:600;">' + esc(y.year) + ' 年</div>' +
+                '<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">' +
+                  (y.members || []).map(function(m){
+                    return m.url
+                      ? '<a class="btn btn-sm btn-outline" href="' + esc(m.url) + '" target="_blank" rel="noopener">📁 ' + esc(m.name) + ' ↗</a>'
+                      : '<span class="tag">📁 ' + esc(m.name) + '：链接待补' + (m.note ? '（' + esc(m.note) + '）' : '') + '</span>';
+                  }).join("") +
+                '</div>' +
+              '</div>';
+            }).join("") +
+          '</div>';
+        }).join("") +
+      '</div>';
+    })();
 
     var projs = [...new Set((window.DATA.datasets||[]).map(d=>d.project))];
     document.getElementById("proj").innerHTML = `<option value="">全部项目</option>` + projs.map(p=>`<option>${esc(p)}</option>`).join("");

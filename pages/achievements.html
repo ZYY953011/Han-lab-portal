@@ -36,6 +36,8 @@
   <script src="../assets/js/app.js"></script>
   <script>
     injectHeader("成果");
+    document.getElementById("head").insertAdjacentHTML("afterend",
+      unpublishedBar(((window.getLocalItems && getLocalItems()) || []).length + ((window.getLocalDeleted && getLocalDeleted()) || []).length, "exportAchvLocal()"));
     document.getElementById("head").innerHTML = pageHead(
       "研究成果", "论文、专利、软著、获奖、基金等，支持按年份、类型筛选。获奖证书等证明文件因涉及隐私未公开上传，如需查看请联系获奖本人或网页管理员。",
       [{name:"首页", url:"../index.html"}, {name:"研究成果"}]
