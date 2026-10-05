@@ -10,9 +10,11 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <div id="dbBanner"></div>
     <div class="toolbar">
       <input class="grow" id="kw" placeholder="搜索方法名称 / 类型 / 编写人…">
       <select id="cat"></select>
+      <button class="btn btn-primary btn-sm" onclick="openMethodModal()">＋ 添加方法</button>
     </div>
     <div class="grid grid-2" id="list"></div>
   </main>
@@ -20,6 +22,7 @@
   <script src="../assets/js/data/methods.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("实验方法");
     document.getElementById("head").innerHTML = pageHead(
@@ -27,26 +30,47 @@
       [{name:"首页", url:"../index.html"}, {name:"实验方法"}]
     );
 
-    // 分类下拉
-    var cats = [...new Set((window.DATA.methods||[]).map(m=>m.category))];
-    document.getElementById("cat").innerHTML = `<option value="">全部分类</option>` + cats.map(c=>`<option>${esc(c)}</option>`).join("");
+    /* ---------- 数据合并：云端/本机草稿 与 仓库数据按 id 合并 ---------- */
+    function allMethods(){
+      var base = (window.DATA.methods || []).slice();
+      var locals = [];
+      try { locals = JSON.parse(localStorage.getItem("method-local") || "[]"); } catch(e){}
+      locals.forEach(function(d){
+        var i = base.findIndex(function(x){ return x.id === d.id; });
+        if(i >= 0) base[i] = Object.assign({}, base[i], d); else base.push(d);
+      });
+      var dels = [];
+      try { dels = JSON.parse(localStorage.getItem("method-deleted") || "[]"); } catch(e){}
+      return base.filter(function(x){ return dels.indexOf(x.id) < 0; });
+    }
 
+    /* ---------- 渲染 ---------- */
+    function rebuildCat(){
+      var cats = [...new Set(allMethods().map(m=>m.category).filter(Boolean))];
+      var cur = document.getElementById("cat").value;
+      document.getElementById("cat").innerHTML = `<option value="">全部分类</option>` + cats.map(c=>`<option>${esc(c)}</option>`).join("");
+      if(cur) document.getElementById("cat").value = cur;
+    }
     function card(m){
       return `<div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
           <h3 style="font-size:17px; color:var(--primary-dark);"><a href="method-detail.html?id=${esc(m.id)}">${esc(m.name)}</a></h3>
-          <span class="tag">${esc(m.version)}</span>
+          <span class="tag">${esc(m.version || "v1.0")}</span>
         </div>
-        <div style="color:var(--muted); font-size:13px; margin:6px 0;">${esc(m.category)} ｜ 编写：${esc(m.author)} ｜ 更新：${esc(m.updated)}</div>
-        <p style="font-size:13.5px; color:#44505f;">${esc(m.purpose)}</p>
-        <div style="margin-top:8px;"><a class="btn btn-sm" href="method-detail.html?id=${esc(m.id)}">查看 SOP →</a></div>
+        <div style="color:var(--muted); font-size:13px; margin:6px 0;">${esc(m.category || "—")} ｜ 编写：${esc(m.author || "—")} ｜ 更新：${esc(m.updated || "—")}</div>
+        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+          <a class="btn btn-sm" href="method-detail.html?id=${esc(m.id)}">查看 SOP →</a>
+          ${m.sopUrl ? `<a class="btn btn-sm btn-outline" href="${esc(m.sopUrl)}" target="_blank" rel="noopener">📄 SOP 文档</a>` : ""}
+          <button class="btn btn-sm btn-outline" onclick="openMethodModal('${esc(m.id)}')">✏️ 编辑</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteMethod('${esc(m.id)}')">🗑 删除</button>
+        </div>
       </div>`;
     }
     function render(){
       var kw = document.getElementById("kw").value.trim().toLowerCase();
       var cat = document.getElementById("cat").value;
-      var list = (window.DATA.methods||[]).filter(m=>{
-        var ok1 = !kw || (m.name+m.category+m.author).toLowerCase().includes(kw);
+      var list = allMethods().filter(m=>{
+        var ok1 = !kw || (m.name+(m.category||"")+(m.author||"")).toLowerCase().includes(kw);
         var ok2 = !cat || m.category===cat;
         return ok1 && ok2;
       });
@@ -54,7 +78,172 @@
     }
     document.getElementById("kw").addEventListener("input", render);
     document.getElementById("cat").addEventListener("change", render);
-    render();
+    rebuildCat(); render();
+
+    /* ---------- 新增 / 编辑弹窗 ---------- */
+    var modal = document.createElement("div");
+    modal.id = "methodModal"; modal.className = "modal";
+    modal.innerHTML = `<div class="modal-box" style="max-width:680px; max-height:88vh; overflow:auto;">
+      <div class="modal-head"><b id="mmTitle">添加方法</b><button class="btn btn-sm btn-outline" onclick="closeMethodModal()">关闭</button></div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="grid-column:1/-1;"><label>方法名称 <span style="color:red">*</span></label><input id="mmName" placeholder="如 小麦叶片光合速率测定"></div>
+          <div><label>类型 / 分类</label><input id="mmCat" placeholder="如 生理指标"></div>
+          <div><label>适用实验</label><input id="mmAppExp" placeholder="如 逆境生理、光合特性评价"></div>
+          <div><label>编写人</label><input id="mmAuthor" placeholder="姓名"></div>
+          <div><label>版本号</label><input id="mmVersion" placeholder="留空自动生成"></div>
+          <div style="grid-column:1/-1;"><label>SOP 飞书文档链接（详细操作步骤放飞书文档，网站存链接）</label><input id="mmSopUrl" placeholder="https://xxx.feishu.cn/docs/…"></div>
+          <div><label>所需材料（每行一个）</label><textarea id="mmMaterials" rows="3" placeholder="小麦完全展开旗叶&#10;蒸馏水"></textarea></div>
+          <div><label>所需仪器（每行一个）</label><textarea id="mmInstruments" rows="3" placeholder="LI-6400 光合仪&#10;叶室"></textarea></div>
+          <div style="grid-column:1/-1;"><label>关键参数（每行一个，显示为标签）</label><textarea id="mmKeyParams" rows="2" placeholder="光强 1200&#10;温度 25℃"></textarea></div>
+          <div style="grid-column:1/-1;"><label>关键注意事项（每行一条）</label><textarea id="mmNotes" rows="2"></textarea></div>
+          <div><label>参考文献（每行一条）</label><textarea id="mmRefs" rows="2"></textarea></div>
+          <div><label>附件与视频（每行：名称|链接）</label><textarea id="mmAttach" rows="2" placeholder="测产记录表.xlsx|https://xxx.feishu.cn/file/…"></textarea></div>
+          <div><label>你的姓名（记入版本记录）</label><input id="mmWho" placeholder="谁在改"></div>
+          <div><label>本次修改说明</label><input id="mmNote" placeholder="如 补充高温注意事项"></div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitMethod()">保存</button>
+          <button class="btn btn-outline" onclick="closeMethodModal()" style="margin-left:8px;">取消</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+
+    function lines(v){ return (v||"").split("\n").map(function(s){ return s.trim(); }).filter(Boolean); }
+    function parseAttach(v){
+      return lines(v).map(function(row){
+        var seg = row.split("|").map(function(s){ return s.trim(); });
+        return { name: seg[0] || "附件", url: seg[1] || "" };
+      }).filter(function(a){ return a.url; });
+    }
+    function bumpVersion(v){
+      var m = /v?(\d+)\.(\d+)/.exec(v || "");
+      if(!m) return "v1.1";
+      return "v" + m[1] + "." + (parseInt(m[2],10) + 1);
+    }
+    function todayStr(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
+    function openMethodModal(id){
+      var m = id ? allMethods().find(function(x){ return x.id===id; }) : null;
+      document.getElementById("mmTitle").textContent = m ? "编辑方法" : "添加方法";
+      document.getElementById("mmName").value = m ? m.name : "";
+      document.getElementById("mmCat").value = m ? (m.category||"") : "";
+      document.getElementById("mmAppExp").value = m ? (m.applicableExperiments||"") : "";
+      document.getElementById("mmAuthor").value = m ? (m.author||"") : "";
+      document.getElementById("mmVersion").value = m ? bumpVersion(m.version) : "v1.0";
+      document.getElementById("mmSopUrl").value = m ? (m.sopUrl||"") : "";
+      document.getElementById("mmMaterials").value = m ? (m.materials||[]).join("\n") : "";
+      document.getElementById("mmInstruments").value = m ? (m.instruments||[]).join("\n") : "";
+      document.getElementById("mmKeyParams").value = m ? (m.keyParams||[]).join("\n") : "";
+      document.getElementById("mmNotes").value = m ? (m.notes||[]).join("\n") : "";
+      document.getElementById("mmRefs").value = m ? (m.references||[]).join("\n") : "";
+      document.getElementById("mmAttach").value = m ? (m.attachments||[]).map(function(a){ return a.name+"|"+a.url; }).join("\n") : "";
+      document.getElementById("mmWho").value = localStorage.getItem("my-name") || "";
+      document.getElementById("mmNote").value = "";
+      document.getElementById("methodModal").dataset.mode = m ? "edit" : "add";
+      document.getElementById("methodModal").dataset.id = m ? m.id : "";
+      document.getElementById("methodModal").classList.add("open");
+    }
+    window.openMethodModal = openMethodModal;
+    function closeMethodModal(){ document.getElementById("methodModal").classList.remove("open"); }
+    window.closeMethodModal = closeMethodModal;
+
+    function saveLocalMethod(m){
+      var arr = [];
+      try { arr = JSON.parse(localStorage.getItem("method-local") || "[]"); } catch(e){}
+      var i = arr.findIndex(function(x){ return x.id === m.id; });
+      if(i >= 0) arr[i] = m; else arr.push(m);
+      localStorage.setItem("method-local", JSON.stringify(arr));
+    }
+
+    function submitMethod(){
+      var name = document.getElementById("mmName").value.trim();
+      if(!name){ alert("请填写方法名称"); return; }
+      var mode = document.getElementById("methodModal").dataset.mode;
+      var id = mode === "edit" ? document.getElementById("methodModal").dataset.id
+                               : ("M-" + Date.now() + "-" + Math.floor(Math.random()*1000));
+      var prev = mode === "edit" ? allMethods().find(function(x){ return x.id===id; }) : null;
+      var who = document.getElementById("mmWho").value.trim();
+      if(who) localStorage.setItem("my-name", who);
+      var ver = document.getElementById("mmVersion").value.trim() || (prev ? bumpVersion(prev.version) : "v1.0");
+
+      var m = Object.assign({}, prev || {}, {
+        id: id,
+        name: name,
+        category: document.getElementById("mmCat").value.trim(),
+        applicableExperiments: document.getElementById("mmAppExp").value.trim(),
+        author: document.getElementById("mmAuthor").value.trim(),
+        version: ver,
+        updated: todayStr(),
+        sopUrl: document.getElementById("mmSopUrl").value.trim(),
+        materials: lines(document.getElementById("mmMaterials").value),
+        instruments: lines(document.getElementById("mmInstruments").value),
+        keyParams: lines(document.getElementById("mmKeyParams").value),
+        notes: lines(document.getElementById("mmNotes").value),
+        references: lines(document.getElementById("mmRefs").value),
+        attachments: parseAttach(document.getElementById("mmAttach").value)
+      });
+
+      /* 版本更新记录：每次保存自动追加一条（新增方法记初版） */
+      var hist = ((prev && prev.versionHistory) || []).slice();
+      hist.unshift({
+        ver: ver,
+        date: m.updated,
+        who: who || (prev && prev.author) || "组员",
+        note: document.getElementById("mmNote").value.trim() || (mode === "edit" ? "更新内容" : "初版建立")
+      });
+      m.versionHistory = hist;
+
+      /* 云端模式：直接写云端；本机模式：存草稿并记录视图 */
+      var finish = function(){
+        var arr = window.DATA.methods = window.DATA.methods || [];
+        var i = arr.findIndex(function(x){ return x.id === id; });
+        if(i >= 0) arr[i] = Object.assign({}, arr[i], m); else arr.push(m);
+        closeMethodModal(); rebuildCat(); render();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("methods", m).then(finish).catch(function(e){
+          alert("云端保存失败：" + e.message + "\n已改为本机草稿保存。");
+          saveLocalMethod(m); finish();
+        });
+      } else {
+        saveLocalMethod(m); finish();
+      }
+    }
+    window.submitMethod = submitMethod;
+
+    function deleteMethod(id){
+      var m = allMethods().find(function(x){ return x.id===id; });
+      if(!m) return;
+      if(!confirm("确定删除「" + m.name + "」吗？删除后全组都不再显示。")) return;
+      var doLocal = function(){
+        window.DATA.methods = (window.DATA.methods||[]).filter(function(x){ return x.id !== id; });
+        var arr = [];
+        try { arr = JSON.parse(localStorage.getItem("method-local") || "[]"); } catch(e){}
+        localStorage.setItem("method-local", JSON.stringify(arr.filter(function(x){ return x.id !== id; })));
+        var dels = [];
+        try { dels = JSON.parse(localStorage.getItem("method-deleted") || "[]"); } catch(e){}
+        if(dels.indexOf(id) < 0) dels.push(id);
+        localStorage.setItem("method-deleted", JSON.stringify(dels));
+        rebuildCat(); render();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("methods", id).then(doLocal).catch(function(e){ alert("云端删除失败：" + e.message); });
+      } else { doLocal(); }
+    }
+    window.deleteMethod = deleteMethod;
+
+    /* ---------- 云端接入：拉取 +（首次自动）种子/合并本机草稿 ---------- */
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      if(mode !== "cloud") return;
+      return DB.hydrate("methods", "methods").then(function(){
+        rebuildCat(); render();
+      });
+    }).catch(function(){});
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

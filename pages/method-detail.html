@@ -13,22 +13,42 @@
   <script src="../assets/js/data/methods.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("实验方法");
     var id = getParam("id");
-    var m = (window.DATA.methods||[]).find(x=>x.id===id);
-    if(!m){ document.getElementById("main").innerHTML = emptyTip("未找到该方法"); }
-    else {
+
+    function allMethods(){
+      var base = (window.DATA.methods || []).slice();
+      var locals = [];
+      try { locals = JSON.parse(localStorage.getItem("method-local") || "[]"); } catch(e){}
+      locals.forEach(function(d){
+        var i = base.findIndex(function(x){ return x.id === d.id; });
+        if(i >= 0) base[i] = Object.assign({}, base[i], d); else base.push(d);
+      });
+      var dels = [];
+      try { dels = JSON.parse(localStorage.getItem("method-deleted") || "[]"); } catch(e){}
+      return base.filter(function(x){ return dels.indexOf(x.id) < 0; });
+    }
+
+    function render(){
+      var m = allMethods().find(x=>x.id===id);
+      var main = document.getElementById("main");
+      if(!m){ main.innerHTML = emptyTip("未找到该方法"); return; }
       var arr = (a)=> Array.isArray(a)? a.map(esc).join("、") : esc(a);
-      document.getElementById("main").innerHTML = `
+      main.innerHTML = `
         <div class="breadcrumb"><a href="../index.html">首页</a> / <a href="methods.html">实验方法</a> / SOP 详情</div>
         <div class="detail-head">
           <h1>${esc(m.name)}</h1>
           <div class="meta">
-            <span><b>类型：</b>${esc(m.category)}</span>
-            <span><b>版本：</b>${esc(m.version)}</span>
-            <span><b>编写人：</b>${esc(m.author)}</span>
-            <span><b>更新：</b>${esc(m.updated)}</span>
+            <span><b>类型：</b>${esc(m.category || "—")}</span>
+            <span><b>版本：</b>${esc(m.version || "v1.0")}</span>
+            <span><b>编写人：</b>${esc(m.author || "—")}</span>
+            <span><b>更新：</b>${esc(m.updated || "—")}</span>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="openEdit()">✏️ 编辑本方法</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteThis()">🗑 删除</button>
           </div>
         </div>
 
@@ -36,64 +56,187 @@
           <div class="card">
             <div class="section-title" style="margin-top:0;">概要</div>
             <dl class="kv">
-              <dt>适用实验</dt><dd>${esc(m.applicableExperiments)}</dd>
-              <dt>适用项目</dt><dd>${esc(m.applicableProjects)}</dd>
-              <dt>实验目的</dt><dd>${esc(m.purpose)}</dd>
+              <dt>适用实验</dt><dd>${esc(m.applicableExperiments || "—")}</dd>
               <dt>所需材料</dt><dd>${arr(m.materials)}</dd>
               <dt>所需仪器</dt><dd>${arr(m.instruments)}</dd>
             </dl>
           </div>
           <div class="card">
             <div class="section-title" style="margin-top:0;">关键参数</div>
-            <p>${(m.keyParams||[]).map(p=>`<span class="tag">${esc(p)}</span>`).join("")}</p>
-            <div class="section-title">附件与视频</div>
-            <p>
-              ${(m.attachments||[]).map(a=>`<a class="btn btn-sm btn-outline" href="${esc(a.url)}" target="_blank">📎 ${esc(a.name)}</a> `).join("")}
-              ${m.videoUrl?`<a class="btn btn-sm btn-outline" href="${esc(m.videoUrl)}" target="_blank">▶ 操作视频</a>`:""}
-              ${(!m.attachments&&!m.videoUrl)?"（暂无）":""}
-            </p>
+            <p>${(m.keyParams||[]).map(p=>`<span class="tag">${esc(p)}</span>`).join("") || "（暂无）"}</p>
           </div>
         </div>
 
         <div class="card" style="margin-top:16px;">
-          <div class="section-title" style="margin-top:0;">操作步骤</div>
-          <ol>${(m.steps||[]).map(s=>`<li style="margin:6px 0;">${esc(s)}</li>`).join("")}</ol>
+          <div class="section-title" style="margin-top:0;">📄 SOP 详细操作（飞书文档）</div>
+          ${m.sopUrl
+            ? `<a class="btn btn-primary" href="${esc(m.sopUrl)}" target="_blank" rel="noopener">点击打开 SOP 飞书文档 ↗</a>
+               <p style="font-size:12.5px; color:var(--muted); margin:8px 0 0;">详细操作步骤维护在飞书文档中（可随时编辑、支持表格与图片），此页面保存链接入口。</p>`
+            : `<p style="color:var(--muted);">还没有填写 SOP 飞书文档链接。点上方「✏️ 编辑本方法」把文档链接填进来。</p>`}
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="section-title" style="margin-top:0;">附件与视频</div>
+          <p style="display:flex; gap:8px; flex-wrap:wrap;">
+            ${(m.attachments||[]).map(a=>`<a class="btn btn-sm btn-outline" href="${esc(a.url)}" target="_blank" rel="noopener">📎 ${esc(a.name)}</a>`).join("")}
+            ${m.videoUrl?`<a class="btn btn-sm btn-outline" href="${esc(m.videoUrl)}" target="_blank" rel="noopener">▶ 操作视频</a>`:""}
+            ${(!m.attachments || !m.attachments.length) && !m.videoUrl ? "（暂无）" : ""}
+          </p>
         </div>
 
         <div class="card" style="margin-top:16px;">
           <div class="section-title" style="margin-top:0; color:var(--warn);">⚠ 关键注意事项（高亮）</div>
-          <div class="note-box">${(m.notes||[]).map(n=>`• ${esc(n)}`).join("<br>")}</div>
-        </div>
-
-        <div class="grid grid-2" style="margin-top:16px;">
-          <div class="card">
-            <div class="section-title" style="margin-top:0;">常见问题</div>
-            <div class="section-title" style="font-size:15px;">常见错误</div>
-            <ul>${(m.commonErrors||[]).map(e=>`<li>${esc(e)}</li>`).join("")||"<li>暂无</li>"}</ul>
-            <div class="section-title" style="font-size:15px;">失败案例</div>
-            <ul>${(m.failureCases||[]).map(e=>`<li>${esc(e)}</li>`).join("")||"<li>暂无</li>"}</ul>
-            <div class="section-title" style="font-size:15px;">推荐经验</div>
-            <ul>${(m.tips||[]).map(e=>`<li>${esc(e)}</li>`).join("")||"<li>暂无</li>"}</ul>
-          </div>
-          <div class="card">
-            <div class="section-title" style="margin-top:0;">参考文献</div>
-            <ul>${(m.references||[]).map(r=>`<li>${esc(r)}</li>`).join("")||"<li>暂无</li>"}</ul>
-          </div>
+          <div class="note-box">${(m.notes||[]).length ? (m.notes||[]).map(n=>`• ${esc(n)}`).join("<br>") : "（暂无）"}</div>
         </div>
 
         <div class="card" style="margin-top:16px;">
-          <div class="section-title" style="margin-top:0;">版本更新记录（时间轴）</div>
+          <div class="section-title" style="margin-top:0;">参考文献</div>
+          <ul>${(m.references||[]).map(r=>`<li>${esc(r)}</li>`).join("") || "<li>暂无</li>"}</ul>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="section-title" style="margin-top:0;">版本更新记录（时间轴 · 每次修改自动记录）</div>
           <div class="timeline">
             ${(m.versionHistory||[]).slice().reverse().map(v=>`
               <div class="tl-item done">
                 <div class="tl-title">${esc(v.ver)} <span class="tl-date">${esc(v.date)} · ${esc(v.who)}</span></div>
                 <div class="tl-note">${esc(v.note)}</div>
-              </div>`).join("")}
+              </div>`).join("") || "（暂无记录）"}
           </div>
         </div>
         <p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="methods.html">← 返回方法列表</a></p>
       `;
     }
+    render();
+
+    /* ---------- 编辑弹窗（与列表页同款字段） ---------- */
+    var modal = document.createElement("div");
+    modal.id = "methodModal"; modal.className = "modal";
+    modal.innerHTML = `<div class="modal-box" style="max-width:680px; max-height:88vh; overflow:auto;">
+      <div class="modal-head"><b>编辑方法</b><button class="btn btn-sm btn-outline" onclick="closeEdit()">关闭</button></div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="grid-column:1/-1;"><label>方法名称 <span style="color:red">*</span></label><input id="mmName"></div>
+          <div><label>类型 / 分类</label><input id="mmCat"></div>
+          <div><label>适用实验</label><input id="mmAppExp"></div>
+          <div><label>编写人</label><input id="mmAuthor"></div>
+          <div><label>版本号（默认自动 +0.1）</label><input id="mmVersion"></div>
+          <div style="grid-column:1/-1;"><label>SOP 飞书文档链接</label><input id="mmSopUrl" placeholder="https://xxx.feishu.cn/docs/…"></div>
+          <div><label>所需材料（每行一个）</label><textarea id="mmMaterials" rows="3"></textarea></div>
+          <div><label>所需仪器（每行一个）</label><textarea id="mmInstruments" rows="3"></textarea></div>
+          <div style="grid-column:1/-1;"><label>关键参数（每行一个）</label><textarea id="mmKeyParams" rows="2"></textarea></div>
+          <div style="grid-column:1/-1;"><label>关键注意事项（每行一条）</label><textarea id="mmNotes" rows="2"></textarea></div>
+          <div><label>参考文献（每行一条）</label><textarea id="mmRefs" rows="2"></textarea></div>
+          <div><label>附件与视频（每行：名称|链接）</label><textarea id="mmAttach" rows="2"></textarea></div>
+          <div><label>你的姓名（记入版本记录）</label><input id="mmWho"></div>
+          <div><label>本次修改说明</label><input id="mmNote"></div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitEdit()">保存</button>
+          <button class="btn btn-outline" onclick="closeEdit()" style="margin-left:8px;">取消</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+
+    function lines(v){ return (v||"").split("\n").map(function(s){ return s.trim(); }).filter(Boolean); }
+    function parseAttach(v){
+      return lines(v).map(function(row){
+        var seg = row.split("|").map(function(s){ return s.trim(); });
+        return { name: seg[0] || "附件", url: seg[1] || "" };
+      }).filter(function(a){ return a.url; });
+    }
+    function bumpVersion(v){
+      var m = /v?(\d+)\.(\d+)/.exec(v || "");
+      return m ? "v" + m[1] + "." + (parseInt(m[2],10) + 1) : "v1.1";
+    }
+    function todayStr(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
+    function openEdit(){
+      var m = allMethods().find(function(x){ return x.id===id; });
+      if(!m) return;
+      document.getElementById("mmName").value = m.name || "";
+      document.getElementById("mmCat").value = m.category || "";
+      document.getElementById("mmAppExp").value = m.applicableExperiments || "";
+      document.getElementById("mmAuthor").value = m.author || "";
+      document.getElementById("mmVersion").value = bumpVersion(m.version);
+      document.getElementById("mmSopUrl").value = m.sopUrl || "";
+      document.getElementById("mmMaterials").value = (m.materials||[]).join("\n");
+      document.getElementById("mmInstruments").value = (m.instruments||[]).join("\n");
+      document.getElementById("mmKeyParams").value = (m.keyParams||[]).join("\n");
+      document.getElementById("mmNotes").value = (m.notes||[]).join("\n");
+      document.getElementById("mmRefs").value = (m.references||[]).join("\n");
+      document.getElementById("mmAttach").value = (m.attachments||[]).map(function(a){ return a.name+"|"+a.url; }).join("\n");
+      document.getElementById("mmWho").value = localStorage.getItem("my-name") || "";
+      document.getElementById("mmNote").value = "";
+      document.getElementById("methodModal").classList.add("open");
+    }
+    window.openEdit = openEdit;
+    function closeEdit(){ document.getElementById("methodModal").classList.remove("open"); }
+    window.closeEdit = closeEdit;
+
+    function submitEdit(){
+      var name = document.getElementById("mmName").value.trim();
+      if(!name){ alert("请填写方法名称"); return; }
+      var prev = allMethods().find(function(x){ return x.id===id; });
+      var who = document.getElementById("mmWho").value.trim();
+      if(who) localStorage.setItem("my-name", who);
+      var ver = document.getElementById("mmVersion").value.trim() || bumpVersion(prev ? prev.version : "");
+
+      var m = Object.assign({}, prev || {}, {
+        id: id, name: name,
+        category: document.getElementById("mmCat").value.trim(),
+        applicableExperiments: document.getElementById("mmAppExp").value.trim(),
+        author: document.getElementById("mmAuthor").value.trim(),
+        version: ver,
+        updated: todayStr(),
+        sopUrl: document.getElementById("mmSopUrl").value.trim(),
+        materials: lines(document.getElementById("mmMaterials").value),
+        instruments: lines(document.getElementById("mmInstruments").value),
+        keyParams: lines(document.getElementById("mmKeyParams").value),
+        notes: lines(document.getElementById("mmNotes").value),
+        references: lines(document.getElementById("mmRefs").value),
+        attachments: parseAttach(document.getElementById("mmAttach").value)
+      });
+      var hist = ((prev && prev.versionHistory) || []).slice();
+      hist.unshift({ ver: ver, date: m.updated, who: who || (prev && prev.author) || "组员",
+                     note: document.getElementById("mmNote").value.trim() || "更新内容" });
+      m.versionHistory = hist;
+
+      var finish = function(){
+        var arr2 = window.DATA.methods = window.DATA.methods || [];
+        var i = arr2.findIndex(function(x){ return x.id === id; });
+        if(i >= 0) arr2[i] = Object.assign({}, arr2[i], m); else arr2.push(m);
+        closeEdit(); render();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("methods", m).then(finish).catch(function(e){ alert("云端保存失败：" + e.message); });
+      } else {
+        var arr = [];
+        try { arr = JSON.parse(localStorage.getItem("method-local") || "[]"); } catch(e){}
+        var j = arr.findIndex(function(x){ return x.id === id; });
+        if(j >= 0) arr[j] = m; else arr.push(m);
+        localStorage.setItem("method-local", JSON.stringify(arr));
+        finish();
+      }
+    }
+    window.submitEdit = submitEdit;
+
+    function deleteThis(){
+      if(!confirm("确定删除该方法吗？删除后全组都不再显示。")) return;
+      var go = function(){ location.href = "methods.html"; };
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("methods", id).then(go).catch(function(e){ alert("云端删除失败：" + e.message); });
+      } else { go(); }
+    }
+    window.deleteThis = deleteThis;
+
+    /* ---------- 云端接入 ---------- */
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      if(mode !== "cloud") return;
+      return DB.hydrate("methods", "methods").then(function(){ render(); });
+    }).catch(function(){});
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

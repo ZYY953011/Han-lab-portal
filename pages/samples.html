@@ -10,18 +10,20 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <div id="dbBanner"></div>
     <div class="toolbar">
-      <input class="grow" id="kw" placeholder="搜索样品编号 / 名称 / 负责人…">
+      <input class="grow" id="kw" placeholder="搜索样品名称 / 负责人…">
       <select id="proj"></select>
       <select id="loc"></select>
       <label style="font-size:13px; color:var(--muted);"><input type="checkbox" id="warnOnly"> 仅看库存预警</label>
+      <button class="btn btn-primary btn-sm" onclick="openSampleModal()">＋ 添加样品</button>
     </div>
     <div id="warnBox"></div>
     <div class="table-wrap" style="margin-top:8px;">
       <table>
         <thead><tr>
-          <th>编号</th><th>名称</th><th>类型</th><th>所属项目</th><th>负责人</th>
-          <th>位置</th><th>剩余</th><th>状态</th><th>操作</th>
+          <th>名称</th><th>类型</th><th>所属项目</th><th>负责人</th>
+          <th>位置</th><th>数量</th><th>状态</th><th>操作</th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -31,6 +33,7 @@
   <script src="../assets/js/data/samples.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("样品");
     document.getElementById("head").innerHTML = pageHead(
@@ -38,11 +41,31 @@
       [{name:"首页", url:"../index.html"}, {name:"样品管理"}]
     );
 
-    // 项目筛选 & 位置（楼栋+房间）筛选
-    var projs = [...new Set((window.DATA.samples||[]).map(s=>s.project))];
-    document.getElementById("proj").innerHTML = `<option value="">全部项目</option>` + projs.map(p=>`<option>${esc(p)}</option>`).join("");
-    var locs = [...new Set((window.DATA.samples||[]).map(s=>s.building+" "+s.room))];
-    document.getElementById("loc").innerHTML = `<option value="">全部位置</option>` + locs.map(l=>`<option>${esc(l)}</option>`).join("");
+    /* ---------- 数据合并 ---------- */
+    function allSamples(){
+      var base = (window.DATA.samples || []).slice();
+      var locals = [];
+      try { locals = JSON.parse(localStorage.getItem("sample-local") || "[]"); } catch(e){}
+      locals.forEach(function(d){
+        var i = base.findIndex(function(x){ return x.id === d.id; });
+        if(i >= 0) base[i] = Object.assign({}, base[i], d); else base.push(d);
+      });
+      var dels = [];
+      try { dels = JSON.parse(localStorage.getItem("sample-deleted") || "[]"); } catch(e){}
+      return base.filter(function(x){ return dels.indexOf(x.id) < 0; });
+    }
+
+    function rebuildFilters(){
+      var items = allSamples();
+      var projs = [...new Set(items.map(s=>s.project).filter(Boolean))];
+      var curP = document.getElementById("proj").value;
+      document.getElementById("proj").innerHTML = `<option value="">全部项目</option>` + projs.map(p=>`<option>${esc(p)}</option>`).join("");
+      if(curP) document.getElementById("proj").value = curP;
+      var locs = [...new Set(items.map(s=>s.building+" "+s.room).filter(function(x){ return x.trim() !== " "; }))];
+      var curL = document.getElementById("loc").value;
+      document.getElementById("loc").innerHTML = `<option value="">全部位置</option>` + locs.map(l=>`<option>${esc(l)}</option>`).join("");
+      if(curL) document.getElementById("loc").value = curL;
+    }
 
     function render(){
       var kw = document.getElementById("kw").value.trim().toLowerCase();
@@ -50,26 +73,29 @@
       var loc = document.getElementById("loc").value;
       var warnOnly = document.getElementById("warnOnly").checked;
 
-      var list = (window.DATA.samples||[]).filter(s=>{
-        var ok1 = !kw || (s.code+s.name+s.owner).toLowerCase().includes(kw);
+      var list = allSamples().filter(s=>{
+        var ok1 = !kw || ((s.name||"")+(s.owner||"")+(s.code||"")).toLowerCase().includes(kw);
         var ok2 = !proj || s.project===proj;
         var ok3 = !loc || (s.building+" "+s.room)===loc;
-        var ok4 = !warnOnly || (s.status==="已耗尽" || (s.remain/s.total < 0.2));
+        var ok4 = !warnOnly || (s.status==="已耗尽" || (Number(s.total)>0 && Number(s.remain)/Number(s.total) < 0.2));
         return ok1 && ok2 && ok3 && ok4;
       });
       document.getElementById("rows").innerHTML = list.length ? list.map(s=>`
         <tr>
-          <td>${esc(s.code)}</td>
           <td><a href="sample-detail.html?id=${esc(s.id)}">${esc(s.name)}</a></td>
           <td>${esc(s.type)}</td><td>${esc(s.project)}</td><td>${esc(s.owner)}</td>
           <td>${esc(s.location)}</td>
           <td>${s.remain} ${esc(s.unit)}</td>
           <td>${badge(s.status)}</td>
-          <td><a class="btn btn-sm" href="sample-detail.html?id=${esc(s.id)}">详情</a></td>
-        </tr>`).join("") : `<tr><td colspan="9">${emptyTip("没有匹配的样品")}</td></tr>`;
+          <td style="white-space:nowrap;">
+            <a class="btn btn-sm" href="sample-detail.html?id=${esc(s.id)}">详情</a>
+            <button class="btn btn-sm btn-outline" onclick="openSampleModal('${esc(s.id)}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteSample('${esc(s.id)}')">🗑</button>
+          </td>
+        </tr>`).join("") : `<tr><td colspan="8">${emptyTip("没有匹配的样品")}</td></tr>`;
 
       // 库存预警提示
-      var low = (window.DATA.samples||[]).filter(s=> s.status==="已耗尽" || (s.remain/s.total < 0.2));
+      var low = allSamples().filter(s=> s.status==="已耗尽" || (Number(s.total)>0 && Number(s.remain)/Number(s.total) < 0.2));
       document.getElementById("warnBox").innerHTML = low.length
         ? `<div class="warn-box" style="margin-bottom:10px;">⚠ 库存预警（${low.length} 项）：` +
           low.map(s=>`${esc(s.name)}（剩余 ${s.remain}${esc(s.unit)}）`).join("；") + `</div>`
@@ -78,7 +104,147 @@
     ["kw","proj","loc","warnOnly"].forEach(id=>{
       document.getElementById(id).addEventListener(id==="kw"?"input":"change", render);
     });
-    render();
+    rebuildFilters(); render();
+
+    /* ---------- 新增 / 编辑弹窗 ---------- */
+    var modal = document.createElement("div");
+    modal.id = "sampleModal"; modal.className = "modal";
+    modal.innerHTML = `<div class="modal-box" style="max-width:620px; max-height:88vh; overflow:auto;">
+      <div class="modal-head"><b id="smTitle">添加样品</b><button class="btn btn-sm btn-outline" onclick="closeSampleModal()">关闭</button></div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="grid-column:1/-1;"><label>样品名称 <span style="color:red">*</span></label><input id="smName" placeholder="如 小麦旗叶样品（处理组）"></div>
+          <div><label>类型</label><input id="smType" placeholder="如 种子 / 植物组织 / 土壤"></div>
+          <div><label>所属项目</label><input id="smProject" placeholder="如 P1"></div>
+          <div><label>负责人</label><input id="smOwner"></div>
+          <div><label>来源</label><input id="smSource" placeholder="如 田间取样"></div>
+          <div style="grid-column:1/-1;"><label>存放位置</label><input id="smLocation" placeholder="如 超低温冰箱 2 号 / 中层 / 盒 12"></div>
+          <div><label>数量（当前）</label><input type="number" id="smRemain" min="0" step="any" placeholder="如 8"></div>
+          <div><label>总量</label><input type="number" id="smTotal" min="0" step="any" placeholder="如 30"></div>
+          <div><label>单位</label><input id="smUnit" placeholder="管 / 袋 / 粒…"></div>
+          <div><label>状态</label>
+            <select id="smStatus" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
+              <option>在库</option><option>使用中</option><option>已耗尽</option>
+            </select>
+          </div>
+          <div><label>保存条件</label><input id="smStorage" placeholder="如 -80℃ 冻存"></div>
+          <div><label>最近使用人</label><input id="smLastUser"></div>
+          <div style="grid-column:1/-1;"><label>备注</label><input id="smRemark"></div>
+        </div>
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitSample()">保存</button>
+          <button class="btn btn-outline" onclick="closeSampleModal()" style="margin-left:8px;">取消</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+
+    function openSampleModal(id){
+      var s = id ? allSamples().find(function(x){ return x.id===id; }) : null;
+      document.getElementById("smTitle").textContent = s ? "编辑样品" : "添加样品";
+      document.getElementById("smName").value = s ? (s.name||"") : "";
+      document.getElementById("smType").value = s ? (s.type||"") : "";
+      document.getElementById("smProject").value = s ? (s.project||"") : "";
+      document.getElementById("smOwner").value = s ? (s.owner||"") : "";
+      document.getElementById("smSource").value = s ? (s.source||"") : "";
+      document.getElementById("smLocation").value = s ? (s.location||"") : "";
+      document.getElementById("smRemain").value = s ? (s.remain ?? "") : "";
+      document.getElementById("smTotal").value = s ? (s.total ?? "") : "";
+      document.getElementById("smUnit").value = s ? (s.unit||"") : "";
+      document.getElementById("smStatus").value = s ? (s.status||"在库") : "在库";
+      document.getElementById("smStorage").value = s ? (s.storage||"") : "";
+      document.getElementById("smLastUser").value = s ? (s.lastUser||"") : "";
+      document.getElementById("smRemark").value = s ? (s.remark||"") : "";
+      document.getElementById("sampleModal").dataset.mode = s ? "edit" : "add";
+      document.getElementById("sampleModal").dataset.id = s ? s.id : "";
+      document.getElementById("sampleModal").classList.add("open");
+    }
+    window.openSampleModal = openSampleModal;
+    function closeSampleModal(){ document.getElementById("sampleModal").classList.remove("open"); }
+    window.closeSampleModal = closeSampleModal;
+
+    function saveLocalSample(s){
+      var arr = [];
+      try { arr = JSON.parse(localStorage.getItem("sample-local") || "[]"); } catch(e){}
+      var i = arr.findIndex(function(x){ return x.id === s.id; });
+      if(i >= 0) arr[i] = s; else arr.push(s);
+      localStorage.setItem("sample-local", JSON.stringify(arr));
+    }
+
+    function submitSample(){
+      var name = document.getElementById("smName").value.trim();
+      if(!name){ alert("请填写样品名称"); return; }
+      var mode = document.getElementById("sampleModal").dataset.mode;
+      var id = mode === "edit" ? document.getElementById("sampleModal").dataset.id
+                               : ("S-" + Date.now() + "-" + Math.floor(Math.random()*1000));
+      var prev = mode === "edit" ? allSamples().find(function(x){ return x.id===id; }) : null;
+      var s = Object.assign({}, prev || {}, {
+        id: id,
+        name: name,
+        type: document.getElementById("smType").value.trim(),
+        project: document.getElementById("smProject").value.trim(),
+        owner: document.getElementById("smOwner").value.trim(),
+        source: document.getElementById("smSource").value.trim(),
+        location: document.getElementById("smLocation").value.trim(),
+        remain: document.getElementById("smRemain").value === "" ? 0 : Number(document.getElementById("smRemain").value),
+        total: document.getElementById("smTotal").value === "" ? 0 : Number(document.getElementById("smTotal").value),
+        unit: document.getElementById("smUnit").value.trim(),
+        status: document.getElementById("smStatus").value,
+        storage: document.getElementById("smStorage").value.trim(),
+        lastUser: document.getElementById("smLastUser").value.trim(),
+        remark: document.getElementById("smRemark").value.trim()
+      });
+
+      var finish = function(){
+        var arr = window.DATA.samples = window.DATA.samples || [];
+        var i = arr.findIndex(function(x){ return x.id === id; });
+        if(i >= 0) arr[i] = Object.assign({}, arr[i], s); else arr.push(s);
+        closeSampleModal(); rebuildFilters(); render();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("samples", s).then(finish).catch(function(e){
+          alert("云端保存失败：" + e.message + "\n已改为本机草稿保存。");
+          saveLocalSample(s); finish();
+        });
+      } else { saveLocalSample(s); finish(); }
+    }
+    window.submitSample = submitSample;
+
+    function deleteSample(id){
+      var s = allSamples().find(function(x){ return x.id===id; });
+      if(!s) return;
+      if(!confirm("确定删除「" + s.name + "」吗？")) return;
+      var doLocal = function(){
+        window.DATA.samples = (window.DATA.samples||[]).filter(function(x){ return x.id !== id; });
+        var arr = [];
+        try { arr = JSON.parse(localStorage.getItem("sample-local") || "[]"); } catch(e){}
+        localStorage.setItem("sample-local", JSON.stringify(arr.filter(function(x){ return x.id !== id; })));
+        var dels = [];
+        try { dels = JSON.parse(localStorage.getItem("sample-deleted") || "[]"); } catch(e){}
+        if(dels.indexOf(id) < 0) dels.push(id);
+        localStorage.setItem("sample-deleted", JSON.stringify(dels));
+        rebuildFilters(); render();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("samples", id).then(doLocal).catch(function(e){ alert("云端删除失败：" + e.message); });
+      } else { doLocal(); }
+    }
+    window.deleteSample = deleteSample;
+
+    /* 从详情页点「✏️ 编辑」跳回时，自动打开对应编辑弹窗 */
+    var editId = getParam("edit");
+    if(editId) openSampleModal(editId);
+
+    /* ---------- 云端接入 ---------- */
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      if(mode !== "cloud") return;
+      return DB.hydrate("samples", "samples").then(function(){
+        rebuildFilters(); render();
+      });
+    }).catch(function(){});
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

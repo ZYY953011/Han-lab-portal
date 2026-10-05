@@ -142,8 +142,19 @@
         '</div>';
       }
 
+      /* 云端 p.progressLog 与本机草稿按月份合并（本机草稿优先——刚编辑过） */
+      function allProgress(){
+        var cloud = (p.progressLog || []).slice();
+        var locals = getLocalProgress();
+        locals.forEach(function(it){
+          var i = cloud.findIndex(function(x){ return x.date && it.date && x.date.slice(0,7) === it.date.slice(0,7); });
+          if(i >= 0) cloud[i] = it; else cloud.push(it);
+        });
+        return cloud.sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
+      }
+
       function renderProgress(){
-        var history = getLocalProgress();
+        var history = allProgress();
         var current = history.length ? history[0].content : (p.monthlyProgress || "");
         var histHtml = history.map(function(it){
           return '<div class="progress-item">' +
@@ -191,14 +202,17 @@
       }
       function saveLocalExp(arr){ localStorage.setItem(fundExpKey(), JSON.stringify(arr)); }
 
-      // 合并后的台账视图：本机预算草稿优先（预览未发布的修改），官方支出 + 本机支出合并
+      // 合并后的台账视图：本机预算草稿优先（预览未发布的修改）→ 云端预算 → 官方支出 + 本机支出合并
       function fundingData(){
         var local = getLocalBudget();
+        var cloudB = p.fundingBudget || null;
         var official = p.funding || {};
         var f = {
-          asOf: local ? (local.asOf || "") : (official.asOf || ""),
-          remark: local ? (local.remark || "") : (official.remark || ""),
-          budget: (local && local.budget && local.budget.length) ? local.budget : (official.budget || []),
+          asOf: local ? (local.asOf || "") : (cloudB ? (cloudB.asOf || "") : (official.asOf || "")),
+          remark: local ? (local.remark || "") : (cloudB ? (cloudB.remark || "") : (official.remark || "")),
+          budget: (local && local.budget && local.budget.length) ? local.budget
+                : (cloudB && cloudB.budget && cloudB.budget.length) ? cloudB.budget
+                : (official.budget || []),
           expenses: (official.expenses ? official.expenses.slice() : [])
         };
         getLocalExp().forEach(function(e, idx){
@@ -372,17 +386,29 @@
           renderExpenseForm(f.budget);
       }
 
+      /* 预算保存：本机始终存一份；云端模式下同时写入项目记录（全组共享） */
+      function saveBudgetEverywhere(obj){
+        saveLocalBudget(obj);
+        p.fundingBudget = obj;
+        if(window.DB && DB.mode === "cloud"){
+          return DB.upsert("projects", p).catch(function(e){
+            alert("云端保存失败：" + e.message + "，预算暂存本机。");
+          });
+        }
+        return Promise.resolve();
+      }
+
       function initBudgetTpl(){
-        if(!confirm("将按「国家自然科学基金」预算科目生成本项目的空预算表（含能报/不能报的常用说明，可再编辑）。\n先保存在本机，编辑好后点「导出台账修改」交给管理员合并。继续？")) return;
-        saveLocalBudget({ asOf: curDateStr(), remark: "", budget: BUDGET_TPL.map(function(x){ return Object.assign({}, x); }) });
-        location.reload();
+        if(!confirm("将按「国家自然科学基金」预算科目生成本项目的空预算表（含能报/不能报的常用说明，可再编辑）。\n生成后点「编辑预算与可报范围」填写各科目额度。继续？")) return;
+        saveBudgetEverywhere({ asOf: curDateStr(), remark: "", budget: BUDGET_TPL.map(function(x){ return Object.assign({}, x); }) })
+          .then(function(){ location.reload(); });
       }
       window.initBudgetTpl = initBudgetTpl;
 
       function initBudgetBlank(){
         if(!confirm("从空白预算表开始（只有一行示例科目，自行增删）？")) return;
-        saveLocalBudget({ asOf: curDateStr(), remark: "", budget: [{ cat:"设备费", amount:"", can:"", cannot:"" }] });
-        location.reload();
+        saveBudgetEverywhere({ asOf: curDateStr(), remark: "", budget: [{ cat:"设备费", amount:"", can:"", cannot:"" }] })
+          .then(function(){ location.reload(); });
       }
       window.initBudgetBlank = initBudgetBlank;
 
@@ -406,7 +432,8 @@
             '</table>' +
           '</div>' +
           '<div style="margin-top:14px;">' +
-            '<button class="btn btn-primary" onclick="submitBudget()">保存（本机）</button>' +
+            '<button class="btn btn-primary" onclick="submitBudget()">保存</button>' +
+            '<span id="bmCloudHint" style="font-size:12px; color:var(--muted); margin-left:8px;"></span>' +
             '<button class="btn btn-outline" onclick="closeBudgetModal()" style="margin-left:8px;">取消</button>' +
           '</div>' +
         '</div>' +
@@ -420,6 +447,10 @@
         window.__budgetEdit = f.budget.map(function(b){ return Object.assign({}, b); });
         document.getElementById("bm-asOf").value = f.asOf || curDateStr();
         document.getElementById("bm-remark").value = f.remark || "";
+        var hint = document.getElementById("bmCloudHint");
+        if(hint) hint.innerHTML = (window.DB && DB.mode === "cloud")
+          ? '<span style="color:#2e9e5b;">🟢 云端实时：保存后全组共享</span>'
+          : '（本机草稿模式：仅本机可见）';
         renderBudgetRows();
         document.getElementById("budgetModal").classList.add("open");
       }
@@ -457,12 +488,11 @@
         var rows = window.__budgetEdit.filter(function(b){ return (b.cat||"").trim(); });
         if(!rows.length){ alert("请至少保留一个科目并填写科目名称"); return; }
         rows.forEach(function(b){ b.cat = (b.cat||"").trim(); });
-        saveLocalBudget({
+        saveBudgetEverywhere({
           asOf: document.getElementById("bm-asOf").value.trim() || curDateStr(),
           remark: document.getElementById("bm-remark").value.trim(),
           budget: rows
-        });
-        location.reload();
+        }).then(function(){ location.reload(); });
       }
       window.submitBudget = submitBudget;
 
@@ -662,7 +692,41 @@
         var el = document.getElementById("dbBanner");
         if(el && window.DB) el.innerHTML = DB.statusBanner();
         if(mode !== "cloud") return;
-        return DB.list("expenses").then(function(rows){
+        /* 拉全组项目（首次会自动把仓库数据种入云端、把本机草稿合并上去），并刷新当前项目对象 */
+        return DB.hydrate("projects", "projects").then(function(){
+          var np = (window.DATA.projects||[]).find(function(x){ return x.id === p.id; });
+          if(np) Object.assign(p, np);
+
+          /* 迁移本机预算草稿 → 云端项目记录（仅首次：云端没有时） */
+          var lb = getLocalBudget();
+          if(lb && lb.budget && lb.budget.length && !(p.fundingBudget && p.fundingBudget.budget && p.fundingBudget.budget.length)){
+            p.fundingBudget = lb;
+            return DB.upsert("projects", p).then(function(){ return null; }).catch(function(){ return null; });
+          }
+          return null;
+        }).then(function(){
+          /* 迁移本机资料草稿 → 云端项目记录（带 id 转正，成功后清空本机键） */
+          var lm = getLocalMaterials();
+          if(lm.length){
+            var need = false;
+            lm.forEach(function(it){
+              var withId = Object.assign({}, it);
+              withId.id = withId.id || ("MAT-" + Date.now() + "-" + Math.random().toString(36).slice(2,6) + "-" + Math.floor(Math.random()*1000));
+              var exists = (p.materials||[]).some(function(x){ return x.id===withId.id || (x.name===withId.name && x.date===withId.date && x.uploader===withId.uploader); });
+              if(!exists){ p.materials = p.materials || []; p.materials.push(withId); need = true; }
+            });
+            if(need){
+              return DB.upsert("projects", p).then(function(){
+                saveLocalMaterials([]);
+                location.reload();
+                throw { __migrated: true };   // 中断后续流程（页面即将刷新）
+              }).catch(function(err){ if(err && err.__migrated) throw err; });
+            }
+          }
+          return null;
+        }).then(function(){
+          return DB.list("expenses");
+        }).then(function(rows){
           var mine = (rows || []).filter(function(r){ return r && (r.projectId === p.id); });
           if(!mine.length) return;
           var official = (p.funding && p.funding.expenses) ? p.funding.expenses.slice() : [];
@@ -684,7 +748,7 @@
               break;
             }
           }
-        });
+        }).catch(function(err){ if(err && err.__migrated) return; });
       }).catch(function(){});
     }
 
@@ -697,10 +761,43 @@
 
       if(!url){ alert("请粘贴飞书链接"); return; }
       if(!name){ name = "未命名文件"; }
+      var mode = idx;
+
+      /* 云端实时：资料直接写进项目记录，全组立即可见 */
+      if(window.DB && DB.mode === "cloud"){
+        var item;
+        if(mode !== ""){
+          var li = parseInt(mode, 10);
+          var locals = getLocalMaterials();
+          var old = locals[li];
+          item = (old && old.id) ? Object.assign({}, old) : {};
+          item.name = name; item.url = url;
+          item.uploader = uploader || "—"; item.note = note;
+          item.date = (old && old.date) ? old.date : nowISO();
+          item.id = item.id || ("MAT-" + Date.now() + "-" + Math.random().toString(36).slice(2,6));
+          locals.splice(li, 1); saveLocalMaterials(locals);   // 本机草稿已“转正”到云端
+          p.materials = p.materials || [];
+          var mi = p.materials.findIndex(function(x){ return x.id === item.id; });
+          if(mi >= 0) p.materials[mi] = item; else p.materials.push(item);
+        } else {
+          item = { id: "MAT-" + Date.now() + "-" + Math.random().toString(36).slice(2,6), name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() };
+          p.materials = p.materials || [];
+          p.materials.push(item);
+        }
+        DB.upsert("projects", p).then(function(){ location.reload(); }).catch(function(e){
+          alert("云端保存失败：" + e.message + "，已暂存本机。");
+          var arr = getLocalMaterials();
+          if(mode !== ""){ var i2 = parseInt(mode,10); if(arr[i2]) arr[i2] = { name:name, url:url, uploader:uploader||"—", note:note, date:nowISO() }; }
+          else arr.push({ name:name, url:url, uploader:uploader||"—", note:note, date:nowISO() });
+          saveLocalMaterials(arr);
+          location.reload();
+        });
+        return;
+      }
 
       var arr = getLocalMaterials();
-      if(idx !== ""){
-        var i = parseInt(idx, 10);
+      if(mode !== ""){
+        var i = parseInt(mode, 10);
         if(arr[i]){ arr[i] = { name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() }; }
       } else {
         arr.push({ name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() });
@@ -754,14 +851,26 @@
       var reporter = document.getElementById("progressReporter").value.trim();
       if(!content){ alert("请填写本月进展"); return; }
       var date = nowISO();
+      var rec = { date: date, content: content, reporter: reporter || "—" };
+      var finish = function(){ location.reload(); };
+
+      if(window.DB && DB.mode === "cloud"){
+        p.progressLog = p.progressLog || [];
+        var cidx = p.progressLog.findIndex(function(it){ return it.date && it.date.slice(0,7) === date.slice(0,7); });
+        if(cidx >= 0) p.progressLog[cidx] = rec; else p.progressLog.unshift(rec);
+        DB.upsert("projects", p).then(finish).catch(function(e){
+          alert("云端保存失败：" + e.message + "，已保存在本机。"); finish();
+        });
+        return;
+      }
       var history = [];
       try { var raw = localStorage.getItem("proj-progress-" + p.id); if(raw) history = JSON.parse(raw); } catch(e){}
       var idx = history.findIndex(function(it){ return it.date && it.date.slice(0,7) === date.slice(0,7); });
-      if(idx >= 0){ history[idx] = { date: date, content: content, reporter: reporter || "—" }; }
-      else { history.unshift({ date: date, content: content, reporter: reporter || "—" }); }
+      if(idx >= 0){ history[idx] = rec; }
+      else { history.unshift(rec); }
       localStorage.setItem("proj-progress-" + p.id, JSON.stringify(history));
-      alert("已保存本月进展（仅本机可见，管理员可导出 JSON 合并到全站）");
-      location.reload();
+      alert("已保存本月进展（本机草稿模式：仅本机可见）");
+      finish();
     }
     window.saveProjectProgress = saveProjectProgress;
 

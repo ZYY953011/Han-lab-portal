@@ -21,13 +21,18 @@
  *      纯 fetch 实现，避免依赖 CDN、离线也能优雅回退。
  * ============================================================ */
 window.DB = (function () {
-  /* ---------- 表名映射：页面用的逻辑名 → 数据库表名与字段 ---------- */
+  /* ---------- 表名映射：页面用的逻辑名 → 数据库表名与字段 ----------
+   * full: true 表示该表用「常用标量列 + data jsonb 完整快照」存法，
+   *       读取时自动把 data 展开成完整对象，写入时自动把整对象塞进 data。 */
   var TABLES = {
     meetings:  { table: "lab_meetings",  fields: ["id","date","time","place","reporter","topic","pptUrl","docUrl","publishDate","publisher"] },
     plans:     { table: "lab_plans",     fields: ["id","name","month","content","status","finalAt","revising","reviseReason","revisedAt","done","doneNote","doneBy","doneAt"] },
     expenses:  { table: "lab_expenses",  fields: ["id","projectId","date","cat","item","amount","person","receipt","note"] },
     equipment: { table: "lab_equipment", fields: ["id","category","name","model","brand","qty","unit","location","keeper","purchaseDate","price","status","url","note"] },
-    datasets:  { table: "lab_datasets",  fields: ["id","site","uploader","date","url","note"] }
+    datasets:  { table: "lab_datasets",  fields: ["id","site","uploader","date","url","note"] },
+    projects:  { table: "lab_projects", full: true, fields: ["id","name","shortName","leader","source","code","fiscalCode","start","end","budget","status","stage","progress","pinned","members"] },
+    methods:   { table: "lab_methods",  full: true, fields: ["id","name","category","author","version","updated","sopUrl"] },
+    samples:   { table: "lab_samples",  full: true, fields: ["id","name","type","project","owner","location","remain","total","unit","status"] }
   };
 
   var state = { mode: "local", checked: false, reason: "", listeners: [] };
@@ -96,17 +101,127 @@ window.DB = (function () {
   function clean(which, obj) {
     var def = TABLES[which];
     var out = {};
-    (def ? def.fields : Object.keys(obj)).forEach(function (k) {
-      if (obj[k] !== undefined && obj[k] !== null) out[k] = obj[k];
-    });
+    if (def && def.full) {
+      /* full 模式：白名单标量列 + 整对象存进 data jsonb（完整快照，嵌套字段都在） */
+      def.fields.forEach(function (k) {
+        if (obj[k] !== undefined && obj[k] !== null) out[k] = obj[k];
+      });
+      out.data = obj;
+    } else {
+      (def ? def.fields : Object.keys(obj)).forEach(function (k) {
+        if (obj[k] !== undefined && obj[k] !== null) out[k] = obj[k];
+      });
+    }
     return out;
   }
 
+  /* full 表的行 → 完整业务对象（data 快照打底，标量列覆盖最新值） */
+  function unpackItem(which, row) {
+    var def = TABLES[which];
+    if (!def || !def.full || !row || typeof row !== "object") return row;
+    var obj = Object.assign({}, row.data || {});
+    def.fields.forEach(function (k) { if (row[k] !== undefined && row[k] !== null) obj[k] = row[k]; });
+    delete obj.data; delete obj.updated_at;
+    return obj;
+  }
+  function unpackRows(which, rows) {
+    return (rows || []).map(function (r) { return unpackItem(which, r); });
+  }
+
   /* ---------- 本地草稿回退实现（与原有逻辑一致） ---------- */
-  var LOCAL_KEY = { meetings: "meeting-local", plans: "plan-items", expenses: "exp-local", equipment: "equip-items", datasets: "ds-items" };
-  var LOCAL_DEL = { meetings: "meeting-deleted", plans: "plan-deleted", expenses: "exp-deleted", equipment: "equip-deleted", datasets: "ds-deleted" };
+  var LOCAL_KEY = {
+    meetings: "meeting-local", plans: "plan-items", expenses: "exp-local",
+    equipment: "equip-items", datasets: "ds-items",
+    projects: "proj-projects", methods: "method-local", samples: "sample-local"
+  };
+  var LOCAL_DEL = {
+    meetings: "meeting-deleted", plans: "plan-deleted", expenses: "exp-deleted",
+    equipment: "equip-deleted", datasets: "ds-deleted",
+    projects: "proj-deleted", methods: "method-deleted", samples: "sample-deleted"
+  };
   function lget(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function lset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  /* ============================================================
+   * 自动迁移（首次连上云端时，把本机的东西搬上去，用户零操作）：
+   *   1) applyLocalDeletes：本机删除过的条目 → 从云端删掉（防止“删过的复活”）
+   *   2) seedIfEmpty      ：云端表为空 → 把网页自带数据（js + overrides）种入云端
+   *   3) migrateLocalDrafts：本机草稿（此前“只保存在这台电脑”的修改）→ 逐条上传合并
+   * 全部按 id 幂等，重复执行/多台电脑同时执行都安全。
+   * ============================================================ */
+  function applyLocalDeletes(which) {
+    var dels = lget(LOCAL_DEL[which], []);
+    if (!dels.length) return Promise.resolve(0);
+    var c = cfg();
+    return Promise.all(dels.map(function (id) {
+      return fetch(c.url + "/rest/v1/" + TABLES[which].table + "?id=eq." + encodeURIComponent(id), {
+        method: "DELETE", headers: headers()
+      }).catch(function () {});   // 单条失败不阻断
+    })).then(function () {
+      lset(LOCAL_DEL[which], []);  // 应用过就清空，下次不再重复删
+      return dels.length;
+    });
+  }
+
+  function seedIfEmpty(which, snapshot, skipIds) {
+    var mark = lget("db-seeded-" + which, false);
+    if (mark) return Promise.resolve(0);
+    var c = cfg();
+    return fetch(c.url + "/rest/v1/" + TABLES[which].table + "?select=id&limit=1", { headers: headers() })
+      .then(function (r) { return r.json(); })
+      .then(function (probe) {
+        if (Array.isArray(probe) && probe.length) { lset("db-seeded-" + which, true); return 0; } // 云端已有数据，不种
+        var items = (Array.isArray(snapshot) ? snapshot : []).filter(function (x) {
+          return x && x.id && (skipIds || []).indexOf(x.id) < 0;
+        });
+        if (!items.length) { lset("db-seeded-" + which, true); return 0; }
+        var body = items.map(function (x) { return clean(which, x); });
+        return fetch(c.url + "/rest/v1/" + TABLES[which].table, {
+          method: "POST", headers: headers({ "Prefer": "resolution=merge-duplicates" }),
+          body: JSON.stringify(body)
+        }).then(function (r) {
+          if (r.ok) { lset("db-seeded-" + which, true); return items.length; }
+          return 0;
+        });
+      }).catch(function () { return 0; });
+  }
+
+  function migrateLocalDrafts(which) {
+    var drafts = lget(LOCAL_KEY[which], []);
+    if (!drafts.length) return Promise.resolve(0);
+    return Promise.all(drafts.map(function (d) {
+      return fetch(cfg().url + "/rest/v1/" + TABLES[which].table + "?on_conflict=id", {
+        method: "POST", headers: headers({ "Prefer": "resolution=merge-duplicates" }),
+        body: JSON.stringify(clean(which, d))
+      }).then(function (r) { return r.ok ? r : null; }).catch(function () { return null; });
+    })).then(function (results) {
+      var ok = results.filter(Boolean).length;
+      if (ok === drafts.length) {
+        // 全部成功：原键内容移入备份键（留底），原键清空，下次不再重复传
+        lset(LOCAL_KEY[which] + "-migrated-backup", drafts);
+        lset(LOCAL_KEY[which], []);
+      }
+      return ok;
+    });
+  }
+
+  function migrateToast(n, seedN, delN) {
+    if (!n && !seedN && !delN) return;
+    try {
+      var el = document.createElement("div");
+      el.style.cssText = "position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:9999;" +
+        "background:#eaf7ef; color:#1d5e36; border:1px solid #bfe3cd; border-left:4px solid #2e9e5b;" +
+        "border-radius:10px; padding:10px 18px; font-size:14px; box-shadow:0 4px 16px rgba(0,0,0,.12); max-width:86vw;";
+      var parts = [];
+      if (n) parts.push("已自动把本机 <b>" + n + "</b> 条修改上传合并到云端");
+      if (seedN) parts.push("已把网页原有 <b>" + seedN + "</b> 条数据同步进云端");
+      if (delN) parts.push("已应用你之前的 <b>" + delN + "</b> 条删除");
+      el.innerHTML = "✅ " + parts.join("；") + "（本提示几秒后自动消失）";
+      document.body.appendChild(el);
+      setTimeout(function () { el.style.transition = "opacity .6s"; el.style.opacity = "0"; }, 6000);
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 6800);
+    } catch (e) {}
+  }
 
   /* ---------- 对外接口 ---------- */
   function list(which) {
@@ -137,7 +252,8 @@ window.DB = (function () {
       if (!r.ok) return r.text().then(function (t) { throw new Error("保存失败 " + r.status + " " + t); });
       return r.json();
     }).then(function (rows) {
-      return { mode: "cloud", item: (rows && rows[0]) || obj };
+      var first = (rows && rows[0]) || obj;
+      return { mode: "cloud", item: unpackItem(which, first) };
     });
   }
 
@@ -159,14 +275,29 @@ window.DB = (function () {
     });
   }
 
-  /* ---------- 一次性拉取某个栏目并覆盖到 window.DATA ---------- */
+  /* ---------- 一次性拉取某个栏目并覆盖到 window.DATA ----------
+   * 云端模式下自动完成（每台电脑只需一次，用户零操作）：
+   *   应用本机删除 → 空表时种入网页自带数据 → 上传合并本机草稿 → 重新拉取并覆盖 */
   function hydrate(which, dataKey) {
     return list(which).then(function (rows) {
-      if (state.mode === "cloud" && Array.isArray(rows)) {
-        window.DATA = window.DATA || {};
-        window.DATA[dataKey] = rows;
-      }
-      return rows;
+      if (state.mode !== "cloud" || !Array.isArray(rows)) return rows;
+      var snapshot = (window.DATA && window.DATA[dataKey]) || null;  // 覆盖前的仓库数据快照
+      var pendingDels = lget(LOCAL_DEL[which], []);                  // 先读出删除记录（应用后会被清空）
+
+      return applyLocalDeletes(which).then(function (delN) {
+        return seedIfEmpty(which, snapshot, pendingDels).then(function (seedN) {
+          return migrateLocalDrafts(which).then(function (migN) {
+            migrateToast(migN, seedN, delN);
+            return list(which);
+          });
+        });
+      }).then(function (rows2) {
+        if (Array.isArray(rows2)) {
+          window.DATA = window.DATA || {};
+          window.DATA[dataKey] = unpackRows(which, rows2);
+        }
+        return window.DATA[dataKey];
+      });
     });
   }
 

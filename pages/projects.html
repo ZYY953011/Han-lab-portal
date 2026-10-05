@@ -44,10 +44,9 @@
   <script src="../assets/js/data/project-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("项目");
-    document.getElementById("head").insertAdjacentHTML("afterend",
-      unpublishedBar((typeof getLocalProjects === "function" ? getLocalProjects() : []).length, "exportLocalProjects()"));
     document.getElementById("head").innerHTML = pageHead(
       "项目管理", "让所有成员知道：组里有哪些项目、谁负责、做到哪一步，以及在哪里找到历史资料。",
       [{name:"首页", url:"../index.html"}, {name:"项目管理"}]
@@ -165,6 +164,7 @@
           '<div>' + tags + more + '</div>' +
           '<div style="display:flex; gap:6px;">' +
             '<button class="btn btn-sm btn-outline" onclick="openEditProjectModal(\'' + esc(p.id) + '\')">编辑</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="deleteProject(\'' + esc(p.id) + '\')">删除</button>' +
             '<a class="btn btn-sm" href="project-detail.html?id=' + esc(p.id) + '">查看详情 →</a>' +
           '</div>' +
         '</div>' +
@@ -243,7 +243,7 @@
           <button class="btn btn-primary" onclick="submitAddProject()">保存</button>
           <button class="btn btn-outline" onclick="closeAddProjectModal()" style="margin-left:8px;">取消</button>
         </div>
-        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅在本浏览器可见；请点「导出我添加的项目（JSON）」交给管理员合并到全站。</p>
+        <p id="apHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅在本浏览器可见；请点「导出我添加的项目（JSON）」交给管理员合并到全站。</p>
       </div>
     </div>`;
     document.body.appendChild(modal);
@@ -356,21 +356,58 @@
         });
       }
 
-      var arr = getLocalProjects();
-      var idx = arr.findIndex(function(x){ return x.id === id; });
-      if(idx >= 0) arr[idx] = p; else arr.push(p);
-      localStorage.setItem(localProjectsKey(), JSON.stringify(arr));
+      /* 视图与本地草稿更新（云端失败时的兜底 & 本机模式的正式路径） */
+      var saveLocal = function(){
+        var arr = getLocalProjects();
+        var idx = arr.findIndex(function(x){ return x.id === id; });
+        if(idx >= 0) arr[idx] = p; else arr.push(p);
+        localStorage.setItem(localProjectsKey(), JSON.stringify(arr));
+      };
+      var applyView = function(){
+        var pidx = projects.findIndex(function(x){ return x.id === id; });
+        if(pidx >= 0) projects[pidx] = Object.assign({}, projects[pidx], p); else projects.push(p);
+        closeAddProjectModal();
+        renderStats();
+        initSourceFilter();
+        document.getElementById("recentUpdates").innerHTML = recentUpdatesHTML();
+        render();
+      };
 
-      // 同时合并到当前 projects 数组并刷新
-      var pidx = projects.findIndex(function(x){ return x.id === id; });
-      if(pidx >= 0) projects[pidx] = Object.assign({}, projects[pidx], p); else projects.push(p);
-
-      closeAddProjectModal();
-      renderStats();
-      document.getElementById("recentUpdates").innerHTML = recentUpdatesHTML();
-      render();
+      if(window.DB && DB.mode === "cloud"){
+        // 云端实时：保存即全组可见
+        DB.upsert("projects", p).then(function(res){
+          if(res && res.item) p = Object.assign({}, p, res.item);
+          applyView();
+        }).catch(function(e){
+          alert("云端保存失败：" + e.message + "\n已改为本机草稿保存，稍后可导出交给管理员。");
+          saveLocal();
+          applyView();
+        });
+        return;
+      }
+      saveLocal();
+      applyView();
     }
     window.submitAddProject = submitAddProject;
+
+    function deleteProject(id){
+      var p = projects.find(function(x){ return x.id === id; });
+      if(!p) return;
+      if(!confirm("确定删除项目「" + (p.shortName || p.name) + "」吗？删除后全组都不再显示（项目资料与经费记录仍保留在数据库中）。")) return;
+      var doLocal = function(){
+        projects = projects.filter(function(x){ return x.id !== id; });
+        window.DATA.projects = projects;
+        var arr = getLocalProjects().filter(function(x){ return x.id !== id; });
+        localStorage.setItem(localProjectsKey(), JSON.stringify(arr));
+        renderStats();
+        document.getElementById("recentUpdates").innerHTML = recentUpdatesHTML();
+        render();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("projects", id).then(doLocal).catch(function(e){ alert("云端删除失败：" + e.message); });
+      } else { doLocal(); }
+    }
+    window.deleteProject = deleteProject;
 
     // 弹窗：导出项目 JSON
     var exportWrap = document.createElement("div");
@@ -407,6 +444,29 @@
     document.getElementById("sourceFilter").addEventListener("change", render);
     document.getElementById("sortBy").addEventListener("change", render);
     render();
+
+    /* ---------- 云端接入：拉取全组项目 +（首次自动）种子/合并本机草稿 ---------- */
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      if(mode === "cloud"){
+        // 云端模式：弹窗提示语改为“保存即全组可见”
+        var hint = document.getElementById("apHint");
+        if(hint) hint.innerHTML = '🟢 云端实时模式：保存后<b>全组立即可见</b>，无需导出或发布。';
+      } else {
+        // 本机模式：显示「仅本机可见」提示条
+        document.getElementById("head").insertAdjacentHTML("afterend",
+          unpublishedBar((typeof getLocalProjects === "function" ? getLocalProjects() : []).length, "exportLocalProjects()"));
+        return;
+      }
+      return DB.hydrate("projects", "projects").then(function(){
+        projects = window.DATA.projects || [];
+        if (typeof mergeLocalProjects === "function") mergeLocalProjects(projects);
+        renderStats();
+        initSourceFilter();
+        document.getElementById("recentUpdates").innerHTML = recentUpdatesHTML();
+        render();
+      });
+    }).catch(function(){});
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

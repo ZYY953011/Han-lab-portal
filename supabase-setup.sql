@@ -155,3 +155,82 @@ create policy "lab_datasets_delete"  on public.lab_datasets  for delete using (t
 -- ---------- 完成 ----------
 -- 执行完上面的语句后，回到 Project Settings → API，
 -- 复制 Project URL 与 anon public key，填进 assets/js/config.js 即可。
+
+-- ============================================================
+-- 【第二轮新增】项目 / 实验方法 / 样品 三张云端表（全站实时化）
+-- ------------------------------------------------------------
+-- 设计说明：这三类数据字段多且含嵌套（数组、对象），因此采用
+--   「常用标量列（方便在表格编辑器里看） + data jsonb（完整数据快照）」
+-- 的存法。网站读取时自动把 data 展开成完整对象，页面代码无需感知。
+-- 重复执行不会报错。
+-- ============================================================
+
+-- ---------- 6. 项目 ----------
+create table if not exists public.lab_projects (
+  id           text primary key,
+  name         text,
+  "shortName"  text,
+  leader       text,
+  source       text,
+  code         text,
+  "fiscalCode" text,
+  start        text,
+  "end"        text,
+  budget       text,
+  status       text,
+  stage        text,
+  progress     numeric,
+  pinned       boolean default false,
+  members      jsonb default '[]'::jsonb,
+  data         jsonb default '{}'::jsonb,
+  updated_at   timestamptz default now()
+);
+
+-- ---------- 7. 实验方法 / SOP ----------
+create table if not exists public.lab_methods (
+  id         text primary key,
+  name       text,
+  category   text,
+  author     text,
+  version    text,
+  updated    text,
+  "sopUrl"   text,
+  data       jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+-- ---------- 8. 样品 ----------
+create table if not exists public.lab_samples (
+  id       text primary key,
+  name     text,
+  type     text,
+  project  text,
+  owner    text,
+  location text,
+  remain   numeric,
+  total    numeric,
+  unit     text,
+  status   text,
+  data     jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+-- ---------- 新表同样开启行级安全并放行组内读写 ----------
+alter table public.lab_projects enable row level security;
+alter table public.lab_methods  enable row level security;
+alter table public.lab_samples  enable row level security;
+
+create policy "lab_projects_read"   on public.lab_projects for select using (true);
+create policy "lab_projects_insert" on public.lab_projects for insert with check (true);
+create policy "lab_projects_update" on public.lab_projects for update using (true);
+create policy "lab_projects_delete" on public.lab_projects for delete using (true);
+
+create policy "lab_methods_read"   on public.lab_methods for select using (true);
+create policy "lab_methods_insert" on public.lab_methods for insert with check (true);
+create policy "lab_methods_update" on public.lab_methods for update using (true);
+create policy "lab_methods_delete" on public.lab_methods for delete using (true);
+
+create policy "lab_samples_read"   on public.lab_samples for select using (true);
+create policy "lab_samples_insert" on public.lab_samples for insert with check (true);
+create policy "lab_samples_update" on public.lab_samples for update using (true);
+create policy "lab_samples_delete" on public.lab_samples for delete using (true);
