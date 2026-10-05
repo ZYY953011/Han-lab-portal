@@ -82,12 +82,29 @@
   <script src="../assets/js/data/plan-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("组会");
     document.getElementById("head").insertAdjacentHTML("afterend",
       unpublishedBar(getLocalMeetings().length + getDeletedMeetings().length + getLocalPlans().length + getPlanDeleted().length,
         "exportLocalMeetings()",
         '<button class="btn btn-outline btn-sm" onclick="exportPlans()">导出月度计划</button>'));
+    document.getElementById("head").insertAdjacentHTML("afterend", '<div id="dbBanner"></div>');
+
+    /* 云端模式：先把云端数据取回来覆盖，全组共享
+     * 注意：不能用 location.reload() —— 会造成"载入→刷新→再载入"的死循环，
+     * 这里改为取回数据后直接重新渲染列表与计划。 */
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      if(mode !== "cloud") return;
+      return Promise.all([DB.hydrate("meetings","meetings"), DB.hydrate("plans","plans")])
+        .then(function(){
+          try { if(typeof renderMeetings === "function") renderMeetings(); } catch(e){}
+          try { if(typeof renderPlans === "function") renderPlans(); } catch(e){}
+        });
+    }).catch(function(){});
     document.getElementById("head").innerHTML = pageHead(
       "组会安排与记录", "会议时间、地点、汇报人、汇报材料、发布时间和发布人。",
       [{name:"首页", url:"../index.html"}, {name:"组会安排与记录"}]
@@ -119,38 +136,42 @@
       return base;
     }
 
-    var list = allMeetings().sort(function(a,b){ return b.date.localeCompare(a.date); });
+    function renderMeetings(){
+      var list = allMeetings().sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
 
-    // 日历：按月分组列出
-    document.getElementById("cal").innerHTML = list.map(function(m){
-      return '<div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px dashed var(--border);">' +
-        '<div style="min-width:64px; text-align:center;">' +
-          '<div style="font-size:22px; font-weight:700; color:var(--primary);">' + esc(m.date.slice(8)) + '</div>' +
-          '<div style="font-size:12px; color:var(--muted);">' + esc(m.date.slice(0,7)) + '</div>' +
-        '</div>' +
-        '<div>' +
-          '<div><b>' + esc(m.topic) + '</b> ｜ ' + esc(m.reporter) + ' 汇报</div>' +
-          '<div style="font-size:13px; color:var(--muted);">' + esc(m.date) + ' ' + esc(m.time) + ' ｜ ' + esc(m.place) + '</div>' +
-        '</div>' +
-      '</div>';
-    }).join("");
+      // 日历：按月分组列出
+      document.getElementById("cal").innerHTML = list.map(function(m){
+        return '<div style="display:flex; gap:14px; padding:10px 0; border-bottom:1px dashed var(--border);">' +
+          '<div style="min-width:64px; text-align:center;">' +
+            '<div style="font-size:22px; font-weight:700; color:var(--primary);">' + esc(String(m.date||"").slice(8)) + '</div>' +
+            '<div style="font-size:12px; color:var(--muted);">' + esc(String(m.date||"").slice(0,7)) + '</div>' +
+          '</div>' +
+          '<div>' +
+            '<div><b>' + esc(m.topic) + '</b> ｜ ' + esc(m.reporter) + ' 汇报</div>' +
+            '<div style="font-size:13px; color:var(--muted);">' + esc(m.date) + ' ' + esc(m.time) + ' ｜ ' + esc(m.place) + '</div>' +
+          '</div>' +
+        '</div>';
+      }).join("");
 
-    // 历史列表
-    document.getElementById("rows").innerHTML = list.map(function(m){
-      var isLocal = (typeof m.__localIdx === 'number');
-      var actions = '<button class="btn btn-sm" onclick="showDetail(\'' + esc(m.id) + '\')">查看</button>' +
-                    ' <button class="btn btn-xs btn-outline" onclick="editMeetingById(\'' + esc(m.id) + '\')">编辑</button>' +
-                    ' <button class="btn btn-xs btn-danger" onclick="deleteMeetingById(\'' + esc(m.id) + '\', ' + isLocal + ')">删除</button>';
-      return '<tr>' +
-        '<td>' + esc(m.date) + '</td>' +
-        '<td>' + esc(m.time) + '</td>' +
-        '<td>' + esc(m.place) + '</td>' +
-        '<td>' + esc(m.reporter) + '</td>' +
-        '<td><a href="#' + esc(m.id) + '" onclick="showDetail(\'' + esc(m.id) + '\')">' + esc(m.topic) + '</a></td>' +
-        '<td>' + esc(m.publisher || "—") + '<br><span style="font-size:12px; color:var(--muted);">' + esc(m.publishDate || "") + '</span></td>' +
-        '<td>' + actions + '</td>' +
-      '</tr>';
-    }).join("");
+      // 历史列表
+      document.getElementById("rows").innerHTML = list.map(function(m){
+        var isLocal = (typeof m.__localIdx === 'number');
+        var actions = '<button class="btn btn-sm" onclick="showDetail(\'' + esc(m.id) + '\')">查看</button>' +
+                      ' <button class="btn btn-xs btn-outline" onclick="editMeetingById(\'' + esc(m.id) + '\')">编辑</button>' +
+                      ' <button class="btn btn-xs btn-danger" onclick="deleteMeetingById(\'' + esc(m.id) + '\', ' + isLocal + ')">删除</button>';
+        return '<tr>' +
+          '<td>' + esc(m.date) + '</td>' +
+          '<td>' + esc(m.time) + '</td>' +
+          '<td>' + esc(m.place) + '</td>' +
+          '<td>' + esc(m.reporter) + '</td>' +
+          '<td><a href="#' + esc(m.id) + '" onclick="showDetail(\'' + esc(m.id) + '\')">' + esc(m.topic) + '</a></td>' +
+          '<td>' + esc(m.publisher || "—") + '<br><span style="font-size:12px; color:var(--muted);">' + esc(m.publishDate || "") + '</span></td>' +
+          '<td>' + actions + '</td>' +
+        '</tr>';
+      }).join("");
+    }
+    window.renderMeetings = renderMeetings;
+    renderMeetings();
 
     // 详情弹层
     var box = document.createElement("div");
@@ -216,12 +237,24 @@
         arr.push(item);
       }
       saveLocalMeetings(arr);
+      // 云端模式：直接写入共享数据库，全组刷新即可见
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("meetings", item).then(function(){
+          location.reload();
+        }).catch(function(e){ alert("云端保存失败：" + e.message + "\n已同时保存在本机，可点「导出」交给管理员。"); location.reload(); });
+        return;
+      }
       location.reload();
     }
     window.submitMeeting = submitMeeting;
 
     function deleteMeetingById(id, isLocal){
       if(!confirm("确定删除这条组会吗？删除后仅当前浏览器隐藏；如需全组同步，请点右上角「导出」并把结果发给管理员。")) return;
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("meetings", id).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端删除失败：" + e.message); });
+        return;
+      }
       if(isLocal){
         var arr = getLocalMeetings();
         var i = arr.findIndex(function(x){ return x.id === id; });
@@ -507,6 +540,11 @@
       var i = arr.findIndex(function(x){ return x.id === item.id; });
       if(i >= 0) arr[i] = item; else arr.push(item);
       saveLocalPlans(arr);
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("plans", item).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已保存在本机，可点「导出计划」交给管理员。"); location.reload(); });
+        return;
+      }
       location.reload();
     }
     window.submitPlan = submitPlan;
@@ -532,6 +570,11 @@
       var i = arr.findIndex(function(x){ return x.id === id; });
       if(i >= 0) arr[i] = item; else arr.push(item);
       saveLocalPlans(arr);
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("plans", item).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端保存失败：" + e.message); location.reload(); });
+        return;
+      }
       location.reload();
     }
     window.finalizePlan = finalizePlan;
@@ -541,6 +584,11 @@
       if(!it) return;
       if(it.status === "final"){ alert("已定稿的计划不能删除。如确有需要，请联系管理员处理。"); return; }
       if(!confirm("确定删除这条草稿计划吗？")) return;
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("plans", id).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端删除失败：" + e.message); });
+        return;
+      }
       var arr = getLocalPlans();
       var i = arr.findIndex(function(x){ return x.id === id; });
       if(i >= 0){ arr.splice(i,1); saveLocalPlans(arr); }
@@ -610,6 +658,11 @@
       var i = arr.findIndex(function(x){ return x.id === id; });
       if(i >= 0) arr[i] = item; else arr.push(item);
       saveLocalPlans(arr);
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("plans", item).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端保存失败：" + e.message); location.reload(); });
+        return;
+      }
       location.reload();
     }
     window.submitDone = submitDone;

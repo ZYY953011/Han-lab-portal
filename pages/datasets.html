@@ -74,6 +74,7 @@
   <script src="../assets/js/data/dataset-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("数据");
     document.getElementById("head").innerHTML = pageHead(
@@ -101,6 +102,17 @@
 
     document.getElementById("head").insertAdjacentHTML("afterend",
       unpublishedBar(getDsItems().length + getDsDeleted().length, "exportDsLocal()"));
+    document.getElementById("head").insertAdjacentHTML("afterend", '<div id="dbBanner"></div>');
+
+    /* 云端模式：取回全组共享数据 */
+    (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      if(mode !== "cloud") return;
+      return DB.hydrate("datasets","datasetFolders").then(function(){
+        try { if(typeof render === "function") render(); } catch(e){}
+      });
+    }).catch(function(){});
 
     function nextDsId(){
       var max = 0;
@@ -173,16 +185,22 @@
 
       var arr = getDsItems();
       var editingId = idx !== "" ? document.getElementById("ds-edit-id").value : "";
+      var item;
       if(idx !== ""){
-        // 编辑：官方条目或本机条目，统一以本机草稿覆盖同 id
         var targetId = editingId || nextDsId();
-        var obj = { id: targetId, site: site, uploader: uploader || "—", date: date, url: url, note: note };
+        item = { id: targetId, site: site, uploader: uploader || "—", date: date, url: url, note: note };
         var i = arr.findIndex(function(x){ return x.id === targetId; });
-        if(i >= 0) arr[i] = obj; else arr.push(obj);
+        if(i >= 0) arr[i] = item; else arr.push(item);
       } else {
-        arr.push({ id: nextDsId(), site: site, uploader: uploader || "—", date: date, url: url, note: note });
+        item = { id: nextDsId(), site: site, uploader: uploader || "—", date: date, url: url, note: note };
+        arr.push(item);
       }
       saveDsItems(arr);
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("datasets", item).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已保存在本机，可导出交管理员。"); location.reload(); });
+        return;
+      }
       location.reload();
     }
     window.submitDs = submitDs;
@@ -219,6 +237,11 @@
 
     function deleteDs(id){
       if(!confirm("确定删除这条数据文件夹登记吗？\n（先仅本机生效；导出发给管理员或提交 Issue 合并后，全组生效）")) return;
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("datasets", id).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端删除失败：" + e.message); });
+        return;
+      }
       var official = (window.__officialDs||[]).some(function(x){ return x.id === id; });
       saveDsItems(getDsItems().filter(function(x){ return x.id !== id; }));
       if(official){

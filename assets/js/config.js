@@ -37,6 +37,27 @@ window.AREA_PASSWORDS = {
  */
 window.REPO_URL = "";
 
+/* ============================================================
+ * 云端实时数据库（Supabase）—— 让“保存后全组立即可见”真正实现
+ * ------------------------------------------------------------
+ * 留空时：网站使用原来的「本机草稿 + 导出/Issue 发布」模式，功能正常，只是需要发布。
+ * 填好后：组员在网页上保存 → 数据直接写入云端 → 全组刷新即可见（和学院官网体验一致），
+ *         不再需要管理员合并、也不需要等 GitHub 构建。
+ *
+ * 配置步骤（只有管理员做一次，约 5 分钟，详见 README 十九章）：
+ *   1. 用邮箱注册 https://supabase.com（免费，不用信用卡）；
+ *   2. 新建项目（区域可选 Singapore / Tokyo，国内访问较快）；
+ *   3. 打开项目 → SQL Editor → 把 README 里的建表 SQL 整段执行一次；
+ *   4. 打开 Project Settings → API，复制「Project URL」和「anon public」两个值，
+ *      分别填到下面两行，上传到 GitHub 即可。
+ *
+ * 安全说明：anon key 是设计为可公开在网页里的密钥，真正的权限由数据库的
+ * RLS（行级安全策略）控制；建表 SQL 里已按“本组内部可读写”配置。
+ * 请勿放入机密数据（财务明细、身份证号等）——本网站是轻量内部平台。
+ */
+window.SUPABASE_URL = "https://ouxiungckdloyjwryiud.supabase.co";       // 例："https://abcdefgh.supabase.co"
+window.SUPABASE_ANON_KEY = "sb_publishable_nPW25nStPCAeIT2n7zrXUw_b_gNS0Is";  // 例："eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+
 /* 一键发布链接：优先用 Issue 模板选择页（最省事），没有就用新建 Issue 页 */
 window.ISSUE_NEW_URL = function () {
   if (!window.REPO_URL) return "";

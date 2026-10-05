@@ -64,10 +64,23 @@
   <script src="../assets/js/data/equipment-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("仪器耗材");
     document.getElementById("head").insertAdjacentHTML("afterend",
       unpublishedBar((getEqItems() || []).length + (getEqDeleted() || []).length, "exportEqLocal()"));
+    document.getElementById("head").insertAdjacentHTML("afterend", '<div id="dbBanner"></div>');
+
+    /* 云端模式：取回全组共享台账 */
+    (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      if(mode !== "cloud") return;
+      return DB.hydrate("equipment","equipment").then(function(){
+        try { if(typeof window.__officialEq !== "undefined") window.__officialEq = (window.DATA.equipment||[]).slice(); } catch(e){}
+        try { if(typeof render === "function") render(); } catch(e){}
+      });
+    }).catch(function(){});
     document.getElementById("head").innerHTML = pageHead(
       "仪器设备及耗材", "组内仪器设备与耗材台账：有什么、有多少、放在哪里、谁登记的、说明书在哪。支持搜索、按位置归类与手工增删，轻松维护。",
       [{name:"首页", url:"../index.html"}, {name:"仪器耗材"}]
@@ -272,12 +285,22 @@
       var i = arr.findIndex(x=>x.id===obj.id);
       if(i>=0) arr[i] = obj; else arr.push(obj);
       saveEqItems(arr);
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("equipment", obj).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已保存在本机，可导出交管理员。"); location.reload(); });
+        return;
+      }
       location.reload();
     }
     window.submitEq = submitEq;
 
     function deleteEq(id){
       if(!confirm("确定删除这条记录吗？\n（先仅本机生效；导出发给管理员合并后，全组生效）")) return;
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("equipment", id).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端删除失败：" + e.message); });
+        return;
+      }
       var official = (window.__officialEq||[]).some(x=>x.id===id);
       saveEqItems(getEqItems().filter(x=>x.id!==id));
       if(official){

@@ -21,6 +21,7 @@
   <script src="../assets/js/data/members.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("项目");    var id = getParam("id");
     // 先合并本机通过「＋ 添加项目」弹窗临时保存的项目，否则这些项目点开详情会是空的
@@ -210,9 +211,89 @@
       function w2(x){ var n = Number(x); return isNaN(n) ? "0.00" : n.toFixed(2); }
       function curDateStr(){ var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
 
+      /* 支出流水表（独立函数，便于无预算时也能渲染） */
+      function renderExpenseTable(f){
+        var expRows = f.expenses.length ? f.expenses.map(function(e){
+          var actions = "";
+          if(typeof e.__localIdx === 'number'){
+            actions = '<button class="btn btn-xs btn-danger" onclick="deleteExp(' + e.__localIdx + ')">删除</button>';
+          } else if(e.id){
+            actions = '<button class="btn btn-xs btn-danger" onclick="deleteExpById(\'' + esc(e.id) + '\')">删除</button>';
+          }
+          return '<tr>' +
+            '<td>' + esc(e.date || "—") + '</td>' +
+            '<td>' + esc(e.cat || "—") + '</td>' +
+            '<td>' + esc(e.item || "—") + '</td>' +
+            '<td><b>' + w2(e.amount) + '</b></td>' +
+            '<td>' + esc(e.person || "—") + '</td>' +
+            '<td>' + (e.receipt ? '<a href="' + esc(e.receipt) + '" target="_blank" rel="noopener">凭证/材料 ↗</a>' : '—') + '</td>' +
+            '<td>' + esc(e.note || "") + '</td>' +
+            '<td style="white-space:nowrap;">' + (actions || '<span style="color:var(--muted); font-size:12px;">—</span>') + '</td>' +
+          '</tr>';
+        }).join("") : '<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:18px;">还没有登记支出。谁去报账谁登记，记一笔少一笔。</td></tr>';
+
+        return '<div class="section-title" style="margin-top:0; font-size:15px;">支出流水（' + f.expenses.length + ' 笔）</div>' +
+          '<div class="table-wrap">' +
+            '<table>' +
+              '<thead><tr><th>日期</th><th>科目</th><th>事由</th><th>金额(万)</th><th>经办人</th><th>凭证/材料</th><th>备注</th><th style="width:70px;">操作</th></tr></thead>' +
+              '<tbody>' + expRows + '</tbody>' +
+            '</table>' +
+          '</div>';
+      }
+
+      /* 支出登记表单（独立函数） */
+      function renderExpenseForm(budget){
+        var catOptions = (budget || []).map(function(b){ return '<option>' + esc(b.cat) + '</option>'; }).join("")
+          || '<option>材料费</option><option>设备费</option><option>差旅/会议/国际合作交流费</option><option>劳务费</option><option>其他</option>';
+        return '<div id="fundExpForm" style="margin-top:14px; background:var(--bg,#f7f8fa); border-radius:10px; padding:12px 14px;">' +
+            '<div style="font-size:13.5px; margin-bottom:8px;"><b>登记一笔支出</b>' +
+              (window.DB && DB.mode === "cloud"
+                ? '<span style="color:#2e9e5b;">（云端实时：保存后全组即可见）</span>'
+                : '（保存后仅本机可见，点「导出台账修改」交给管理员合并）') +
+            '</div>' +
+            '<div class="material-add-form" style="margin-bottom:6px;">' +
+              '<input type="date" id="fe-date" style="max-width:150px;">' +
+              '<select id="fe-cat" style="max-width:220px;">' + catOptions + '</select>' +
+              '<input type="text" id="fe-item" placeholder="事由（买了什么 / 办了什么）" style="flex:2;">' +
+              '<input type="number" id="fe-amount" placeholder="金额（万元）" step="0.01" min="0" style="max-width:130px;">' +
+            '</div>' +
+            '<div class="material-add-form" style="margin-bottom:0;">' +
+              '<input type="text" id="fe-person" placeholder="经办人" style="max-width:120px;">' +
+              '<input type="text" id="fe-receipt" placeholder="凭证/发票飞书链接（选填）" style="flex:1.5;">' +
+              '<input type="text" id="fe-note" placeholder="备注（选填）" style="flex:1;">' +
+              '<button class="btn btn-primary btn-sm" id="fe-submit" onclick="submitExp()">保存</button>' +
+            '</div>' +
+          '</div>';
+      }
+      window.renderExpenseTable = renderExpenseTable;
+
       function renderFunding(){
         var f = fundingData();
         var hasData = f.budget.length > 0;
+
+        // 没有预算但有共享流水时，也要把流水显示出来（预算由管理员/导师补充）
+        if(!hasData && f.expenses.length){
+          var spentOnly = 0;
+          f.expenses.forEach(function(e){ spentOnly += Number(e.amount)||0; });
+          return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+              '<span>经费使用台账 <span style="font-size:12px; color:var(--muted); font-weight:400;">单位：万元</span></span>' +
+              '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+                '<a class="btn btn-primary btn-sm" href="#fundExpForm">登记一笔支出</a>' +
+                '<button class="btn btn-outline btn-sm" onclick="initBudgetTpl()">初始化预算模板（国自然科目）</button>' +
+                '<button class="btn btn-outline btn-sm" onclick="exportFunding()">导出台账修改（JSON）</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="warn-box" style="margin:0 0 12px; font-size:13px;">' +
+              '⚠️ 该项目<b>还没有预算科目</b>（无法计算剩余额度），下方是已登记的支出流水。' +
+              '请导师或经费助理点「初始化预算模板」建立各科目额度与可报销范围。' +
+            '</div>' +
+            '<div style="display:flex; gap:16px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">' +
+              '<span>已登记支出：<b>' + w2(spentOnly) + '</b> 万元</span>' +
+              '<span>共 ' + f.expenses.length + ' 笔</span>' +
+            '</div>' +
+            renderExpenseTable(f) +
+            renderExpenseForm([]);
+        }
 
         if(!hasData){
           return '<div class="section-title" style="margin-top:0;">经费使用台账</div>' +
@@ -266,26 +347,6 @@
           '</tr>';
         }).join("");
 
-        // 支出流水表
-        var expRows = f.expenses.length ? f.expenses.map(function(e){
-          var actions = "";
-          if(typeof e.__localIdx === 'number'){
-            actions = '<button class="btn btn-xs btn-danger" onclick="deleteExp(' + e.__localIdx + ')">删除</button>';
-          }
-          return '<tr>' +
-            '<td>' + esc(e.date || "—") + '</td>' +
-            '<td>' + esc(e.cat || "—") + '</td>' +
-            '<td>' + esc(e.item || "—") + '</td>' +
-            '<td><b>' + w2(e.amount) + '</b></td>' +
-            '<td>' + esc(e.person || "—") + '</td>' +
-            '<td>' + (e.receipt ? '<a href="' + esc(e.receipt) + '" target="_blank" rel="noopener">凭证/材料 ↗</a>' : '—') + '</td>' +
-            '<td>' + esc(e.note || "") + '</td>' +
-            '<td style="white-space:nowrap;">' + (actions || '<span style="color:var(--muted); font-size:12px;">管理员数据</span>') + '</td>' +
-          '</tr>';
-        }).join("") : '<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:18px;">还没有登记支出。谁去报账谁登记，记一笔少一笔。</td></tr>';
-
-        var catOptions = f.budget.map(function(b){ return '<option>' + esc(b.cat) + '</option>'; }).join("");
-
         return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
             '<span>经费使用台账 <span style="font-size:12px; color:var(--muted); font-weight:400;">单位：万元</span></span>' +
             '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
@@ -307,28 +368,8 @@
               '<tbody>' + budgetRows + '</tbody>' +
             '</table>' +
           '</div>' +
-          '<div class="section-title" style="margin-top:0; font-size:15px;">支出流水（' + f.expenses.length + ' 笔）</div>' +
-          '<div class="table-wrap">' +
-            '<table>' +
-              '<thead><tr><th>日期</th><th>科目</th><th>事由</th><th>金额(万)</th><th>经办人</th><th>凭证/材料</th><th>备注</th><th style="width:70px;">操作</th></tr></thead>' +
-              '<tbody>' + expRows + '</tbody>' +
-            '</table>' +
-          '</div>' +
-          '<div id="fundExpForm" style="margin-top:14px; background:var(--bg,#f7f8fa); border-radius:10px; padding:12px 14px;">' +
-            '<div style="font-size:13.5px; margin-bottom:8px;"><b>登记一笔支出</b>（保存后仅本机可见，点「导出台账修改」交给管理员合并）</div>' +
-            '<div class="material-add-form" style="margin-bottom:6px;">' +
-              '<input type="date" id="fe-date" style="max-width:150px;">' +
-              '<select id="fe-cat" style="max-width:220px;">' + catOptions + '</select>' +
-              '<input type="text" id="fe-item" placeholder="事由（买了什么 / 办了什么）" style="flex:2;">' +
-              '<input type="number" id="fe-amount" placeholder="金额（万元）" step="0.01" min="0" style="max-width:130px;">' +
-            '</div>' +
-            '<div class="material-add-form" style="margin-bottom:0;">' +
-              '<input type="text" id="fe-person" placeholder="经办人" style="max-width:120px;">' +
-              '<input type="text" id="fe-receipt" placeholder="凭证/发票飞书链接（选填）" style="flex:1.5;">' +
-              '<input type="text" id="fe-note" placeholder="备注（选填）" style="flex:1;">' +
-              '<button class="btn btn-primary btn-sm" id="fe-submit" onclick="submitExp()">保存</button>' +
-            '</div>' +
-          '</div>';
+          renderExpenseTable(f) +
+          renderExpenseForm(f.budget);
       }
 
       function initBudgetTpl(){
@@ -438,8 +479,14 @@
         if(!item){ alert("请填写事由"); return; }
         if(amount === "" || isNaN(Number(amount)) || Number(amount) <= 0){ alert("请填写正确金额（万元）"); return; }
         var arr = getLocalExp();
-        arr.push({ date:date, cat:cat, item:item, amount:Number(amount), person:person || "—", receipt:receipt, note:note, loggedAt:nowISO() });
+        var rec = { id: "EX-" + Date.now() + "-" + Math.random().toString(36).slice(2,6), projectId: p.id, date:date, cat:cat, item:item, amount:Number(amount), person:person || "—", receipt:receipt, note:note, loggedAt:nowISO() };
+        arr.push(rec);
         saveLocalExp(arr);
+        if(window.DB && DB.mode === "cloud"){
+          DB.upsert("expenses", rec).then(function(){ location.reload(); })
+            .catch(function(e){ alert("云端登记失败：" + e.message + "\n已保存在本机，可导出交管理员。"); location.reload(); });
+          return;
+        }
         location.reload();
       }
       window.submitExp = submitExp;
@@ -447,9 +494,32 @@
       function deleteExp(idx){
         if(!confirm("确定删除这笔本机登记的支出吗？（管理员已合并的支出不受影响）")) return;
         var arr = getLocalExp();
-        if(idx >= 0 && idx < arr.length){ arr.splice(idx,1); saveLocalExp(arr); location.reload(); }
+        if(idx >= 0 && idx < arr.length){
+          var rec = arr[idx];
+          if(window.DB && DB.mode === "cloud" && rec.id){
+            arr.splice(idx,1); saveLocalExp(arr);
+            DB.remove("expenses", rec.id).then(function(){ location.reload(); })
+              .catch(function(e){ alert("云端删除失败：" + e.message); location.reload(); });
+            return;
+          }
+          arr.splice(idx,1); saveLocalExp(arr); location.reload();
+        }
       }
       window.deleteExp = deleteExp;
+
+      /* 按 id 删除（云端模式下的共享记录） */
+      function deleteExpById(id){
+        if(!confirm("确定删除这笔支出记录吗？（云端模式：删除后全组都看不到了）")) return;
+        if(window.DB && DB.mode === "cloud"){
+          DB.remove("expenses", id).then(function(){ location.reload(); })
+            .catch(function(e){ alert("云端删除失败：" + e.message); });
+          return;
+        }
+        var arr = getLocalExp().filter(function(x){ return x.id !== id; });
+        saveLocalExp(arr);
+        location.reload();
+      }
+      window.deleteExpById = deleteExpById;
 
       /* ---------- 导出台账修改（管理员贴入 project-overrides.js 对应项目） ---------- */
       function exportFunding(){
@@ -582,6 +652,40 @@
           unpublishedBar(n, "exportProjLocalMaterials()",
             '<button class="btn btn-outline btn-sm" onclick="exportFunding()">导出经费台账</button>'));
       })();
+
+      /* 云端模式：把「本项目」的支出从共享数据库拉回来（其他人的登记立刻可见）
+       * 注意：本页没有独立的 #head 容器（头部在 #main 里），
+       * 因此把状态条插到 #main 的开头。 */
+      var mainNode0 = document.getElementById("main");
+      if(mainNode0) mainNode0.insertAdjacentHTML("afterbegin", '<div id="dbBanner"></div>');
+      (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
+        var el = document.getElementById("dbBanner");
+        if(el && window.DB) el.innerHTML = DB.statusBanner();
+        if(mode !== "cloud") return;
+        return DB.list("expenses").then(function(rows){
+          var mine = (rows || []).filter(function(r){ return r && (r.projectId === p.id); });
+          if(!mine.length) return;
+          var official = (p.funding && p.funding.expenses) ? p.funding.expenses.slice() : [];
+          var ids = {};
+          official.forEach(function(x){ if(x.id) ids[x.id] = 1; });
+          mine.forEach(function(r){ if(!ids[r.id]) official.push(r); });
+          p.funding = Object.assign({ asOf: curDateStr(), remark: "", budget: [] }, p.funding || {});
+          p.funding.expenses = official;
+
+          // 重新渲染经费卡片内容
+          // 注意：renderFunding() 返回的是「卡片内部内容」，外层 .card 由主渲染提供，
+          // 所以这里只替换 .card 的 innerHTML，不能整个替换节点。
+          var mainNode = document.getElementById("main");
+          if(!mainNode) return;
+          var oldCards = mainNode.querySelectorAll(".card");
+          for(var i=0;i<oldCards.length;i++){
+            if(oldCards[i].textContent.indexOf("经费使用台账") >= 0){
+              oldCards[i].innerHTML = renderFunding();
+              break;
+            }
+          }
+        });
+      }).catch(function(){});
     }
 
     function submitMat(){
