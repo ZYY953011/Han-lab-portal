@@ -33,7 +33,10 @@
         <div class="card"><ul class="mini-list" id="recent-updates"></ul></div>
       </div>
       <div>
-        <div class="section-title">本周提醒</div>
+        <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>近期提醒 <span style="font-size:12px; color:var(--muted); font-weight:400;">未来三周内的事项</span></span>
+          <button class="btn btn-primary btn-sm" onclick="openRemindModal()">＋ 添加提醒</button>
+        </div>
         <div class="card"><ul class="mini-list" id="weekly-reminders"></ul></div>
       </div>
     </div>
@@ -68,6 +71,7 @@
   <script src="assets/js/data/resources.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
+  <script src="assets/js/backend.js"></script>
   <script>
     injectHeader("首页");
     renderEntryCards();
@@ -145,40 +149,181 @@
       .catch(function(){ /* 没有清单文件：继续用 config.js 的手工配置 */ });
 
     // 最近更新：合并会议/数据/项目，按日期取最新几条
-    var updates = [];
-    (window.DATA.meetings||[]).forEach(m => updates.push({t:"组会："+m.topic, d:m.date, u:P()+"meetings.html"}));
-    (window.DATA.datasets||[]).forEach(d => updates.push({t:"数据："+d.name, d:d.updated, u:P()+"datasets.html"}));
-    (window.DATA.projects||[]).forEach(p => updates.push({t:"项目："+p.name, d:p.start, u:P()+"projects.html"}));
-    updates.sort((a,b)=> b.d.localeCompare(a.d));
-    document.getElementById("recent-updates").innerHTML = updates.slice(0,6).map(u =>
-      `<li><a class="t" href="${u.u}">${esc(u.t)}</a><span class="d">${esc(u.d)}</span></li>`).join("");
+    function renderUpdates(){
+      var updates = [];
+      (window.DATA.meetings||[]).forEach(m => updates.push({t:"组会："+m.topic, d:m.date, u:P()+"meetings.html"}));
+      (window.DATA.datasets||[]).forEach(d => updates.push({t:"数据："+d.name, d:d.updated, u:P()+"datasets.html"}));
+      (window.DATA.projects||[]).forEach(p => updates.push({t:"项目："+p.name, d:p.start, u:P()+"projects.html"}));
+      updates.sort((a,b)=> (b.d||"").localeCompare(a.d||""));
+      document.getElementById("recent-updates").innerHTML = updates.slice(0,6).map(u =>
+        `<li><a class="t" href="${u.u}">${esc(u.t)}</a><span class="d">${esc(u.d)}</span></li>`).join("");
+    }
+    renderUpdates();
 
-    // 本周提醒（第一版静态示例，未来可由数据自动生成）
-    var reminds = [
-      {t:"陈思 中期考核（准备中）", d:"计划 2024-04"},
-      {t:"赵磊 VIGS 载体构建截止", d:"2024-04-10"},
-      {t:"刘洋 催齐示范县数据", d:"2024-03-25"},
-      {t:"下一周组会：陈思汇报", d:"2024-03-29"},
-      {t:"王芳 横向课题材料采购重提", d:"退回修改"},
-    ];
-    document.getElementById("weekly-reminders").innerHTML = reminds.map(r =>
-      `<li><span class="t">${esc(r.t)}</span><span class="d">${esc(r.d)}</span></li>`).join("");
+    /* ============================================================
+     * 近期提醒 = 自动提醒 + 手动提醒（全组共享，云端实时）
+     *   自动：未来 21 天内的组会（来自组会栏目，谁发布谁出现，无需额外操作）
+     *   手动：任何人点「＋ 添加提醒」，保存后全组可见（截止日期、催办事项等）
+     * ============================================================ */
+    function todayStr(){ var d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+    function addDaysStr(s, n){ var d=new Date(s+"T00:00:00"); d.setDate(d.getDate()+n); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
+    function allReminders(){
+      var base = (window.DATA.reminders || []).slice();
+      var locals = [];
+      try { locals = JSON.parse(localStorage.getItem("remind-local") || "[]"); } catch(e){}
+      locals.forEach(function(d){
+        var i = base.findIndex(function(x){ return x.id === d.id; });
+        if(i >= 0) base[i] = Object.assign({}, base[i], d); else base.push(d);
+      });
+      var dels = [];
+      try { dels = JSON.parse(localStorage.getItem("remind-deleted") || "[]"); } catch(e){}
+      return base.filter(function(x){ return dels.indexOf(x.id) < 0; });
+    }
+
+    function autoReminders(){
+      var out = [];
+      var today = todayStr(), limit = addDaysStr(today, 21);
+      (window.DATA.meetings||[]).forEach(function(m){
+        if(m.date && m.date >= today && m.date <= limit){
+          out.push({ t: "🗓 组会：" + (m.topic||""), d: m.date, u: P()+"meetings.html", auto: true });
+        }
+      });
+      return out;
+    }
+
+    function renderReminders(){
+      var items = autoReminders();
+      allReminders().forEach(function(r){
+        items.push({ t: "📌 " + (r.title||""), d: r.date, u: r.link || "", auto: false, id: r.id, note: r.note });
+      });
+      items.sort(function(a,b){ return String(a.d||"9999").localeCompare(String(b.d||"9999")); });
+      var box = document.getElementById("weekly-reminders");
+      if(!items.length){
+        box.innerHTML = '<li style="color:var(--muted);">暂无近期事项。点右上「＋ 添加提醒」，或到「组会」发布组会——未来的组会会自动出现在这里。</li>';
+        return;
+      }
+      box.innerHTML = items.map(function(r){
+        var del = (!r.auto && r.id)
+          ? ` <button class="btn btn-xs btn-danger" style="margin-left:6px;" onclick="deleteRemind('${esc(r.id)}')" title="删除这条提醒">删</button>` : "";
+        var main = r.u
+          ? `<a class="t" href="${esc(r.u)}">${esc(r.t)}</a>`
+          : `<span class="t">${esc(r.t)}</span>`;
+        return `<li>${main}${del}<span class="d">${esc(r.d || "")}</span></li>`;
+      }).join("");
+    }
+    renderReminders();
+
+    /* 添加/删除提醒 */
+    var remindModal = document.createElement("div");
+    remindModal.id = "remindModal"; remindModal.className = "modal";
+    remindModal.innerHTML = `<div class="modal-box" style="max-width:480px;">
+      <div class="modal-head"><b>添加提醒（全组可见）</b><button class="btn btn-sm btn-outline" onclick="closeRemindModal()">关闭</button></div>
+      <div class="modal-body">
+        <label>事项名称 <span style="color:red">*</span></label>
+        <input id="rmTitle" placeholder="如 赵磊 VIGS 载体构建截止 / 催交示范县数据">
+        <label style="margin-top:10px;">日期 <span style="color:red">*</span></label>
+        <input type="date" id="rmDate">
+        <label style="margin-top:10px;">备注（选填）</label>
+        <input id="rmNote" placeholder="补充说明">
+        <label style="margin-top:10px;">相关链接（选填，如飞书文档）</label>
+        <input id="rmLink" placeholder="https://…">
+        <div style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="submitRemind()">保存</button>
+          <button class="btn btn-outline" onclick="closeRemindModal()" style="margin-left:8px;">取消</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(remindModal);
+
+    function openRemindModal(){
+      document.getElementById("rmTitle").value = "";
+      document.getElementById("rmDate").value = "";
+      document.getElementById("rmNote").value = "";
+      document.getElementById("rmLink").value = "";
+      document.getElementById("remindModal").classList.add("open");
+    }
+    window.openRemindModal = openRemindModal;
+    function closeRemindModal(){ document.getElementById("remindModal").classList.remove("open"); }
+    window.closeRemindModal = closeRemindModal;
+
+    function saveLocalRemind(r){
+      var arr = [];
+      try { arr = JSON.parse(localStorage.getItem("remind-local") || "[]"); } catch(e){}
+      var i = arr.findIndex(function(x){ return x.id === r.id; });
+      if(i >= 0) arr[i] = r; else arr.push(r);
+      localStorage.setItem("remind-local", JSON.stringify(arr));
+    }
+
+    function submitRemind(){
+      var title = document.getElementById("rmTitle").value.trim();
+      var date = document.getElementById("rmDate").value.trim();
+      if(!title){ alert("请填写事项名称"); return; }
+      if(!date){ alert("请选择日期"); return; }
+      var r = {
+        id: "R-" + Date.now() + "-" + Math.floor(Math.random()*1000),
+        title: title, date: date,
+        note: document.getElementById("rmNote").value.trim(),
+        link: document.getElementById("rmLink").value.trim(),
+        source: "manual"
+      };
+      var finish = function(){
+        var arr = window.DATA.reminders = window.DATA.reminders || [];
+        var i = arr.findIndex(function(x){ return x.id === r.id; });
+        if(i >= 0) arr[i] = Object.assign({}, arr[i], r); else arr.push(r);
+        closeRemindModal(); renderReminders();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("reminders", r).then(finish).catch(function(e){
+          alert("云端保存失败：" + e.message + "，已暂存本机。");
+          saveLocalRemind(r); finish();
+        });
+      } else { saveLocalRemind(r); finish(); }
+    }
+    window.submitRemind = submitRemind;
+
+    function deleteRemind(id){
+      if(!confirm("确定删除这条提醒吗？")) return;
+      var doLocal = function(){
+        window.DATA.reminders = (window.DATA.reminders||[]).filter(function(x){ return x.id !== id; });
+        var arr = [];
+        try { arr = JSON.parse(localStorage.getItem("remind-local") || "[]"); } catch(e){}
+        localStorage.setItem("remind-local", JSON.stringify(arr.filter(function(x){ return x.id !== id; })));
+        var dels = [];
+        try { dels = JSON.parse(localStorage.getItem("remind-deleted") || "[]"); } catch(e){}
+        if(dels.indexOf(id) < 0) dels.push(id);
+        localStorage.setItem("remind-deleted", JSON.stringify(dels));
+        renderReminders();
+      };
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("reminders", id).then(doLocal).catch(function(e){ alert("云端删除失败：" + e.message); });
+      } else { doLocal(); }
+    }
+    window.deleteRemind = deleteRemind;
 
     // 常用资源（取 5 星推荐的前几条）
     var res = (window.DATA.resources||[]).filter(function(r){ return (r.recommend.match(/★/g)||[]).length >= 5; }).slice(0,6);
     document.getElementById("common-resources").innerHTML = res.map(r =>
       `<li><a class="t" href="${esc(r.url)}" target="_blank">${esc(r.title)}</a><span class="d">${esc(r.category)}</span></li>`).join("");
 
-    // 快速链接（外部系统占位）
-    var links = [
-      {t:"飞书多维表格（项目看板）", u:"https://www.feishu.cn/"},
-      {t:"腾讯文档（共享文档）", u:"https://docs.qq.com/"},
-      {t:"学校 NAS 数据服务器", u:"https://nas.example.edu.cn/"},
-      {t:"OneDrive 课题组空间", u:"https://onedrive.live.com/"},
-      {t:"对象存储 OSS（原始数据）", u:"https://www.aliyun.com/product/oss"},
-    ];
+    // 快速链接：读 config.js 的 window.QUICK_LINKS（想改就改那里，注释写得很清楚）
+    var links = window.QUICK_LINKS || [];
     document.getElementById("quick-links").innerHTML = links.map(l =>
-      `<li><a class="t" href="${esc(l.u)}" target="_blank">${esc(l.t)} ↗</a></li>`).join("");
+      `<li><a class="t" href="${esc(l.u)}" target="_blank" rel="noopener">${esc(l.t)} ↗</a></li>`).join("");
+
+    /* ---------- 云端接入：组会（自动提醒来源）+ 提醒 + 项目/数据（最近更新） ---------- */
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      if(mode !== "cloud") return;
+      return Promise.all([
+        DB.hydrate("meetings", "meetings"),
+        DB.hydrate("reminders", "reminders"),
+        DB.hydrate("projects", "projects"),
+        DB.hydrate("datasets", "datasets")
+      ]).then(function(){
+        renderUpdates(); renderReminders();
+      });
+    }).catch(function(){});
   </script>
 <script src="assets/js/gate.js"></script>
 </body>

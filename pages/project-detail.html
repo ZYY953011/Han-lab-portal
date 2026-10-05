@@ -121,7 +121,7 @@
         return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
           '<span>项目资料</span>' +
           '<div style="display:flex; gap:8px;">' + uploadBtn +
-            '<button class="btn btn-outline btn-sm" onclick="exportProjLocalMaterials()">导出我添加的资料（JSON）</button>' +
+            '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportProjLocalMaterials()">导出我添加的资料（JSON）</button>' +
           '</div>' +
         '</div>' +
         '<p style="font-size:13px; color:var(--muted); margin:0 0 10px;">文件先传到飞书，再在这里粘贴链接、填写信息；保存后自动记录当前时间。</p>' +
@@ -262,8 +262,8 @@
         return '<div id="fundExpForm" style="margin-top:14px; background:var(--bg,#f7f8fa); border-radius:10px; padding:12px 14px;">' +
             '<div style="font-size:13.5px; margin-bottom:8px;"><b>登记一笔支出</b>' +
               (window.DB && DB.mode === "cloud"
-                ? '<span style="color:#2e9e5b;">（云端实时：保存后全组即可见）</span>'
-                : '（保存后仅本机可见，点「导出台账修改」交给管理员合并）') +
+                ? ''
+                : '<span style="color:#b97400;">（本机草稿模式：仅本机可见，点「导出台账修改」交给管理员合并）</span>') +
             '</div>' +
             '<div class="material-add-form" style="margin-bottom:6px;">' +
               '<input type="date" id="fe-date" style="max-width:150px;">' +
@@ -294,7 +294,7 @@
               '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<a class="btn btn-primary btn-sm" href="#fundExpForm">登记一笔支出</a>' +
                 '<button class="btn btn-outline btn-sm" onclick="initBudgetTpl()">初始化预算模板（国自然科目）</button>' +
-                '<button class="btn btn-outline btn-sm" onclick="exportFunding()">导出台账修改（JSON）</button>' +
+                '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportFunding()">导出台账修改（JSON）</button>' +
               '</div>' +
             '</div>' +
             '<div class="warn-box" style="margin:0 0 12px; font-size:13px;">' +
@@ -366,7 +366,7 @@
             '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
               '<a class="btn btn-primary btn-sm" href="#fundExpForm">登记一笔支出</a>' +
               '<button class="btn btn-outline btn-sm" onclick="openBudgetModal()">编辑预算与可报范围</button>' +
-              '<button class="btn btn-outline btn-sm" onclick="exportFunding()">导出台账修改（JSON）</button>' +
+              '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportFunding()">导出台账修改（JSON）</button>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex; gap:16px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">' +
@@ -680,7 +680,7 @@
         var mainEl = document.getElementById("main");
         if(mainEl) mainEl.insertAdjacentHTML("afterbegin",
           unpublishedBar(n, "exportProjLocalMaterials()",
-            '<button class="btn btn-outline btn-sm" onclick="exportFunding()">导出经费台账</button>'));
+            '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportFunding()">导出经费台账</button>'));
       })();
 
       /* 云端模式：把「本项目」的支出从共享数据库拉回来（其他人的登记立刻可见）

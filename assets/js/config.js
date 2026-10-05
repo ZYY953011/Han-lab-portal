@@ -82,7 +82,8 @@ window.NAV = [
   { name: "成员",       file: "members.html" },
   { name: "成果",       file: "achievements.html" },
   { name: "学习资源",   file: "resources.html" },
-  { name: "管理合并",   file: "admin.html" },   // 管理员专用：合并组员改动并一键发布；普通组员不用点
+  // 「管理合并」页面已从导航移除（云端实时模式下不再需要管理员手动合并）。
+  // 管理员如需访问，直接打开网址：你的域名/admin.html
 ];
 
 /* 首页 9 个常用入口卡片（3 列布局，正好排成 3×3；想加第 10 个也照格式加一行即可）
@@ -133,8 +134,22 @@ window.SEARCH_CONFIG = [
   { key: "resources",     title: "title",   sub: "category",  url: "resources.html",       param: "",  typeName: "学习资源" },
 ];
 
-/* =========================================================
- * 报账模块接入：飞书多维表格（或腾讯文档/Airtable）链接
+/* 首页「快速链接」配置（自己改！想加就照格式加一行，想删就删一行）
+ * t = 显示文字；u = 点击打开的网址。
+ * 下面目前是**占位示例**，建议逐步换成你们组真正在用的系统链接，例如：
+ *   { t: "飞书云盘（课题组文件）", u: "https://xxx.feishu.cn/drive/folder/xxxx" },
+ *   { t: "学校财务处报账系统",     u: "https://cwc.nwafu.edu.cn/" },
+ * 改完上传到 GitHub 全站生效；后期随时可再改，不影响其他功能。
+ */
+window.QUICK_LINKS = [
+  { t: "飞书多维表格（项目看板）", u: "https://www.feishu.cn/" },
+  { t: "腾讯文档（共享文档）",     u: "https://docs.qq.com/" },
+  { t: "学校 NAS 数据服务器",      u: "https://nas.example.edu.cn/" },
+  { t: "OneDrive 课题组空间",      u: "https://onedrive.live.com/" },
+  { t: "对象存储 OSS（原始数据）", u: "https://www.aliyun.com/product/oss" },
+];
+
+/* 报账模块接入：飞书多维表格（或腾讯文档/Airtable）链接
  * 用法：报账页顶部会有两个按钮——
  *   - 在线提交报账 -> EXPENSE_FORM_URL（你建好的飞书“提交”视图/表单）
  *   - 查看当前周期全部记录 -> EXPENSE_VIEW_URL（你分享给全组的视图）

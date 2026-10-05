@@ -32,7 +32,8 @@ window.DB = (function () {
     datasets:  { table: "lab_datasets",  fields: ["id","site","uploader","date","url","note"] },
     projects:  { table: "lab_projects", full: true, fields: ["id","name","shortName","leader","source","code","fiscalCode","start","end","budget","status","stage","progress","pinned","members"] },
     methods:   { table: "lab_methods",  full: true, fields: ["id","name","category","author","version","updated","sopUrl"] },
-    samples:   { table: "lab_samples",  full: true, fields: ["id","name","type","project","owner","location","remain","total","unit","status"] }
+    samples:   { table: "lab_samples",  full: true, fields: ["id","name","type","project","owner","location","remain","total","unit","status"] },
+    reminders: { table: "lab_reminders", fields: ["id","title","date","note","link","source"] }
   };
 
   var state = { mode: "local", checked: false, reason: "", listeners: [] };
@@ -76,7 +77,18 @@ window.DB = (function () {
       headers: { "apikey": c.key, "Authorization": "Bearer " + c.key }
     }).then(function (r) {
       state.checked = true;
-      if (r.ok) { setMode("cloud", ""); return "cloud"; }
+      if (r.ok) {
+        setMode("cloud", "");
+        /* 云端模式：全站隐藏「导出/发布」按钮与「仅本机可见」提示条——
+           保存即全组可见，这些过渡期工具不再需要，避免干扰组员。 */
+        try {
+          var st = document.createElement("style");
+          st.id = "db-cloud-hide";
+          st.textContent = ".local-only-btn,.local-draft-bar{display:none!important;}";
+          document.head.appendChild(st);
+        } catch (e) {}
+        return "cloud";
+      }
       setMode("local", "云端返回 " + r.status + "，已回退到本机模式");
       return "local";
     }).catch(function (e) {
@@ -132,12 +144,14 @@ window.DB = (function () {
   var LOCAL_KEY = {
     meetings: "meeting-local", plans: "plan-items", expenses: "exp-local",
     equipment: "equip-items", datasets: "ds-items",
-    projects: "proj-projects", methods: "method-local", samples: "sample-local"
+    projects: "proj-projects", methods: "method-local", samples: "sample-local",
+    reminders: "remind-local"
   };
   var LOCAL_DEL = {
     meetings: "meeting-deleted", plans: "plan-deleted", expenses: "exp-deleted",
     equipment: "equip-deleted", datasets: "ds-deleted",
-    projects: "proj-deleted", methods: "method-deleted", samples: "sample-deleted"
+    projects: "proj-deleted", methods: "method-deleted", samples: "sample-deleted",
+    reminders: "remind-deleted"
   };
   function lget(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function lset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -301,14 +315,12 @@ window.DB = (function () {
     });
   }
 
-  /* ---------- 状态提示条（页面可调用） ---------- */
+  /* ---------- 状态提示条（页面可调用） ----------
+   * 云端模式：返回空（页面干净，不显示任何技术性横幅——保存即全组可见，无需提醒）。
+   * 本机模式：保留黄色警告（此时提示是必要的，否则组员会误以为全组可见）。 */
   function statusBanner() {
     if (!state.checked) return "";
-    if (state.mode === "cloud") {
-      return '<div class="note-box" style="margin:10px 0; border-left-color:#2e9e5b;">' +
-        '🟢 <b>云端实时模式已开启</b>：你在本页保存的内容会<b>立即对全组可见</b>，不需要再导出或发布。' +
-        '</div>';
-    }
+    if (state.mode === "cloud") return "";
     var issueUrl = (typeof window.ISSUE_NEW_URL === "function") ? window.ISSUE_NEW_URL() : "";
     return '<div class="warn-box" style="margin:10px 0;">' +
       '🟡 <b>当前是本机草稿模式</b>：保存的内容只在这台电脑上，换电脑或别人打开看不到。' +

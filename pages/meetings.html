@@ -15,7 +15,7 @@
     <div class="card" style="margin-bottom:14px;">
       <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <span id="form-title">添加组会</span>
-        <button class="btn btn-outline btn-sm" onclick="exportLocalMeetings()">导出我添加的组会（JSON）</button>
+        <button class="btn btn-outline btn-sm local-only-btn" onclick="exportLocalMeetings()">导出我添加的组会（JSON）</button>
       </div>
       <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">填写时间、地点、汇报人和材料链接，保存后仅当前浏览器可见；点导出后交给管理员合并。</p>
       <div class="material-add-form" style="margin-bottom:8px;">
@@ -42,7 +42,7 @@
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <select id="planMonth" onchange="renderPlans()" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:#fff;"></select>
         <button class="btn btn-primary btn-sm" onclick="openPlanModal()">＋ 添加我的计划</button>
-        <button class="btn btn-outline btn-sm" onclick="exportPlans()">导出计划（JSON）</button>
+        <button class="btn btn-outline btn-sm local-only-btn" onclick="exportPlans()">导出计划（JSON）</button>
       </div>
     </div>
     <div class="note-box" style="margin-bottom:12px;">
@@ -88,7 +88,7 @@
     document.getElementById("head").insertAdjacentHTML("afterend",
       unpublishedBar(getLocalMeetings().length + getDeletedMeetings().length + getLocalPlans().length + getPlanDeleted().length,
         "exportLocalMeetings()",
-        '<button class="btn btn-outline btn-sm" onclick="exportPlans()">导出月度计划</button>'));
+        '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportPlans()">导出月度计划</button>'));
     document.getElementById("head").insertAdjacentHTML("afterend", '<div id="dbBanner"></div>');
 
     /* 云端模式：先把云端数据取回来覆盖，全组共享

@@ -282,7 +282,7 @@ function unpublishedBar(count, exportCall, extraBtnHtml) {
   var left = count
     ? `<span>⚠️ 你有 <b>${count}</b> 条修改<b>只保存在这台电脑</b>（换电脑或别人打开看不到）。</span>`
     : `<span>📌 想让全组都看到新内容？</span>`;
-  return `<div class="warn-box" style="margin:10px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+  return `<div class="warn-box local-draft-bar" style="margin:10px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
     ${left}
     <span style="display:flex; gap:8px; flex-wrap:wrap;">
       ${count ? `<button class="btn btn-primary btn-sm" onclick="${exportCall}">导出我的修改</button>` : ""}

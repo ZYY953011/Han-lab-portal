@@ -220,17 +220,55 @@ alter table public.lab_projects enable row level security;
 alter table public.lab_methods  enable row level security;
 alter table public.lab_samples  enable row level security;
 
+drop policy if exists "lab_projects_read"   on public.lab_projects;
+drop policy if exists "lab_projects_insert" on public.lab_projects;
+drop policy if exists "lab_projects_update" on public.lab_projects;
+drop policy if exists "lab_projects_delete" on public.lab_projects;
+
 create policy "lab_projects_read"   on public.lab_projects for select using (true);
 create policy "lab_projects_insert" on public.lab_projects for insert with check (true);
 create policy "lab_projects_update" on public.lab_projects for update using (true);
 create policy "lab_projects_delete" on public.lab_projects for delete using (true);
+
+drop policy if exists "lab_methods_read"   on public.lab_methods;
+drop policy if exists "lab_methods_insert" on public.lab_methods;
+drop policy if exists "lab_methods_update" on public.lab_methods;
+drop policy if exists "lab_methods_delete" on public.lab_methods;
 
 create policy "lab_methods_read"   on public.lab_methods for select using (true);
 create policy "lab_methods_insert" on public.lab_methods for insert with check (true);
 create policy "lab_methods_update" on public.lab_methods for update using (true);
 create policy "lab_methods_delete" on public.lab_methods for delete using (true);
 
+drop policy if exists "lab_samples_read"   on public.lab_samples;
+drop policy if exists "lab_samples_insert" on public.lab_samples;
+drop policy if exists "lab_samples_update" on public.lab_samples;
+drop policy if exists "lab_samples_delete" on public.lab_samples;
+
 create policy "lab_samples_read"   on public.lab_samples for select using (true);
 create policy "lab_samples_insert" on public.lab_samples for insert with check (true);
 create policy "lab_samples_update" on public.lab_samples for update using (true);
 create policy "lab_samples_delete" on public.lab_samples for delete using (true);
+
+-- ---------- 9. 首页提醒（手动添加的部分） ----------
+create table if not exists public.lab_reminders (
+  id         text primary key,
+  title      text,
+  date       text,
+  note       text,
+  link       text,
+  source     text default 'manual',
+  updated_at timestamptz default now()
+);
+
+alter table public.lab_reminders enable row level security;
+
+drop policy if exists "lab_reminders_read"   on public.lab_reminders;
+drop policy if exists "lab_reminders_insert" on public.lab_reminders;
+drop policy if exists "lab_reminders_update" on public.lab_reminders;
+drop policy if exists "lab_reminders_delete" on public.lab_reminders;
+
+create policy "lab_reminders_read"   on public.lab_reminders for select using (true);
+create policy "lab_reminders_insert" on public.lab_reminders for insert with check (true);
+create policy "lab_reminders_update" on public.lab_reminders for update using (true);
+create policy "lab_reminders_delete" on public.lab_reminders for delete using (true);
