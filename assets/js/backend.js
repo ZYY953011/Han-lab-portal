@@ -33,10 +33,18 @@ window.DB = (function () {
   var state = { mode: "local", checked: false, reason: "", listeners: [] };
 
   function cfg() {
-    return {
-      url: (window.SUPABASE_URL || "").replace(/\/+$/, ""),
-      key: window.SUPABASE_ANON_KEY || ""
-    };
+    /* 容错处理：不管你填的是——
+     *   https://xxx.supabase.co                    （标准 Project URL）
+     *   https://xxx.supabase.co/                   （结尾带斜杠）
+     *   https://xxx.supabase.co/rest/v1            （Data API 页复制的完整 API URL）
+     *   https://xxx.supabase.co/rest/v1/           （完整 API URL 再带斜杠）
+     * 都自动归一成纯域名，避免拼接出 /rest/v1/rest/v1 之类的错误地址。
+     * key 也自动去掉首尾空格（复制粘贴常带不可见空格/换行）。 */
+    var u = (window.SUPABASE_URL || "").trim()
+      .replace(/\/+$/, "")            // 去结尾斜杠
+      .replace(/\/rest\/v1\/?$/i, "") // 去结尾的 /rest/v1（如有）
+      .replace(/\/+$/, "");           // 再去一次可能残留的斜杠
+    return { url: u, key: (window.SUPABASE_ANON_KEY || "").trim() };
   }
   function configured() {
     var c = cfg();
