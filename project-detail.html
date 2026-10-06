@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>项目详情 · 课题组管理平台</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+<script>document.documentElement.classList.add("gate-locked");</script>
+</head>
+<body>
+  <main class="container" id="main"></main>
+
+  <script src="../assets/js/data/projects.js"></script>
+  <script src="../assets/js/data/project-materials.js"></script>
+  <script src="../assets/js/data/project-overrides.js"></script>
+  <script src="../assets/js/data/methods.js"></script>
+  <script src="../assets/js/data/samples.js"></script>
+  <script src="../assets/js/data/datasets.js"></script>
+  <script src="../assets/js/data/expenses.js"></script>
+  <!-- window.DATA.achievements 定义在 members.js 中，此处加载以便「关联成果」正常显示 -->
+  <script src="../assets/js/data/members.js"></script>
+  <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
+  <script>
+    injectHeader("项目");    var id = getParam("id");
+
+    function __findProject(){
+      // 先合并本机通过「＋ 添加项目」弹窗临时保存的项目，否则这些项目点开详情会是空的
+      if (typeof mergeLocalProjects === "function") mergeLocalProjects(window.DATA.projects || []);
+      var q = (window.DATA.projects||[]).find(function(x){ return x.id===id; });
+      // 回退：若传入的是本地草稿的旧 id（合并同名后已并入正式项目），按名称找回
+      if(!q && typeof getLocalProjects === "function"){
+        var draft = getLocalProjects().find(function(x){ return x.id===id; });
+        if(draft){ q = (window.DATA.projects||[]).find(function(x){ return (x.name||"").trim()===(draft.name||"").trim(); }); }
+      }
+      return q;
+    }
+
+    var p = null;        // 顶层变量：页面底部 submitMat/deleteMat 等函数依赖它
+    var folderUrl = "";
+
+    /* 云端模式先拉全组数据、再渲染页面。
+     * 否则「刚新建、只存在云端的项目」会被误判为未找到（老版渲染在前、拉数据在后，顺序反了）。 */
+    document.getElementById("main").innerHTML =
+      '<p style="text-align:center; color:var(--muted); padding:60px 0;">加载中…</p>';
+    (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
+      var pre = (mode === "cloud" && typeof DB.hydrate === "function")
+        ? DB.hydrate("projects", "projects").catch(function(){ return null; })
+        : Promise.resolve();
+      return pre.then(function(){
+        p = __findProject();
+        folderUrl = (p && p.projectFolderUrl) || window.PROJECT_MATERIALS_FOLDER || "";
+      });
+    }).then(function(){
+    if(!p){
+      document.getElementById("main").innerHTML =
+        emptyTip("未找到该项目（id=" + esc(id) + "）。可能是网络暂时没连上云端，请刷新页面重试；若项目列表里也看不到它，说明保存未成功，请回列表重新添加。") +
+        '<p style="text-align:center; margin-top:14px;"><a class="btn btn-outline btn-sm" href="projects.html">← 返回项目列表</a></p>';
+    }
+    else {
+      var nameOf = function(key,arr,field){
+        return (window.DATA[arr]||[]).filter(function(x){ return (p[key]||[]).indexOf(x.id)!==-1; }).map(function(x){ return x[field]; }).join("。") || "—";
+      };
+
+      function matKey(){ return "proj-materials-" + p.id; }
+      function progressKey(){ return "proj-progress-" + p.id; }
+
+      function getLocalMaterials(){
+        try { var raw = localStorage.getItem(matKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+      }
+      function saveLocalMaterials(items){
+        localStorage.setItem(matKey(), JSON.stringify(items));
+      }
+      function getLocalProgress(){
+        try { var raw = localStorage.getItem(progressKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+      }
+      function saveLocalProgress(items){
+        localStorage.setItem(progressKey(), JSON.stringify(items));
+      }
+
+      function allMaterials(){
+        var list = (p.materials || []).slice();
+        var locals = getLocalMaterials();
+        locals.forEach(function(item, idx){
+          var exists = list.some(function(m){ return m.name===item.name && m.date===item.date && m.uploader===item.uploader; });
+          if(!exists){
+            var copy = Object.assign({}, item);
+            copy.__localIdx = idx;
+            list.push(copy);
+          }
+        });
+        return list.sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
+      }
+
+      function nowISO(){ return new Date().toISOString(); }
+      function formatDate(d){
+        if(!d) return "—";
+        if(/^\d{4}-\d{2}$/.test(d)) return d;
+        var date = new Date(d);
+        if(isNaN(date.getTime())) return d;
+        return date.toLocaleString('zh-CN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      }
+      function fileIcon(name){
+        var n = (name||"").toLowerCase();
+        if(/\.pdf$/.test(n)) return "📄";
+        if(/\.(ppt|pptx)$/.test(n)) return "📊";
+        if(/\.(doc|docx)$/.test(n)) return "📝";
+        if(/\.(xls|xlsx|csv)$/.test(n)) return "📈";
+        if(/\.(jpg|jpeg|png|gif)$/.test(n)) return "🖼️";
+        return "📁";
+      }
+
+      function materialRow(m){
+        var actions = '';
+        if(typeof m.__localIdx === 'number'){
+          actions = '<div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;">' +
+            '<button class="btn btn-xs btn-outline" onclick="editMat(' + m.__localIdx + ')">编辑</button>' +
+            '<button class="btn btn-xs btn-danger" onclick="deleteMat(' + m.__localIdx + ')">删除</button>' +
+            '</div>';
+        }
+        return '<tr>' +
+          '<td><span class="mat-icon">' + fileIcon(m.name) + '</span><a class="mat-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" title="' + esc(m.url) + '">' + esc(m.name || "未命名文件") + '</a></td>' +
+          '<td>' + esc(m.uploader || "—") + '</td>' +
+          '<td class="mat-time">' + esc(formatDate(m.date)) + '</td>' +
+          '<td class="mat-note">' + esc(m.note || "") + '</td>' +
+          '<td style="width:90px;">' + actions + '</td>' +
+        '</tr>';
+      }
+
+      function renderMaterials(){
+        var list = allMaterials();
+        var hasFolder = folderUrl && folderUrl.indexOf("http") === 0;
+        var uploadBtn = hasFolder
+          ? '<a class="btn btn-primary btn-sm" href="' + esc(folderUrl) + '" target="_blank" rel="noopener">📤 上传到飞书资料夹 ↗</a>'
+          : '<span class="btn btn-primary btn-sm disabled" style="opacity:.6; cursor:not-allowed;">📤 上传入口未配置</span>';
+
+        var rows = list.length ? list.map(materialRow).join("") : '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:24px;">暂无资料，请在上方添加。</td></tr>';
+
+        return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+          '<span>项目资料</span>' +
+          '<div style="display:flex; gap:8px;">' + uploadBtn +
+            '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportProjLocalMaterials()">导出我添加的资料（JSON）</button>' +
+          '</div>' +
+        '</div>' +
+        '<p style="font-size:13px; color:var(--muted); margin:0 0 10px;">文件先传到飞书，再在这里粘贴链接、填写信息；保存后自动记录当前时间。</p>' +
+        '<div class="material-add-form">' +
+          '<input type="text" id="mat-name" placeholder="文件名称">' +
+          '<input type="text" id="mat-uploader" placeholder="上传人">' +
+          '<input type="text" id="mat-note" placeholder="备注">' +
+          '<input type="text" id="mat-url" placeholder="粘贴飞书文件/文件夹链接">' +
+          '<button class="btn btn-primary btn-sm" id="mat-submit-btn" onclick="submitMat()">保存</button>' +
+          '<button class="btn btn-outline btn-sm" id="mat-cancel-btn" onclick="resetMatForm()" style="display:none;">取消</button>' +
+          '<input type="hidden" id="mat-idx" value="">' +
+        '</div>' +
+        '<div class="table-wrap">' +
+          '<table class="material-table">' +
+            '<thead><tr><th>名称</th><th style="width:110px;">上传人</th><th style="width:130px;">更新时间</th><th style="min-width:140px;">备注</th><th style="width:90px;">操作</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>' +
+        '</div>';
+      }
+
+      /* 云端 p.progressLog 与本机草稿按月份合并（本机草稿优先——刚编辑过） */
+      function allProgress(){
+        var cloud = (p.progressLog || []).slice();
+        var locals = getLocalProgress();
+        locals.forEach(function(it){
+          var i = cloud.findIndex(function(x){ return x.date && it.date && x.date.slice(0,7) === it.date.slice(0,7); });
+          if(i >= 0) cloud[i] = it; else cloud.push(it);
+        });
+        return cloud.sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
+      }
+
+      function renderProgress(){
+        var history = allProgress();
+        var current = history.length ? history[0].content : (p.monthlyProgress || "");
+        var histHtml = history.map(function(it){
+          return '<div class="progress-item">' +
+            '<div class="progress-head"><span class="progress-date">' + esc(formatDate(it.date)) + '</span>' +
+            '<span class="progress-reporter">' + esc(it.reporter || "—") + '</span></div>' +
+            '<div class="progress-body">' + esc(it.content) + '</div>' +
+          '</div>';
+        }).join("");
+        return '<div style="font-size:13.5px; margin-bottom:10px;"><b>本月进展</b></div>' +
+          '<textarea id="progressInput" rows="3" style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; resize:vertical;">' + esc(current) + '</textarea>' +
+          '<div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">' +
+            '<input type="text" id="progressReporter" placeholder="填写人姓名" style="width:140px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">' +
+            '<button class="btn btn-primary btn-sm" onclick="saveProjectProgress()">保存本月进展</button>' +
+          '</div>' +
+          '<div style="margin-top:12px;">' +
+            (histHtml || '<div class="placeholder" style="font-size:13px;">暂无历史进展记录</div>') +
+          '</div>';
+      }
+
+      /* ==========================================================
+       * 经费使用台账（预算拆分 + 手动登记 + 定期对账，不联通财务系统）
+       * 数据挂载在项目对象 p.funding = { asOf, remark, budget:[], expenses:[] }
+       * 本机草稿：fund-budget-<id>（导师/助理编辑的预算）、fund-exp-<id>（大家登记的支出）
+       * ========================================================== */
+      var BUDGET_TPL = [
+        { cat:"设备费", amount:"", can:"项目所需小型仪器设备、工具、电脑等购置/租赁/升级改造", cannot:"大型贵重仪器（须走学校采购招标流程）" },
+        { cat:"材料费", amount:"", can:"试验耗材、药品试剂、生物炭/肥料等试验材料购置与加工", cannot:"与项目无关的通用办公用品、个人物品" },
+        { cat:"测试化验加工费", amount:"", can:"样品检测、土壤/植物分析化验、委托外部测试与加工", cannot:"应由公共平台免费提供的服务" },
+        { cat:"燃料动力费", amount:"", can:"田间试验及温室用水、电、燃气、燃油等", cannot:"个人生活用水用电" },
+        { cat:"差旅/会议/国际合作交流费", amount:"", can:"学术会议注册、科研调研差旅、合作交流", cannot:"旅游性质支出、与项目无关人员的差旅" },
+        { cat:"出版/文献/信息传播/知识产权事务费", amount:"", can:"论文版面费、专著出版费、专利申请与维持费、文献查阅费", cannot:"与项目无关的出版物费用" },
+        { cat:"劳务费", amount:"", can:"参与项目的研究生、博士后、临时聘用人员劳务补助", cannot:"在职在编教师工资性支出" },
+        { cat:"专家咨询费", amount:"", can:"临时聘请的咨询/评审专家劳务费", cannot:"本单位在职人员以专家名义领取" },
+        { cat:"间接费用", amount:"", can:"由学校统筹（水电房租、绩效等），一般不能直接报账", cannot:"不得直接用于日常报销" }
+      ];
+
+      function fundBudgetKey(){ return "fund-budget-" + p.id; }
+      function fundExpKey(){ return "fund-exp-" + p.id; }
+      function getLocalBudget(){
+        try { var raw = localStorage.getItem(fundBudgetKey()); return raw ? JSON.parse(raw) : null; } catch(e){ return null; }
+      }
+      function saveLocalBudget(obj){ localStorage.setItem(fundBudgetKey(), JSON.stringify(obj)); }
+      function getLocalExp(){
+        try { var raw = localStorage.getItem(fundExpKey()); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
+      }
+      function saveLocalExp(arr){ localStorage.setItem(fundExpKey(), JSON.stringify(arr)); }
+
+      // 合并后的台账视图：本机预算草稿优先（预览未发布的修改）→ 云端预算 → 官方支出 + 本机支出合并
+      function fundingData(){
+        var local = getLocalBudget();
+        var cloudB = p.fundingBudget || null;
+        var official = p.funding || {};
+        var f = {
+          asOf: local ? (local.asOf || "") : (cloudB ? (cloudB.asOf || "") : (official.asOf || "")),
+          remark: local ? (local.remark || "") : (cloudB ? (cloudB.remark || "") : (official.remark || "")),
+          budget: (local && local.budget && local.budget.length) ? local.budget
+                : (cloudB && cloudB.budget && cloudB.budget.length) ? cloudB.budget
+                : (official.budget || []),
+          expenses: (official.expenses ? official.expenses.slice() : [])
+        };
+        getLocalExp().forEach(function(e, idx){
+          var c = Object.assign({}, e); c.__localIdx = idx; f.expenses.push(c);
+        });
+        f.expenses.sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); });
+        return f;
+      }
+
+      function w2(x){ var n = Number(x); return isNaN(n) ? "0.00" : n.toFixed(2); }
+      function curDateStr(){ var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+
+      /* 支出流水表（独立函数，便于无预算时也能渲染） */
+      function renderExpenseTable(f){
+        var expRows = f.expenses.length ? f.expenses.map(function(e){
+          var actions = "";
+          if(typeof e.__localIdx === 'number'){
+            actions = '<button class="btn btn-xs btn-danger" onclick="deleteExp(' + e.__localIdx + ')">删除</button>';
+          } else if(e.id){
+            actions = '<button class="btn btn-xs btn-danger" onclick="deleteExpById(\'' + esc(e.id) + '\')">删除</button>';
+          }
+          return '<tr>' +
+            '<td>' + esc(e.date || "—") + '</td>' +
+            '<td>' + esc(e.cat || "—") + '</td>' +
+            '<td>' + esc(e.item || "—") + '</td>' +
+            '<td><b>' + w2(e.amount) + '</b></td>' +
+            '<td>' + esc(e.person || "—") + '</td>' +
+            '<td>' + (e.receipt ? '<a href="' + esc(e.receipt) + '" target="_blank" rel="noopener">凭证/材料 ↗</a>' : '—') + '</td>' +
+            '<td>' + esc(e.note || "") + '</td>' +
+            '<td style="white-space:nowrap;">' + (actions || '<span style="color:var(--muted); font-size:12px;">—</span>') + '</td>' +
+          '</tr>';
+        }).join("") : '<tr><td colspan="8" style="text-align:center; color:var(--muted); padding:18px;">还没有登记支出。谁去报账谁登记，记一笔少一笔。</td></tr>';
+
+        return '<div class="section-title" style="margin-top:0; font-size:15px;">支出流水（' + f.expenses.length + ' 笔）</div>' +
+          '<div class="table-wrap">' +
+            '<table>' +
+              '<thead><tr><th>日期</th><th>科目</th><th>事由</th><th>金额(万)</th><th>经办人</th><th>凭证/材料</th><th>备注</th><th style="width:70px;">操作</th></tr></thead>' +
+              '<tbody>' + expRows + '</tbody>' +
+            '</table>' +
+          '</div>';
+      }
+
+      /* 支出登记表单（独立函数） */
+      function renderExpenseForm(budget){
+        var catOptions = (budget || []).map(function(b){ return '<option>' + esc(b.cat) + '</option>'; }).join("")
+          || '<option>材料费</option><option>设备费</option><option>差旅/会议/国际合作交流费</option><option>劳务费</option><option>其他</option>';
+        return '<div id="fundExpForm" style="margin-top:14px; background:var(--bg,#f7f8fa); border-radius:10px; padding:12px 14px;">' +
+            '<div style="font-size:13.5px; margin-bottom:8px;"><b>登记一笔支出</b>' +
+              (window.DB && DB.mode === "cloud"
+                ? ''
+                : '<span style="color:#b97400;">（本机草稿模式：仅本机可见，点「导出台账修改」交给管理员合并）</span>') +
+            '</div>' +
+            '<div class="material-add-form" style="margin-bottom:6px;">' +
+              '<input type="date" id="fe-date" style="max-width:150px;">' +
+              '<select id="fe-cat" style="max-width:220px;">' + catOptions + '</select>' +
+              '<input type="text" id="fe-item" placeholder="事由（买了什么 / 办了什么）" style="flex:2;">' +
+              '<input type="number" id="fe-amount" placeholder="金额（万元）" step="0.01" min="0" style="max-width:130px;">' +
+            '</div>' +
+            '<div class="material-add-form" style="margin-bottom:0;">' +
+              '<input type="text" id="fe-person" placeholder="经办人" style="max-width:120px;">' +
+              '<input type="text" id="fe-receipt" placeholder="凭证/发票飞书链接（选填）" style="flex:1.5;">' +
+              '<input type="text" id="fe-note" placeholder="备注（选填）" style="flex:1;">' +
+              '<button class="btn btn-primary btn-sm" id="fe-submit" onclick="submitExp()">保存</button>' +
+            '</div>' +
+          '</div>';
+      }
+      window.renderExpenseTable = renderExpenseTable;
+
+      function renderFunding(){
+        var f = fundingData();
+        var hasData = f.budget.length > 0;
+
+        // 没有预算但有共享流水时，也要把流水显示出来（预算由管理员/导师补充）
+        if(!hasData && f.expenses.length){
+          var spentOnly = 0;
+          f.expenses.forEach(function(e){ spentOnly += Number(e.amount)||0; });
+          return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+              '<span>经费使用台账 <span style="font-size:12px; color:var(--muted); font-weight:400;">单位：万元</span></span>' +
+              '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+                '<a class="btn btn-primary btn-sm" href="#fundExpForm">登记一笔支出</a>' +
+                '<button class="btn btn-outline btn-sm" onclick="initBudgetTpl()">初始化预算模板（国自然科目）</button>' +
+                '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportFunding()">导出台账修改（JSON）</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="warn-box" style="margin:0 0 12px; font-size:13px;">' +
+              '⚠️ 该项目<b>还没有预算科目</b>（无法计算剩余额度），下方是已登记的支出流水。' +
+              '请导师或经费助理点「初始化预算模板」建立各科目额度与可报销范围。' +
+            '</div>' +
+            '<div style="display:flex; gap:16px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">' +
+              '<span>已登记支出：<b>' + w2(spentOnly) + '</b> 万元</span>' +
+              '<span>共 ' + f.expenses.length + ' 笔</span>' +
+            '</div>' +
+            renderExpenseTable(f) +
+            renderExpenseForm([]);
+        }
+
+        if(!hasData){
+          return '<div class="section-title" style="margin-top:0;">经费使用台账</div>' +
+            '<div class="placeholder" style="text-align:left; line-height:2.1;">' +
+            '本项目的经费台账还没有建立。本网站无法与学校财务处系统联通，采用<b>「预算拆分 + 手动登记 + 定期对账」</b>的准实时办法维护：<br>' +
+            '① <b>建预算</b>（导师/经费助理，一次性）：点下方按钮按「国家自然科学基金」预算科目生成空预算表，填好各科目<b>额度、能报什么、不能报什么</b>；<br>' +
+            '② <b>随手登记</b>（全组成员）：谁去报账，谁回来在下方「登记一笔支出」，台账即时更新；<br>' +
+            '③ <b>月底对账</b>（经费助理，每月 5 分钟）：对照学校财务系统查一次各科目余额，改「数据截至」日期并修正差额——页面上的剩余金额就始终贴近实时，并注明以财务处为准。<br>' +
+            '<div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">' +
+            '<button class="btn btn-primary btn-sm" onclick="initBudgetTpl()">初始化预算模板（国自然科目）</button>' +
+            '<button class="btn btn-outline btn-sm" onclick="initBudgetBlank()">从空白开始</button>' +
+            '</div></div>';
+        }
+
+        // 按类目汇总支出
+        var spentByCat = {};
+        var spent = 0;
+        f.expenses.forEach(function(e){
+          var amt = Number(e.amount)||0;
+          spent += amt;
+          spentByCat[e.cat] = (spentByCat[e.cat]||0) + amt;
+        });
+        var total = 0;
+        f.budget.forEach(function(b){ total += Number(b.amount)||0; });
+        var remain = total - spent;
+        var overCats = f.budget.filter(function(b){ var a=Number(b.amount)||0; return a>0 && (spentByCat[b.cat]||0) > a; }).length;
+
+        var asOfWarn = '（网站不联通学校财务系统，剩余金额为手动登记结果，请以财务处查询为准' + (f.asOf ? '，数据截至 ' + esc(f.asOf) : '') + '）';
+
+        // 预算类目表
+        var budgetRows = f.budget.map(function(b){
+          var amt = Number(b.amount)||0;
+          var sp = spentByCat[b.cat]||0;
+          var rm = amt - sp;
+          var pct = amt > 0 ? Math.round(sp/amt*100) : 0;
+          var pctBar = amt > 0
+            ? '<div class="progress" style="width:110px; height:8px; display:inline-block; vertical-align:middle;"><span style="width:' + Math.min(100,pct) + '%;' + (pct>=100?'background:#c43d3d;':(pct>=80?'background:#b97400;':'')) + '"></span></div>' +
+              '<span style="font-size:12px; color:' + (pct>=100?'#c43d3d':(pct>=80?'#b97400':'var(--muted)')) + ';"> ' + pct + '%' + (pct>=100?' 超支':'') + '</span>'
+            : '<span style="color:var(--muted); font-size:12px;">未填额度</span>';
+          var rmHtml = amt > 0
+            ? '<b style="color:' + (rm<0?'#c43d3d':(rm/amt<=0.2?'#b97400':'var(--primary)')) + ';">' + w2(rm) + '</b>' + (rm<0?' ⚠':'')
+            : '—';
+          return '<tr>' +
+            '<td><b>' + esc(b.cat) + '</b></td>' +
+            '<td>' + (b.amount!=="" && b.amount!==undefined ? w2(amt) : '—') + '</td>' +
+            '<td>' + w2(sp) + '</td>' +
+            '<td>' + rmHtml + '</td>' +
+            '<td>' + pctBar + '</td>' +
+            '<td style="min-width:180px; font-size:12.5px;">✅ ' + esc(b.can || "—") + '</td>' +
+            '<td style="min-width:180px; font-size:12.5px;">⛔ ' + esc(b.cannot || "—") + '</td>' +
+          '</tr>';
+        }).join("");
+
+        return '<div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+            '<span>经费使用台账 <span style="font-size:12px; color:var(--muted); font-weight:400;">单位：万元</span></span>' +
+            '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+              '<a class="btn btn-primary btn-sm" href="#fundExpForm">登记一笔支出</a>' +
+              '<button class="btn btn-outline btn-sm" onclick="openBudgetModal()">编辑预算与可报范围</button>' +
+              '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportFunding()">导出台账修改（JSON）</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex; gap:16px; flex-wrap:wrap; margin:0 0 12px; font-size:13px;">' +
+            '<span>总预算：<b style="color:var(--primary);">' + w2(total) + '</b> 万元</span>' +
+            '<span>已登记支出：<b>' + w2(spent) + '</b> 万元</span>' +
+            '<span>剩余：<b style="color:' + (remain<0?'#c43d3d':'#2e9e5b') + ';">' + w2(remain) + '</b> 万元</span>' +
+            (overCats ? '<span style="color:#c43d3d;">⚠ ' + overCats + ' 个科目已超支</span>' : '') +
+          '</div>' +
+          '<p style="font-size:12.5px; color:var(--muted); margin:0 0 12px;">' + asOfWarn + (f.remark ? '　' + esc(f.remark) : '') + '</p>' +
+          '<div class="table-wrap" style="margin-bottom:16px;">' +
+            '<table>' +
+              '<thead><tr><th>预算科目</th><th>额度(万)</th><th>已支出(万)</th><th>剩余(万)</th><th>使用进度</th><th>✅ 能报什么</th><th>⛔ 不能报什么</th></tr></thead>' +
+              '<tbody>' + budgetRows + '</tbody>' +
+            '</table>' +
+          '</div>' +
+          renderExpenseTable(f) +
+          renderExpenseForm(f.budget);
+      }
+
+      /* 预算保存：本机始终存一份；云端模式下同时写入项目记录（全组共享） */
+      function saveBudgetEverywhere(obj){
+        saveLocalBudget(obj);
+        p.fundingBudget = obj;
+        if(window.DB && DB.mode === "cloud"){
+          return DB.upsert("projects", p).catch(function(e){
+            alert("云端保存失败：" + e.message + "，预算暂存本机。");
+          });
+        }
+        return Promise.resolve();
+      }
+
+      function initBudgetTpl(){
+        if(!confirm("将按「国家自然科学基金」预算科目生成本项目的空预算表（含能报/不能报的常用说明，可再编辑）。\n生成后点「编辑预算与可报范围」填写各科目额度。继续？")) return;
+        saveBudgetEverywhere({ asOf: curDateStr(), remark: "", budget: BUDGET_TPL.map(function(x){ return Object.assign({}, x); }) })
+          .then(function(){ location.reload(); });
+      }
+      window.initBudgetTpl = initBudgetTpl;
+
+      function initBudgetBlank(){
+        if(!confirm("从空白预算表开始（只有一行示例科目，自行增删）？")) return;
+        saveBudgetEverywhere({ asOf: curDateStr(), remark: "", budget: [{ cat:"设备费", amount:"", can:"", cannot:"" }] })
+          .then(function(){ location.reload(); });
+      }
+      window.initBudgetBlank = initBudgetBlank;
+
+      /* ---------- 编辑预算弹窗（导师 / 经费助理用） ---------- */
+      var budgetModal = document.createElement("div");
+      budgetModal.id = "budgetModal";
+      budgetModal.className = "modal";
+      budgetModal.innerHTML = '<div class="modal-box" style="max-width:860px;">' +
+        '<div class="modal-head"><b>编辑预算与可报范围</b><button class="btn btn-sm btn-outline" onclick="closeBudgetModal()">关闭</button></div>' +
+        '<div class="modal-body">' +
+          '<p style="font-size:13px; color:var(--muted); margin-bottom:10px;">建议由<b>导师/经费助理</b>按项目预算书与学校财务规定填写；「能报什么 / 不能报什么」是写给全组看的，越具体越好。金额单位：万元。</p>' +
+          '<div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">' +
+            '<label>数据截至：<input type="date" id="bm-asOf" style="max-width:160px;"></label>' +
+            '<label style="flex:1; min-width:220px;">总体备注：<input type="text" id="bm-remark" placeholder="如：以财务处系统查询为准" style="width:100%;"></label>' +
+            '<button class="btn btn-outline btn-sm" onclick="addBudgetRow()">＋ 添加科目</button>' +
+          '</div>' +
+          '<div class="table-wrap" style="max-height:420px; overflow:auto;">' +
+            '<table>' +
+              '<thead><tr><th style="width:220px;">科目名称</th><th style="width:110px;">额度(万)</th><th>✅ 能报什么</th><th>⛔ 不能报什么</th><th style="width:60px;"></th></tr></thead>' +
+              '<tbody id="bmRows"></tbody>' +
+            '</table>' +
+          '</div>' +
+          '<div style="margin-top:14px;">' +
+            '<button class="btn btn-primary" onclick="submitBudget()">保存</button>' +
+            '<span id="bmCloudHint" style="font-size:12px; color:var(--muted); margin-left:8px;"></span>' +
+            '<button class="btn btn-outline" onclick="closeBudgetModal()" style="margin-left:8px;">取消</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+      document.body.appendChild(budgetModal);
+
+      window.__budgetEdit = [];
+
+      function openBudgetModal(){
+        var f = fundingData();
+        window.__budgetEdit = f.budget.map(function(b){ return Object.assign({}, b); });
+        document.getElementById("bm-asOf").value = f.asOf || curDateStr();
+        document.getElementById("bm-remark").value = f.remark || "";
+        var hint = document.getElementById("bmCloudHint");
+        if(hint) hint.innerHTML = (window.DB && DB.mode === "cloud")
+          ? '<span style="color:#2e9e5b;">🟢 云端实时：保存后全组共享</span>'
+          : '（本机草稿模式：仅本机可见）';
+        renderBudgetRows();
+        document.getElementById("budgetModal").classList.add("open");
+      }
+      window.openBudgetModal = openBudgetModal;
+
+      function closeBudgetModal(){ document.getElementById("budgetModal").classList.remove("open"); }
+      window.closeBudgetModal = closeBudgetModal;
+
+      function renderBudgetRows(){
+        document.getElementById("bmRows").innerHTML = window.__budgetEdit.map(function(b, i){
+          return '<tr>' +
+            '<td><input type="text" value="' + esc(b.cat || "") + '" oninput="window.__budgetEdit[' + i + '].cat=this.value" style="width:100%;"></td>' +
+            '<td><input type="number" value="' + esc(b.amount===undefined?"":b.amount) + '" step="0.01" min="0" oninput="window.__budgetEdit[' + i + '].amount=this.value" style="width:100%;"></td>' +
+            '<td><input type="text" value="' + esc(b.can || "") + '" oninput="window.__budgetEdit[' + i + '].can=this.value" style="width:100%;"></td>' +
+            '<td><input type="text" value="' + esc(b.cannot || "") + '" oninput="window.__budgetEdit[' + i + '].cannot=this.value" style="width:100%;"></td>' +
+            '<td><button class="btn btn-xs btn-danger" onclick="removeBudgetRow(' + i + ')">删</button></td>' +
+          '</tr>';
+        }).join("");
+      }
+      window.renderBudgetRows = renderBudgetRows;
+
+      function addBudgetRow(){
+        window.__budgetEdit.push({ cat:"", amount:"", can:"", cannot:"" });
+        renderBudgetRows();
+      }
+      window.addBudgetRow = addBudgetRow;
+
+      function removeBudgetRow(i){
+        window.__budgetEdit.splice(i, 1);
+        renderBudgetRows();
+      }
+      window.removeBudgetRow = removeBudgetRow;
+
+      function submitBudget(){
+        var rows = window.__budgetEdit.filter(function(b){ return (b.cat||"").trim(); });
+        if(!rows.length){ alert("请至少保留一个科目并填写科目名称"); return; }
+        rows.forEach(function(b){ b.cat = (b.cat||"").trim(); });
+        saveBudgetEverywhere({
+          asOf: document.getElementById("bm-asOf").value.trim() || curDateStr(),
+          remark: document.getElementById("bm-remark").value.trim(),
+          budget: rows
+        }).then(function(){ location.reload(); });
+      }
+      window.submitBudget = submitBudget;
+
+      /* ---------- 支出登记 / 删除 ---------- */
+      function submitExp(){
+        var date = document.getElementById("fe-date").value.trim();
+        var cat = document.getElementById("fe-cat").value.trim();
+        var item = document.getElementById("fe-item").value.trim();
+        var amount = document.getElementById("fe-amount").value.trim();
+        var person = document.getElementById("fe-person").value.trim();
+        var receipt = document.getElementById("fe-receipt").value.trim();
+        var note = document.getElementById("fe-note").value.trim();
+        if(!date){ alert("请选择日期"); return; }
+        if(!item){ alert("请填写事由"); return; }
+        if(amount === "" || isNaN(Number(amount)) || Number(amount) <= 0){ alert("请填写正确金额（万元）"); return; }
+        var arr = getLocalExp();
+        var rec = { id: "EX-" + Date.now() + "-" + Math.random().toString(36).slice(2,6), projectId: p.id, date:date, cat:cat, item:item, amount:Number(amount), person:person || "—", receipt:receipt, note:note, loggedAt:nowISO() };
+        arr.push(rec);
+        saveLocalExp(arr);
+        if(window.DB && DB.mode === "cloud"){
+          DB.upsert("expenses", rec).then(function(){ location.reload(); })
+            .catch(function(e){ alert("云端登记失败：" + e.message + "\n已保存在本机，可导出交管理员。"); location.reload(); });
+          return;
+        }
+        location.reload();
+      }
+      window.submitExp = submitExp;
+
+      function deleteExp(idx){
+        if(!confirm("确定删除这笔本机登记的支出吗？（管理员已合并的支出不受影响）")) return;
+        var arr = getLocalExp();
+        if(idx >= 0 && idx < arr.length){
+          var rec = arr[idx];
+          if(window.DB && DB.mode === "cloud" && rec.id){
+            arr.splice(idx,1); saveLocalExp(arr);
+            DB.remove("expenses", rec.id).then(function(){ location.reload(); })
+              .catch(function(e){ alert("云端删除失败：" + e.message); location.reload(); });
+            return;
+          }
+          arr.splice(idx,1); saveLocalExp(arr); location.reload();
+        }
+      }
+      window.deleteExp = deleteExp;
+
+      /* 按 id 删除（云端模式下的共享记录） */
+      function deleteExpById(id){
+        if(!confirm("确定删除这笔支出记录吗？（云端模式：删除后全组都看不到了）")) return;
+        if(window.DB && DB.mode === "cloud"){
+          DB.remove("expenses", id).then(function(){ location.reload(); })
+            .catch(function(e){ alert("云端删除失败：" + e.message); });
+          return;
+        }
+        var arr = getLocalExp().filter(function(x){ return x.id !== id; });
+        saveLocalExp(arr);
+        location.reload();
+      }
+      window.deleteExpById = deleteExpById;
+
+      /* ---------- 导出台账修改（管理员贴入 project-overrides.js 对应项目） ---------- */
+      function exportFunding(){
+        var f = fundingData();
+        var officialExp = (p.funding && p.funding.expenses ? p.funding.expenses : []);
+        var out = {
+          projectId: p.id,
+          projectName: p.name,
+          funding: {
+            asOf: f.asOf || curDateStr(),
+            remark: f.remark,
+            budget: f.budget,
+            expenses: officialExp.concat(getLocalExp())
+          }
+        };
+        document.getElementById("fundExportBox").value = JSON.stringify(out, null, 2);
+        document.getElementById("fundExportWrap").classList.add("open");
+        document.getElementById("fundExportBox").select();
+      }
+      window.exportFunding = exportFunding;
+
+      var fundExportWrap = document.createElement("div");
+      fundExportWrap.id = "fundExportWrap";
+      fundExportWrap.className = "modal";
+      fundExportWrap.innerHTML = '<div class="modal-box" style="max-width:720px;">' +
+        '<div class="modal-head"><b>导出经费台账修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeFundExportBox()">关闭</button></div>' +
+        '<div class="modal-body">' +
+          '<p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员：管理员在 <code>assets/js/data/project-overrides.js</code> 中找到 <code>projectId</code> 对应的项目对象，把其中的 <code>funding</code> 字段替换为本内容里的 <code>funding</code>（没有该字段就新增），上传 GitHub 后全组即可见。</p>' +
+          '<textarea id="fundExportBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>' +
+        '</div>' +
+      '</div>';
+      document.body.appendChild(fundExportWrap);
+
+      function closeFundExportBox(){ document.getElementById("fundExportWrap").classList.remove("open"); }
+      window.closeFundExportBox = closeFundExportBox;
+
+      document.getElementById("main").innerHTML =
+        '<div class="breadcrumb"><a href="../index.html">首页</a> / <a href="projects.html">项目管理</a> / 项目详情</div>' +
+        '<div class="detail-head">' +
+          '<h1>' + esc(p.name) + '</h1>' +
+          '<div class="meta">' +
+            '<span><b>负责人：</b>' + esc(p.leader) + '</span>' +
+            '<span><b>周期：</b>' + esc(p.start) + ' ~ ' + esc(p.end) + '</span>' +
+            '<span><b>当前进度：</b>' + p.progress + '%</span>' +
+            '<span><b>阶段：</b>' + esc(p.stage) + '</span>' +
+            badge(p.status) +
+          '</div>' +
+          '<div class="progress" style="margin-top:12px;"><span style="width:' + p.progress + '%"></span></div>' +
+          '<div style="margin-top:10px;"><b>下一步：</b>' + esc(p.nextPlan) + '</div>' +
+        '</div>' +
+
+        '<div class="grid grid-2">' +
+          '<div class="card">' +
+            '<div class="section-title" style="margin-top:0;">基本信息</div>' +
+            '<dl class="kv">' +
+              '<dt>项目来源</dt><dd>' + esc(p.source) + '</dd>' +
+              '<dt>项目编号</dt><dd>' + esc(p.code) + '</dd>' +
+              '<dt>财务编号</dt><dd>' + esc(p.fiscalCode || "—") + '</dd>' +
+              '<dt>参与成员</dt><dd>' + esc((p.members||[]).join("。")) + '</dd>' +
+              '<dt>经费</dt><dd>' + esc(p.budget) + '</dd>' +
+              '<dt>项目目标</dt><dd>' + esc(p.goal) + '</dd>' +
+              '<dt>项目资料夹</dt>' +
+              '<dd>' + (areaUnlocked("projectFiles")
+                ? (folderUrl ? '<a href="' + esc(folderUrl) + '" target="_blank" rel="noopener">📁 去飞书项目资料夹 ↗</a>' : '<span style="color:var(--muted);">未配置</span>')
+                : '<span style="color:var(--muted);">🔒 需项目资料口令解锁后可见</span>') + '</dd>' +
+            '</dl>' +
+          '</div>' +
+          '<div class="card">' +
+            '<div class="section-title" style="margin-top:0;">OKR / 进展 / 风险</div>' +
+            '<div style="font-size:13.5px; margin-bottom:10px;"><b>OKR</b></div>' +
+            '<ul style="margin-top:0; padding-left:18px; font-size:13.5px;">' + (p.okr||[]).map(function(o){ return '<li style="margin-bottom:6px;">' + esc(o) + '</li>'; }).join("") + '</ul>' +
+            renderProgress() +
+            '<div style="font-size:13.5px; margin:14px 0 6px;"><b>风险与问题</b></div>' +
+            '<div class="warn-box" style="font-size:13.5px; margin:0;">' + esc(p.risks) + '</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="card" style="margin-top:16px;">' + renderFunding() + '</div>' +
+
+        '<div class="card" style="margin-top:16px;">' +
+          (areaUnlocked("projectFiles") ? renderMaterials()
+            : areaLockHtml("projectFiles", "项目资料", "pfPass", "pfErr",
+               "资料本体存放在<b>飞书项目资料夹</b>，由负责人按项目成员授权（可精确到人、随时收回）；本页口令只是轻量过滤。")) +
+        '</div>' +
+
+        '<div class="card" style="margin-top:16px;">' +
+          '<div class="section-title" style="margin-top:0;">关联信息</div>' +
+          '<dl class="kv">' +
+            '<dt>关联实验方法</dt><dd>' + nameOf("relatedMethods","methods","name") + ' <a class="btn btn-sm btn-outline" href="methods.html">去方法库</a></dd>' +
+            '<dt>关联样品</dt><dd>' + nameOf("relatedSamples","samples","name") + ' <a class="btn btn-sm btn-outline" href="samples.html">去样品库</a></dd>' +
+            '<dt>关联数据</dt><dd>' + nameOf("relatedDatasets","datasets","name") + ' <a class="btn btn-sm btn-outline" href="datasets.html">去数据</a></dd>' +
+            '<dt>关联报账</dt><dd>' + (p.relatedExpenses||[]).map(function(e){ return esc(e); }).join("。") || "—" + ' <a class="btn btn-sm btn-outline" href="expenses.html">去报账</a></dd>' +
+            '<dt>关联成果</dt><dd>' + nameOf("relatedAchievements","achievements","title") + ' <a class="btn btn-sm btn-outline" href="achievements.html">去成果</a></dd>' +
+          '</dl>' +
+        '</div>' +
+
+        '<details class="card" style="margin-top:16px;">' +
+          '<summary class="section-title" style="margin:0; cursor:pointer;">实验设置（展开查看）</summary>' +
+          '<dl class="kv" style="margin-top:12px;">' +
+            '<dt>初始实验设置</dt><dd>' + esc(p.setup||"尚未填写") + '</dd>' +
+            '<dt>实验布置细节</dt><dd>' + esc(p.design||"尚未填写") + '</dd>' +
+          '</dl>' +
+        '</details>' +
+
+        '<p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="projects.html">← 返回项目列表</a></p>';
+
+      // 弹窗：导出 JSON
+      var exportWrap = document.createElement("div");
+      exportWrap.id = "projExportWrap";
+      exportWrap.className = "modal";
+      exportWrap.innerHTML = '<div class="modal-box" style="max-width:720px;">' +
+        '<div class="modal-head"><b>导出本地添加的项目资料（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeProjExportBox()">关闭</button></div>' +
+        '<div class="modal-body">' +
+          '<p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/project-materials.js</code> 的 <code>projectMaterialOverrides</code> 中，全组即可看到。</p>' +
+          '<textarea id="projExportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>' +
+        '</div>' +
+      '</div>';
+      document.body.appendChild(exportWrap);
+
+      // 提醒：本机添加的修改换电脑看不到，需导出发管理员发布（放在页面渲染之后）
+      (function(){
+        var n = 0;
+        try {
+          if(localStorage.getItem(matKey())) n += JSON.parse(localStorage.getItem(matKey())).length;
+          if(localStorage.getItem(fundExpKey())) n += JSON.parse(localStorage.getItem(fundExpKey())).length;
+          if(localStorage.getItem(fundBudgetKey())) n += 1;
+        } catch(e){}
+        var mainEl = document.getElementById("main");
+        if(mainEl) mainEl.insertAdjacentHTML("afterbegin",
+          unpublishedBar(n, "exportProjLocalMaterials()",
+            '<button class="btn btn-outline btn-sm local-only-btn" onclick="exportFunding()">导出经费台账</button>'));
+      })();
+
+      /* 云端模式：把「本项目」的支出从共享数据库拉回来（其他人的登记立刻可见）
+       * 注意：本页没有独立的 #head 容器（头部在 #main 里），
+       * 因此把状态条插到 #main 的开头。 */
+      var mainNode0 = document.getElementById("main");
+      if(mainNode0) mainNode0.insertAdjacentHTML("afterbegin", '<div id="dbBanner"></div>');
+      (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
+        var el = document.getElementById("dbBanner");
+        if(el && window.DB) el.innerHTML = DB.statusBanner();
+        if(mode !== "cloud") return;
+        /* 拉全组项目（首次会自动把仓库数据种入云端、把本机草稿合并上去），并刷新当前项目对象 */
+        return DB.hydrate("projects", "projects").then(function(){
+          var np = (window.DATA.projects||[]).find(function(x){ return x.id === p.id; });
+          if(np) Object.assign(p, np);
+
+          /* 迁移本机预算草稿 → 云端项目记录（仅首次：云端没有时） */
+          var lb = getLocalBudget();
+          if(lb && lb.budget && lb.budget.length && !(p.fundingBudget && p.fundingBudget.budget && p.fundingBudget.budget.length)){
+            p.fundingBudget = lb;
+            return DB.upsert("projects", p).then(function(){ return null; }).catch(function(){ return null; });
+          }
+          return null;
+        }).then(function(){
+          /* 迁移本机资料草稿 → 云端项目记录（带 id 转正，成功后清空本机键） */
+          var lm = getLocalMaterials();
+          if(lm.length){
+            var need = false;
+            lm.forEach(function(it){
+              var withId = Object.assign({}, it);
+              withId.id = withId.id || ("MAT-" + Date.now() + "-" + Math.random().toString(36).slice(2,6) + "-" + Math.floor(Math.random()*1000));
+              var exists = (p.materials||[]).some(function(x){ return x.id===withId.id || (x.name===withId.name && x.date===withId.date && x.uploader===withId.uploader); });
+              if(!exists){ p.materials = p.materials || []; p.materials.push(withId); need = true; }
+            });
+            if(need){
+              return DB.upsert("projects", p).then(function(){
+                saveLocalMaterials([]);
+                location.reload();
+                throw { __migrated: true };   // 中断后续流程（页面即将刷新）
+              }).catch(function(err){ if(err && err.__migrated) throw err; });
+            }
+          }
+          return null;
+        }).then(function(){
+          return DB.list("expenses");
+        }).then(function(rows){
+          var mine = (rows || []).filter(function(r){ return r && (r.projectId === p.id); });
+          if(!mine.length) return;
+          var official = (p.funding && p.funding.expenses) ? p.funding.expenses.slice() : [];
+          var ids = {};
+          official.forEach(function(x){ if(x.id) ids[x.id] = 1; });
+          mine.forEach(function(r){ if(!ids[r.id]) official.push(r); });
+          p.funding = Object.assign({ asOf: curDateStr(), remark: "", budget: [] }, p.funding || {});
+          p.funding.expenses = official;
+
+          // 重新渲染经费卡片内容
+          // 注意：renderFunding() 返回的是「卡片内部内容」，外层 .card 由主渲染提供，
+          // 所以这里只替换 .card 的 innerHTML，不能整个替换节点。
+          var mainNode = document.getElementById("main");
+          if(!mainNode) return;
+          var oldCards = mainNode.querySelectorAll(".card");
+          for(var i=0;i<oldCards.length;i++){
+            if(oldCards[i].textContent.indexOf("经费使用台账") >= 0){
+              oldCards[i].innerHTML = renderFunding();
+              break;
+            }
+          }
+        }).catch(function(err){ if(err && err.__migrated) return; });
+      }).catch(function(){});
+
+      /* —— 关键修复：把本块内定义的工具函数挂到全局 ——
+       * 页面尾部的 submitMat/deleteMat/editMat/saveProjectProgress 是在顶层定义的，
+       * 作用域链看不到本块内的函数；不导出的话，点「保存资料/保存进展/删除/编辑」
+       * 会静默报错（表现为点了没反应）。 */
+      window.getLocalMaterials = getLocalMaterials;
+      window.saveLocalMaterials = saveLocalMaterials;
+      window.getLocalProgress = getLocalProgress;
+      window.saveLocalProgress = saveLocalProgress;
+      window.matKey = matKey;
+      window.progressKey = progressKey;
+      window.nowISO = nowISO;
+      window.curDateStr = curDateStr;
+      window.allMaterials = allMaterials;
+      window.materialRow = materialRow;
+      window.renderMaterials = renderMaterials;
+      window.fileIcon = fileIcon;
+      window.allProgress = allProgress;
+      window.renderProgress = renderProgress;
+      window.fundingData = fundingData;
+      window.renderFunding = renderFunding;
+      window.fundBudgetKey = fundBudgetKey;
+      window.fundExpKey = fundExpKey;
+      window.getLocalBudget = getLocalBudget;
+      window.saveLocalBudget = saveLocalBudget;
+      window.getLocalExp = getLocalExp;
+      window.saveLocalExp = saveLocalExp;
+      window.renderExpenseTable = renderExpenseTable;
+      window.renderExpenseForm = renderExpenseForm;
+      window.saveBudgetEverywhere = saveBudgetEverywhere;
+    }
+    }).catch(function(e){ console.error("详情页渲染失败：", e); });
+
+    function submitMat(){
+      var name = document.getElementById("mat-name").value.trim();
+      var url = document.getElementById("mat-url").value.trim();
+      var uploader = document.getElementById("mat-uploader").value.trim();
+      var note = document.getElementById("mat-note").value.trim();
+      var idx = document.getElementById("mat-idx").value.trim();
+
+      if(!url){ alert("请粘贴飞书链接"); return; }
+      if(!name){ name = "未命名文件"; }
+      var mode = idx;
+
+      /* 云端实时：资料直接写进项目记录，全组立即可见 */
+      if(window.DB && DB.mode === "cloud"){
+        var item;
+        if(mode !== ""){
+          var li = parseInt(mode, 10);
+          var locals = getLocalMaterials();
+          var old = locals[li];
+          item = (old && old.id) ? Object.assign({}, old) : {};
+          item.name = name; item.url = url;
+          item.uploader = uploader || "—"; item.note = note;
+          item.date = (old && old.date) ? old.date : nowISO();
+          item.id = item.id || ("MAT-" + Date.now() + "-" + Math.random().toString(36).slice(2,6));
+          locals.splice(li, 1); saveLocalMaterials(locals);   // 本机草稿已“转正”到云端
+          p.materials = p.materials || [];
+          var mi = p.materials.findIndex(function(x){ return x.id === item.id; });
+          if(mi >= 0) p.materials[mi] = item; else p.materials.push(item);
+        } else {
+          item = { id: "MAT-" + Date.now() + "-" + Math.random().toString(36).slice(2,6), name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() };
+          p.materials = p.materials || [];
+          p.materials.push(item);
+        }
+        DB.upsert("projects", p).then(function(){ location.reload(); }).catch(function(e){
+          alert("云端保存失败：" + e.message + "，已暂存本机。");
+          var arr = getLocalMaterials();
+          if(mode !== ""){ var i2 = parseInt(mode,10); if(arr[i2]) arr[i2] = { name:name, url:url, uploader:uploader||"—", note:note, date:nowISO() }; }
+          else arr.push({ name:name, url:url, uploader:uploader||"—", note:note, date:nowISO() });
+          saveLocalMaterials(arr);
+          location.reload();
+        });
+        return;
+      }
+
+      var arr = getLocalMaterials();
+      if(mode !== ""){
+        var i = parseInt(mode, 10);
+        if(arr[i]){ arr[i] = { name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() }; }
+      } else {
+        arr.push({ name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() });
+      }
+      saveLocalMaterials(arr);
+      location.reload();
+    }
+    window.submitMat = submitMat;
+
+    function deleteMat(idx){
+      if(!confirm("确定删除这条资料吗？")) return;
+      var arr = getLocalMaterials();
+      if(idx >= 0 && idx < arr.length){
+        arr.splice(idx, 1);
+        saveLocalMaterials(arr);
+        location.reload();
+      }
+    }
+    window.deleteMat = deleteMat;
+
+    function editMat(idx){
+      var arr = getLocalMaterials();
+      var item = arr[idx];
+      if(!item) return;
+      document.getElementById("mat-name").value = item.name || "";
+      document.getElementById("mat-url").value = item.url || "";
+      document.getElementById("mat-uploader").value = (item.uploader === "—" ? "" : (item.uploader || ""));
+      document.getElementById("mat-note").value = item.note || "";
+      document.getElementById("mat-idx").value = idx;
+      document.getElementById("mat-submit-btn").textContent = "更新";
+      var cancel = document.getElementById("mat-cancel-btn");
+      if(cancel) cancel.style.display = "";
+      document.getElementById("mat-name").focus();
+    }
+    window.editMat = editMat;
+
+    function resetMatForm(){
+      document.getElementById("mat-name").value = "";
+      document.getElementById("mat-url").value = "";
+      document.getElementById("mat-uploader").value = "";
+      document.getElementById("mat-note").value = "";
+      document.getElementById("mat-idx").value = "";
+      document.getElementById("mat-submit-btn").textContent = "保存";
+      var cancel = document.getElementById("mat-cancel-btn");
+      if(cancel) cancel.style.display = "none";
+    }
+    window.resetMatForm = resetMatForm;
+
+    function saveProjectProgress(){
+      var content = document.getElementById("progressInput").value.trim();
+      var reporter = document.getElementById("progressReporter").value.trim();
+      if(!content){ alert("请填写本月进展"); return; }
+      var date = nowISO();
+      var rec = { date: date, content: content, reporter: reporter || "—" };
+      var finish = function(){ location.reload(); };
+
+      if(window.DB && DB.mode === "cloud"){
+        p.progressLog = p.progressLog || [];
+        var cidx = p.progressLog.findIndex(function(it){ return it.date && it.date.slice(0,7) === date.slice(0,7); });
+        if(cidx >= 0) p.progressLog[cidx] = rec; else p.progressLog.unshift(rec);
+        DB.upsert("projects", p).then(finish).catch(function(e){
+          alert("云端保存失败：" + e.message + "，已保存在本机。"); finish();
+        });
+        return;
+      }
+      var history = [];
+      try { var raw = localStorage.getItem("proj-progress-" + p.id); if(raw) history = JSON.parse(raw); } catch(e){}
+      var idx = history.findIndex(function(it){ return it.date && it.date.slice(0,7) === date.slice(0,7); });
+      if(idx >= 0){ history[idx] = rec; }
+      else { history.unshift(rec); }
+      localStorage.setItem("proj-progress-" + p.id, JSON.stringify(history));
+      alert("已保存本月进展（本机草稿模式：仅本机可见）");
+      finish();
+    }
+    window.saveProjectProgress = saveProjectProgress;
+
+    function exportProjLocalMaterials(){
+      var out = {};
+      for(var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if(k && k.indexOf("proj-materials-")===0){
+          var id = k.replace("proj-materials-","");
+          out[id] = JSON.parse(localStorage.getItem(k));
+        }
+      }
+      if(!Object.keys(out).length){ alert("当前浏览器没有临时添加的项目资料"); return; }
+      var json = JSON.stringify(out, null, 2);
+      var wrap = document.getElementById("projExportWrap");
+      var box = document.getElementById("projExportBox");
+      if(!wrap || !box) return;
+      box.value = json;
+      wrap.classList.add("open");
+      box.select();
+    }
+    window.exportProjLocalMaterials = exportProjLocalMaterials;
+
+    function closeProjExportBox(){
+      var wrap = document.getElementById("projExportWrap");
+      if(wrap) wrap.classList.remove("open");
+    }
+    window.closeProjExportBox = closeProjExportBox;
+  </script>
+<script src="../assets/js/gate.js"></script>
+</body>
+</html>
