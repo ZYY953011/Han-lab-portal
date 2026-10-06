@@ -4,24 +4,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>项目详情 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=3.5">
+  <link rel="stylesheet" href="../assets/css/style.css?v=3.6">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
   <main class="container" id="main"></main>
 
-  <script src="../assets/js/data/projects.js?v=3.5"></script>
-  <script src="../assets/js/data/project-materials.js?v=3.5"></script>
-  <script src="../assets/js/data/project-overrides.js?v=3.5"></script>
-  <script src="../assets/js/data/methods.js?v=3.5"></script>
-  <script src="../assets/js/data/samples.js?v=3.5"></script>
-  <script src="../assets/js/data/datasets.js?v=3.5"></script>
-  <script src="../assets/js/data/expenses.js?v=3.5"></script>
+  <script src="../assets/js/data/projects.js?v=3.6"></script>
+  <script src="../assets/js/data/project-materials.js?v=3.6"></script>
+  <script src="../assets/js/data/project-overrides.js?v=3.6"></script>
+  <script src="../assets/js/data/methods.js?v=3.6"></script>
+  <script src="../assets/js/data/samples.js?v=3.6"></script>
+  <script src="../assets/js/data/datasets.js?v=3.6"></script>
+  <script src="../assets/js/data/expenses.js?v=3.6"></script>
   <!-- window.DATA.achievements 定义在 members.js 中，此处加载以便「关联成果」正常显示 -->
-  <script src="../assets/js/data/members.js?v=3.5"></script>
-  <script src="../assets/js/config.js?v=3.5"></script>
-  <script src="../assets/js/app.js?v=3.5"></script>
-  <script src="../assets/js/backend.js?v=3.5"></script>
+  <script src="../assets/js/data/members.js?v=3.6"></script>
+  <script src="../assets/js/config.js?v=3.6"></script>
+  <script src="../assets/js/app.js?v=3.6"></script>
+  <script src="../assets/js/backend.js?v=3.6"></script>
   <script>
     injectHeader("项目");    var id = getParam("id");
 
@@ -79,8 +79,27 @@
         localStorage.setItem(progressKey(), JSON.stringify(items));
       }
 
+      /* 老数据资料可能没有 id：按内容生成稳定 id（同一资料永远同一个 id），
+         删除/编辑才能准确定位；云端保存后 id 一起存回，老数据逐步补齐。 */
+      function matStableId(m){
+        var s = "mat|" + (m.name||"") + "|" + (m.url||"") + "|" + (m.uploader||"") + "|" + (m.date||"");
+        var h = 5381;
+        for (var i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; }
+        return "MAT-old-" + h.toString(36);
+      }
+      /* 一条资料“对外可见的 id”：优先用已有 id，没有就按内容生成稳定 id。
+         删除 / 编辑都走这个函数定位，保证与 allMaterials() 里渲染出的 id 完全一致——
+         否则老数据（无 id）点删除会“点了没反应”。 */
+      function matEffId(m){
+        if(!m) return "";
+        return m.id || matStableId(m);
+      }
+
       function allMaterials(){
         var list = (p.materials || []).slice();
+        list.forEach(function(m){
+          if(m && !m.id) m.id = matStableId(m);   // 内存中补 id；云端保存时一并存回
+        });
         var locals = getLocalMaterials();
         locals.forEach(function(item, idx){
           var exists = list.some(function(m){ return m.name===item.name && m.date===item.date && m.uploader===item.uploader; });
@@ -117,6 +136,12 @@
           actions = '<div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;">' +
             '<button class="btn btn-xs btn-outline" onclick="editMat(' + m.__localIdx + ')">编辑</button>' +
             '<button class="btn btn-xs btn-danger" onclick="deleteMat(' + m.__localIdx + ')">删除</button>' +
+            '</div>';
+        } else if(m.id){
+          /* 云端/官方资料：同样可编辑、可删除（保存后全组实时生效） */
+          actions = '<div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap;">' +
+            '<button class="btn btn-xs btn-outline" onclick="editCloudMat(\'' + esc(m.id) + '\')">编辑</button>' +
+            '<button class="btn btn-xs btn-danger" onclick="deleteCloudMat(\'' + esc(m.id) + '\')">删除</button>' +
             '</div>';
         }
         return '<tr>' +
@@ -784,6 +809,8 @@
       window.curDateStr = curDateStr;
       window.allMaterials = allMaterials;
       window.materialRow = materialRow;
+      window.matStableId = matStableId;
+      window.matEffId = matEffId;
       window.renderMaterials = renderMaterials;
       window.fileIcon = fileIcon;
       window.allProgress = allProgress;
@@ -803,6 +830,9 @@
     }).catch(function(e){ console.error("详情页渲染失败：", e); });
 
     function submitMat(){
+      /* matEffId 定义在上方的渲染块内、已导出到 window；这里做一次安全取用，
+         保证老数据（无 id）也能按稳定 id 正确定位、编辑、删除。 */
+      var matEffId = window.matEffId || function(x){ return x && x.id; };
       var name = document.getElementById("mat-name").value.trim();
       var url = document.getElementById("mat-url").value.trim();
       var uploader = document.getElementById("mat-uploader").value.trim();
@@ -812,11 +842,27 @@
       if(!url){ alert("请粘贴飞书链接"); return; }
       if(!name){ name = "未命名文件"; }
       var mode = idx;
+      /* 防连点：点了保存立刻禁用按钮，避免"以为没反应又多点几次"造成重复条目 */
+      var saveBtn = document.getElementById("mat-submit-btn");
+      if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = "保存中…"; }
+      var restoreBtn = function(){ if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = (mode ? "更新" : "保存"); } };
+
+      /* 编辑云端资料（cloud: 前缀通道） */
+      var cloudEditId = (mode.indexOf("cloud:") === 0) ? mode.slice(6) : "";
 
       /* 云端实时：资料直接写进项目记录，全组立即可见 */
       if(window.DB && DB.mode === "cloud"){
         var item;
-        if(mode !== ""){
+        if(cloudEditId){
+          p.materials = p.materials || [];
+          var ci = p.materials.findIndex(function(x){ return matEffId(x) === cloudEditId; });
+          item = (ci >= 0) ? Object.assign({}, p.materials[ci]) : { id: cloudEditId };
+          item.id = item.id || cloudEditId;   // 老数据无 id：把稳定 id 补上，一并存回云端
+          item.name = name; item.url = url;
+          item.uploader = uploader || "—"; item.note = note;
+          if(!item.date) item.date = nowISO();
+          if(ci >= 0) p.materials[ci] = item; else p.materials.push(item);
+        } else if(mode !== ""){
           var li = parseInt(mode, 10);
           var locals = getLocalMaterials();
           var old = locals[li];
@@ -835,9 +881,11 @@
           p.materials.push(item);
         }
         DB.upsert("projects", p).then(function(){ location.reload(); }).catch(function(e){
+          restoreBtn();
           alert("云端保存失败：" + e.message + "，已暂存本机。");
           var arr = getLocalMaterials();
-          if(mode !== ""){ var i2 = parseInt(mode,10); if(arr[i2]) arr[i2] = { name:name, url:url, uploader:uploader||"—", note:note, date:nowISO() }; }
+          if(cloudEditId){ /* 云端资料编辑失败：不动本机草稿，刷新后重试 */ }
+          else if(mode !== ""){ var i2 = parseInt(mode,10); if(arr[i2]) arr[i2] = { name:name, url:url, uploader:uploader||"—", note:note, date:nowISO() }; }
           else arr.push({ name:name, url:url, uploader:uploader||"—", note:note, date:nowISO() });
           saveLocalMaterials(arr);
           location.reload();
@@ -845,7 +893,21 @@
         return;
       }
 
+      /* 本机模式 */
       var arr = getLocalMaterials();
+      if(cloudEditId){
+        /* 本机模式下编辑/删除云端来源资料：直接改 p.materials 并写回本机项目存储 */
+        p.materials = (p.materials || []);
+        var bi = p.materials.findIndex(function(x){ return matEffId(x) === cloudEditId; });
+        if(bi >= 0){
+          p.materials[bi].id = p.materials[bi].id || cloudEditId;   // 老数据补 id
+          p.materials[bi].name = name; p.materials[bi].url = url;
+          p.materials[bi].uploader = uploader || "—"; p.materials[bi].note = note;
+        }
+        saveProjectLocal();
+        location.reload();
+        return;
+      }
       if(mode !== ""){
         var i = parseInt(mode, 10);
         if(arr[i]){ arr[i] = { name: name, url: url, uploader: uploader || "—", note: note, date: nowISO() }; }
@@ -857,8 +919,63 @@
     }
     window.submitMat = submitMat;
 
+    /* 把当前项目对象的变更写回本机项目存储（仅本机模式用） */
+    function saveProjectLocal(){
+      try {
+        var arr = JSON.parse(localStorage.getItem("proj-projects") || "[]");
+        if(!Array.isArray(arr)) arr = [];
+        var i = arr.findIndex(function(x){ return x && x.id === p.id; });
+        if(i >= 0) arr[i] = p; else arr.push(p);
+        localStorage.setItem("proj-projects", JSON.stringify(arr));
+      } catch(e){}
+    }
+    window.saveProjectLocal = saveProjectLocal;
+
+    /* 删除云端/官方资料（每行「删除」按钮）：保存后全组实时生效
+       兼容老数据：无 id 的资料用 matEffId 定位（与渲染时给的 id 一致），
+       删除时一并把该条补上的稳定 id 写回，保证云端不再残留。 */
+    function deleteCloudMat(id){
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除这条资料吗？删除后全组都不再显示。"
+        : "确定删除这条资料吗？（当前是本机模式：删除仅本浏览器生效）";
+      if(!confirm(tip)) return;
+      var effId = window.matEffId || function(x){ return x && x.id; };
+      var before = (p.materials || []).length;
+      p.materials = (p.materials || []).filter(function(x){ return effId(x) !== id; });
+      if(p.materials.length === before){
+        // 没删掉（理论上不该发生）：给出可见提示，避免“点了没反应”
+        alert("没能定位到这条资料（可能页面数据已更新），请刷新页面后重试。");
+        return;
+      }
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("projects", p).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端删除失败：" + e.message + "\n刷新页面后可重试。"); location.reload(); });
+      } else {
+        saveProjectLocal();
+        location.reload();
+      }
+    }
+    window.deleteCloudMat = deleteCloudMat;
+
+    /* 编辑云端/官方资料：填充表单，保存时走 cloud: 通道 */
+    function editCloudMat(id){
+      var effId = window.matEffId || function(x){ return x && x.id; };
+      var m = (p.materials || []).find(function(x){ return effId(x) === id; });
+      if(!m) return;
+      document.getElementById("mat-name").value = m.name || "";
+      document.getElementById("mat-url").value = m.url || "";
+      document.getElementById("mat-uploader").value = (m.uploader === "—" ? "" : (m.uploader || ""));
+      document.getElementById("mat-note").value = m.note || "";
+      document.getElementById("mat-idx").value = "cloud:" + id;
+      document.getElementById("mat-submit-btn").textContent = "更新";
+      var cancel = document.getElementById("mat-cancel-btn");
+      if(cancel) cancel.style.display = "";
+      document.getElementById("mat-name").focus();
+    }
+    window.editCloudMat = editCloudMat;
+
     function deleteMat(idx){
-      if(!confirm("确定删除这条资料吗？")) return;
+      if(!confirm("确定删除这条本机草稿资料吗？")) return;
       var arr = getLocalMaterials();
       if(idx >= 0 && idx < arr.length){
         arr.splice(idx, 1);
@@ -950,6 +1067,6 @@
     }
     window.closeProjExportBox = closeProjExportBox;
   </script>
-<script src="../assets/js/gate.js?v=3.5"></script>
+<script src="../assets/js/gate.js?v=3.6"></script>
 </body>
 </html>

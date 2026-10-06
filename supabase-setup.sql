@@ -63,12 +63,12 @@ create table if not exists public.lab_equipment (
   name           text,
   model          text,
   brand          text,
-  qty            numeric,
+  qty            text,
   unit           text,
   location       text,
   keeper         text,
   "purchaseDate" text,
-  price          numeric,
+  price          text,
   status         text,
   url            text,
   note           text,
@@ -361,3 +361,13 @@ create policy "lab_resources_read"   on public.lab_resources for select using (t
 create policy "lab_resources_insert" on public.lab_resources for insert with check (true);
 create policy "lab_resources_update" on public.lab_resources for update using (true);
 create policy "lab_resources_delete" on public.lab_resources for delete using (true);
+
+-- ---------- 14. 类型修正：仪器耗材的数量/金额改为文本 ----------
+-- 原因：这两栏实际使用时常填「约200支」「2.8 万元」「747元/支」这类带单位的写法，
+--       原 numeric 数字类型会导致这类内容保存失败（报 400 invalid input syntax）。
+-- 改为 text 后所有写法都能存；已有数据自动转成文本，不会丢失。
+-- 可重复执行：已是 text 时再执行一次等于空操作。
+alter table public.lab_equipment alter column qty   drop default;
+alter table public.lab_equipment alter column qty   type text using qty::text;
+alter table public.lab_equipment alter column price drop default;
+alter table public.lab_equipment alter column price type text using price::text;
