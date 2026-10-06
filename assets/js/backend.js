@@ -37,6 +37,7 @@ window.DB = (function () {
     members:   { table: "lab_members",  full: true, fields: ["id","name","role","status"] },
     achievements: { table: "lab_achievements", full: true, fields: ["id","title","type","year"] },
     resources: { table: "lab_resources", full: true, fields: ["id","title","category"] },
+    expguide:  { table: "lab_expense_guides", full: true, fields: ["id","title","kind","sort"] },
     reminders: { table: "lab_reminders", fields: ["id","title","date","note","link","source"] }
   };
 
@@ -156,14 +157,14 @@ window.DB = (function () {
     equipment: "equip-items", datasets: "ds-items",
     projects: "proj-projects", methods: "method-local", samples: "sample-local",
     reminders: "remind-local", members: "member-items", achievements: "achv-items",
-    resources: "resource-local"
+    resources: "resource-local", expguide: "expguide-local"
   };
   var LOCAL_DEL = {
     meetings: "meeting-deleted", plans: "plan-deleted", expenses: "exp-deleted",
     equipment: "equip-deleted", datasets: "ds-deleted",
     projects: "proj-deleted", methods: "method-deleted", samples: "sample-deleted",
     reminders: "remind-deleted", members: "member-deleted", achievements: "achv-deleted",
-    resources: "resource-deleted"
+    resources: "resource-deleted", expguide: "expguide-deleted"
   };
   function lget(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function lset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }

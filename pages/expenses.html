@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>报账与采购 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=3.6">
+  <link rel="stylesheet" href="../assets/css/style.css?v=3.7">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
   <main class="container">
     <div id="head"></div>
+    <div id="dbBanner"></div>
 
     <!-- 飞书在线报账入口（链接在 assets/js/config.js 的 EXPENSE_FORM_URL / EXPENSE_VIEW_URL 配置） -->
     <div class="expense-entry">
@@ -23,7 +24,19 @@
       </div>
     </div>
 
-    <div class="section-title">A. 报账流程说明</div>
+    <!-- 概览信息栏（可编辑：报账流程 / 税号 / 银行账号 / 报账人等，全组实时共享） -->
+    <div class="section-title" style="flex-wrap:wrap; gap:10px;">
+      <span>📌 报账须知（概览）</span>
+      <button class="btn btn-outline btn-sm" style="margin-left:auto;" onclick="openInfoAdd()">✏️ 编辑概览信息</button>
+    </div>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;" id="ovHint">报账流程、学校税号、银行账号、组内报账人等重要信息集中在这里；点右上角「编辑概览信息」可修改、补充或删除。</p>
+    <div class="grid grid-2" id="overview"></div>
+
+    <div class="section-title" style="flex-wrap:wrap; gap:10px; margin-top:26px;">
+      <span>A. 报账流程说明</span>
+      <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="openCatAdd()">＋ 添加类目</button>
+    </div>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;" id="flowsHint">每个类目的「需准备材料 / 常见问题 / 注意事项 / 模板链接」都可编辑：把鼠标放到卡片右上角，点「编辑」修改，点「删除」移除；新类目（如固定资产建账）用「＋ 添加类目」补充。</p>
     <div class="grid grid-2" id="flows"></div>
 
     <div class="section-title">B. 报账记录</div>
@@ -49,9 +62,47 @@
     </p>
   </main>
 
-  <script src="../assets/js/data/expenses.js?v=3.6"></script>
-  <script src="../assets/js/config.js?v=3.6"></script>
-  <script src="../assets/js/app.js?v=3.6"></script>
+  <!-- 编辑弹窗（概览条目 / 类目 共用容器） -->
+  <div class="modal" id="guideModal">
+    <div class="modal-box" style="max-width:560px;">
+      <div class="modal-head"><b id="gvTitle">编辑</b><button class="btn btn-sm btn-outline" onclick="closeGuideModal()">关闭</button></div>
+      <div class="modal-body">
+        <input type="hidden" id="gv-id" value="">
+        <input type="hidden" id="gv-mode" value="">
+        <label id="gv-title-label">标题</label>
+        <input type="text" id="gv-title-input" placeholder="如：学校税号 / 差旅报销">
+        <div id="gv-value-wrap">
+        <label id="gv-value-label">内容说明</label>
+        <textarea id="gv-value" rows="4" placeholder="填写内容…"
+          style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical;"></textarea>
+        </div>
+        <div id="gv-cat-extra" style="display:none;">
+          <label>需准备材料（每行一条）</label>
+          <textarea id="gv-materials" rows="4" placeholder="车票/机票&#10;住宿发票&#10;行程单"
+            style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical;"></textarea>
+          <label>常见问题（每行一条）</label>
+          <textarea id="gv-faq" rows="3" placeholder="打车需附行程单；优先公交地铁。"
+            style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical;"></textarea>
+          <label>⚠ 注意事项</label>
+          <textarea id="gv-note" rows="2" placeholder="出差前需线上审批；票据 30 天内提交审核。"
+            style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical;"></textarea>
+          <label>📄 模板 / 报账单据文档链接（飞书等，留空则显示「模板未配置」）</label>
+          <input type="text" id="gv-url" placeholder="粘贴飞书文档/表格链接">
+        </div>
+        <label>排序号（数字越小越靠前，默认即可）</label>
+        <input type="text" id="gv-sort" placeholder="10">
+        <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+          <button class="btn btn-outline btn-sm" onclick="closeGuideModal()">取消</button>
+          <button class="btn btn-primary btn-sm" id="gv-save-btn" onclick="submitGuide()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/data/expenses.js?v=3.7"></script>
+  <script src="../assets/js/config.js?v=3.7"></script>
+  <script src="../assets/js/app.js?v=3.7"></script>
+  <script src="../assets/js/backend.js?v=3.7"></script>
   <script>
     injectHeader("报账");
 
@@ -59,21 +110,226 @@
     document.getElementById("expenseFormBtn").href = window.EXPENSE_FORM_URL || "#";
     document.getElementById("expenseViewBtn").href  = window.EXPENSE_VIEW_URL  || "#";
     document.getElementById("head").innerHTML = pageHead(
-      "报账与采购", "A. 报账流程说明（需要什么材料、注意事项）；B. 报账记录与费用统计。",
+      "报账与采购", "概览须知 + A. 报账流程说明（可编辑）+ B. 报账记录与费用统计。",
       [{name:"首页", url:"../index.html"}, {name:"报账与采购"}]
     );
 
-    // A. 流程说明卡片
-    document.getElementById("flows").innerHTML = (window.DATA.expenseFlows||[]).map(f=>`
-      <div class="card">
-        <h3 style="font-size:16px; color:var(--primary-dark); margin-bottom:6px;">${esc(f.type)}</h3>
-        <div style="font-size:13.5px; color:#44505f;"><b>需准备材料：</b>${(f.materials||[]).join("、")}</div>
-        <div style="font-size:13.5px; color:#44505f; margin-top:4px;"><b>常见问题：</b>${(f.faq||[]).join("；")}</div>
-        <div class="note-box" style="margin-top:8px; font-size:13px;">⚠ 注意：${esc(f.note)}</div>
-        <a class="btn btn-sm btn-outline" href="${esc(f.template)}" target="_blank">📥 下载模板</a>
-      </div>`).join("");
+    /* ================================================================
+       报账指南（概览 + 类目）：云端实时共享，本机模式自动回退
+       数据结构（存 lab_expense_guides，kind 区分）：
+         info 条目：{ id, kind:"info", title, value, sort }
+         cat  条目：{ id, kind:"cat",  title, materials, faq, note, templateUrl, sort }
+       materials/faq 用换行分隔的多行文本，渲染时按行拆开。
+       ================================================================ */
 
-    // B. 筛选下拉
+    /* 首次使用时的默认内容：来自原静态说明（expenses.js 的 expenseFlows）+ 概览占位 */
+    function defaultGuideSeed(){
+      var cats = (window.DATA.expenseFlows || []).map(function(f, i){
+        return {
+          id: "EXP-CAT-" + ("0" + (i + 1)).slice(-2),
+          kind: "cat",
+          title: f.type || "未命名类目",
+          materials: (f.materials || []).join("\n"),
+          faq: (f.faq || []).join("\n"),
+          note: f.note || "",
+          templateUrl: (f.template && f.template !== "#") ? f.template : "",
+          sort: (i + 1) * 10
+        };
+      });
+      var infos = [
+        { id: "EXP-INFO-01", kind: "info", title: "报账流程", value: "每 2–3 个月集中一轮：提交花费明细与凭证 → 审核人审核 → 下单人处理 → 导师审批 → 财务报账。", sort: 10 },
+        { id: "EXP-INFO-02", kind: "info", title: "学校税号", value: "（待填写：点右上角「编辑概览信息」补充）", sort: 20 },
+        { id: "EXP-INFO-03", kind: "info", title: "银行账号信息", value: "（待填写：点右上角「编辑概览信息」补充）", sort: 30 },
+        { id: "EXP-INFO-04", kind: "info", title: "组内报账人", value: "（待填写：如「张三，负责收集票据与初审，飞书 @xxx」）", sort: 40 }
+      ];
+      return infos.concat(cats);
+    }
+
+    /* 当前生效的指南列表：云端用 DATA，本机用 localStorage 覆盖，都没有用默认 */
+    function currentGuideList(){
+      if (window.DB && DB.mode === "cloud") return window.DATA.expguide || [];
+      try {
+        var raw = localStorage.getItem("expguide-local");
+        if (raw) { var v = JSON.parse(raw); if (Array.isArray(v)) return v; }
+      } catch(e){}
+      return defaultGuideSeed();
+    }
+    function saveLocalGuide(list){
+      try { localStorage.setItem("expguide-local", JSON.stringify(list)); } catch(e){}
+    }
+    function nextGuideId(){
+      return "EXP-G-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+    }
+
+    function renderGuide(){
+      var list = currentGuideList().slice().sort(function(a,b){ return (Number(a.sort)||0) - (Number(b.sort)||0); });
+      var isCloud = window.DB && DB.mode === "cloud";
+
+      /* ---- 概览信息栏 ---- */
+      var infos = list.filter(function(x){ return x && x.kind === "info"; });
+      document.getElementById("overview").innerHTML = infos.length ? infos.map(function(x){
+        return '<div class="card">' +
+          '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
+            '<div style="font-size:15px; font-weight:700; color:var(--primary-dark);">' + esc(x.title || "未命名信息") + '</div>' +
+            '<div style="display:flex; gap:6px; flex-shrink:0;">' +
+              '<button class="btn btn-xs btn-outline" onclick="editGuideItem(\'' + esc(x.id) + '\')">编辑</button>' +
+              '<button class="btn btn-xs btn-danger" onclick="deleteGuideItem(\'' + esc(x.id) + '\')">删除</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="font-size:13.5px; color:#44505f; margin-top:6px; white-space:pre-line; line-height:1.7;">' + esc(x.value || "") + '</div>' +
+        '</div>';
+      }).join("") : '<div class="placeholder">暂无概览信息，点右上角「编辑概览信息」添加（报账流程、学校税号、银行账号、报账人…）。</div>';
+
+      /* ---- A. 类目卡片 ---- */
+      var cats = list.filter(function(x){ return x && x.kind === "cat"; });
+      document.getElementById("flows").innerHTML = cats.length ? cats.map(function(x){
+        var mats = String(x.materials || "").split("\n").map(function(s){ return s.trim(); }).filter(Boolean).join("、") || "—";
+        var faqs = String(x.faq || "").split("\n").map(function(s){ return s.trim(); }).filter(Boolean).join("；") || "—";
+        var tplBtn = x.templateUrl
+          ? '<a class="btn btn-sm btn-outline" href="' + esc(x.templateUrl) + '" target="_blank" rel="noopener">📄 模板 / 报账单据 ↗</a>'
+          : '<span class="btn btn-sm btn-outline" style="opacity:.55; cursor:not-allowed;">模板未配置</span>';
+        return '<div class="card">' +
+          '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
+            '<h3 style="font-size:16px; color:var(--primary-dark); margin-bottom:6px;">' + esc(x.title || "未命名类目") + '</h3>' +
+            '<div style="display:flex; gap:6px; flex-shrink:0;">' +
+              '<button class="btn btn-xs btn-outline" onclick="editGuideItem(\'' + esc(x.id) + '\')">编辑</button>' +
+              '<button class="btn btn-xs btn-danger" onclick="deleteGuideItem(\'' + esc(x.id) + '\')">删除</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="font-size:13.5px; color:#44505f;"><b>需准备材料：</b>' + esc(mats) + '</div>' +
+          '<div style="font-size:13.5px; color:#44505f; margin-top:4px;"><b>常见问题：</b>' + esc(faqs) + '</div>' +
+          (x.note ? '<div class="note-box" style="margin-top:8px; font-size:13px;">⚠ 注意：' + esc(x.note) + '</div>' : '') +
+          '<div style="margin-top:8px;">' + tplBtn + '</div>' +
+        '</div>';
+      }).join("") : '<div class="placeholder">暂无类目说明，点右上角「＋ 添加类目」补充。</div>';
+
+      /* ---- 模式提示 ---- */
+      var ovHint = document.getElementById("ovHint");
+      var flHint = document.getElementById("flowsHint");
+      if(!isCloud){
+        ovHint.innerHTML = '⚠ <b>本机草稿模式</b>（云端未连接）：这里的修改只在本浏览器生效，恢复云端后自动同步全组。';
+        ovHint.style.color = "#b45309";
+        flHint.innerHTML = '⚠ 本机草稿模式：修改只在本浏览器生效。';
+        flHint.style.color = "#b45309";
+      } else {
+        ovHint.innerHTML = '云端实时共享：修改、补充、删除保存后<b>全组立即可见</b>（手机/其他电脑打开都一样）。';
+        ovHint.style.color = "";
+        flHint.innerHTML = '每个类目的「需准备材料 / 常见问题 / 注意事项 / 模板链接」都可编辑；保存后全组实时可见。';
+        flHint.style.color = "";
+      }
+    }
+    window.renderGuide = renderGuide;
+
+    /* ---------- 打开编辑弹窗 ---------- */
+    function findGuideItem(id){
+      return currentGuideList().find(function(x){ return x && x.id === id; });
+    }
+    function openGuideModal(mode, item){
+      var m = document.getElementById("guideModal");
+      document.getElementById("gv-id").value = item ? item.id : "";
+      document.getElementById("gv-mode").value = mode;
+      document.getElementById("gv-title-label").textContent = mode === "cat" ? "类目名称" : "信息标题（如：学校税号）";
+      document.getElementById("gv-cat-extra").style.display = (mode === "cat") ? "" : "none";
+      document.getElementById("gv-title-input").value = item ? (item.title || "") : "";
+      document.getElementById("gv-value-wrap").style.display = (mode === "cat") ? "none" : "";
+      document.getElementById("gv-value").value = item ? (item.value || "") : "";
+      document.getElementById("gv-value").placeholder = "填写内容…";
+      document.getElementById("gv-materials").value = item ? (item.materials || "") : "";
+      document.getElementById("gv-faq").value = item ? (item.faq || "") : "";
+      document.getElementById("gv-note").value = item ? (item.note || "") : "";
+      document.getElementById("gv-url").value = item ? (item.templateUrl || item.template || "") : "";
+      document.getElementById("gv-sort").value = item && item.sort != null ? item.sort : "";
+      document.getElementById("gvTitle").textContent = mode === "cat"
+        ? (item ? "编辑类目：" + (item.title || "") : "添加类目")
+        : (item ? "编辑信息：" + (item.title || "") : "添加概览信息");
+      var btn = document.getElementById("gv-save-btn");
+      btn.disabled = false; btn.textContent = "保存";
+      m.classList.add("open");
+      document.getElementById("gv-title-input").focus();
+    }
+    function openInfoAdd(){ openGuideModal("info", null); }
+    function openCatAdd(){ openGuideModal("cat", null); }
+    function editGuideItem(id){
+      var item = findGuideItem(id);
+      if(!item){ alert("没能定位到这条内容（可能页面数据已更新），请刷新页面后重试。"); return; }
+      openGuideModal(item.kind === "cat" ? "cat" : "info", item);
+    }
+    function closeGuideModal(){ document.getElementById("guideModal").classList.remove("open"); }
+    window.openInfoAdd = openInfoAdd; window.openCatAdd = openCatAdd;
+    window.editGuideItem = editGuideItem; window.closeGuideModal = closeGuideModal;
+
+    /* ---------- 保存（新增 / 编辑） ---------- */
+    function submitGuide(){
+      var mode = document.getElementById("gv-mode").value;
+      var gid = document.getElementById("gv-id").value.trim();
+      var title = document.getElementById("gv-title-input").value.trim();
+      var saveBtn = document.getElementById("gv-save-btn");
+      if(!title){ alert(mode === "cat" ? "请填写类目名称" : "请填写信息标题"); return; }
+
+      var item;
+      if(mode === "cat"){
+        item = {
+          id: gid || nextGuideId(), kind: "cat", title: title,
+          materials: document.getElementById("gv-materials").value.replace(/\r/g, ""),
+          faq: document.getElementById("gv-faq").value.replace(/\r/g, ""),
+          note: document.getElementById("gv-note").value.trim(),
+          templateUrl: document.getElementById("gv-url").value.trim()
+        };
+      } else {
+        item = { id: gid || nextGuideId(), kind: "info", title: title, value: document.getElementById("gv-value").value.trim() };
+      }
+      var sortRaw = document.getElementById("gv-sort").value.trim();
+      item.sort = sortRaw === "" ? null : (parseInt(sortRaw, 10) || 0);
+      if(item.sort == null){
+        var list0 = currentGuideList();
+        var sameKindMax = 0;
+        list0.forEach(function(x){ if(x && x.kind === item.kind && (Number(x.sort)||0) > sameKindMax) sameKindMax = Number(x.sort)||0; });
+        item.sort = sameKindMax + 10;
+      }
+
+      /* 防连点 */
+      saveBtn.disabled = true; saveBtn.textContent = "保存中…";
+
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("expguide", item).then(function(){ location.reload(); })
+          .catch(function(e){
+            saveBtn.disabled = false; saveBtn.textContent = "保存";
+            alert("云端保存失败：" + e.message + "\n刷新页面后可重试。");
+          });
+        return;
+      }
+
+      /* 本机模式 */
+      var list = currentGuideList().slice();
+      var i = list.findIndex(function(x){ return x && x.id === item.id; });
+      if(i >= 0) list[i] = item; else list.push(item);
+      saveLocalGuide(list);
+      closeGuideModal();
+      renderGuide();
+    }
+    window.submitGuide = submitGuide;
+
+    /* ---------- 删除 ---------- */
+    function deleteGuideItem(id){
+      var item = findGuideItem(id);
+      if(!item){ alert("没能定位到这条内容（可能已被删除），刷新页面即可。"); return; }
+      var what = (item.kind === "cat") ? "类目「" + (item.title || "") + "」" : "信息「" + (item.title || "") + "」";
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除" + what + "吗？删除后全组都不再显示。"
+        : "确定删除" + what + "吗？（当前是本机模式：删除仅本浏览器生效）";
+      if(!confirm(tip)) return;
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("expguide", id).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端删除失败：" + e.message + "\n刷新页面后可重试。"); });
+        return;
+      }
+      var list = currentGuideList().slice();
+      saveLocalGuide(list.filter(function(x){ return x && x.id !== id; }));
+      renderGuide();
+    }
+    window.deleteGuideItem = deleteGuideItem;
+
+    /* ---------- B. 报账记录（照旧：筛选 + 统计） ---------- */
     var cats = [...new Set((window.DATA.expenses||[]).map(e=>e.category))];
     document.getElementById("cat").innerHTML = `<option value="">全部类别</option>` + cats.map(c=>`<option>${esc(c)}</option>`).join("");
 
@@ -110,7 +366,27 @@
     document.getElementById("kw").addEventListener("input", render);
     document.getElementById("cat").addEventListener("change", render);
     render();
+
+    /* ---------- 云端实时：拉取指南数据（空则自动灌入默认内容）后重渲染 ---------- */
+    function seedGuideToCloud(){
+      var seed = defaultGuideSeed();
+      return seed.reduce(function(pr, item){
+        return pr.then(function(){ return DB.upsert("expguide", item); });
+      }, Promise.resolve());
+    }
+    renderGuide();   // 先按默认/本机数据渲染，云端探测完成后再重渲染
+    (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      if(mode !== "cloud"){ renderGuide(); return; }
+      return DB.hydrate("expguide", "expguide").then(function(){
+        var list = window.DATA.expguide || [];
+        if(!list.length){
+          return seedGuideToCloud().then(function(){ return DB.hydrate("expguide", "expguide"); });
+        }
+      }).then(renderGuide).catch(function(e){ console.error("报账指南加载失败：", e); renderGuide(); });
+    });
   </script>
-<script src="../assets/js/gate.js?v=3.6"></script>
+<script src="../assets/js/gate.js?v=3.7"></script>
 </body>
 </html>

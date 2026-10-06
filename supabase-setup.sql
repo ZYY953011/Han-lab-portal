@@ -371,3 +371,29 @@ alter table public.lab_equipment alter column qty   drop default;
 alter table public.lab_equipment alter column qty   type text using qty::text;
 alter table public.lab_equipment alter column price drop default;
 alter table public.lab_equipment alter column price type text using price::text;
+
+-- ---------- 15. 报账指南（概览信息 + 流程类目说明，全组实时共享） ----------
+-- 用途：报账页顶部的「概览信息栏」（报账流程 / 学校税号 / 银行账号 / 组内报账人等）
+--       与「A. 报账流程说明」的每一个类目卡片（需准备材料 / 常见问题 / 注意事项 / 模板链接）。
+-- 全部可在网页上直接增删改，保存后全组实时可见。
+-- kind 字段：'info' = 概览信息条目；'cat' = 流程类目卡片。
+create table if not exists public.lab_expense_guides (
+  id       text primary key,
+  title    text,
+  kind     text default 'cat',
+  sort     int default 0,
+  data     jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+alter table public.lab_expense_guides enable row level security;
+
+drop policy if exists "lab_expense_guides_read"   on public.lab_expense_guides;
+drop policy if exists "lab_expense_guides_insert" on public.lab_expense_guides;
+drop policy if exists "lab_expense_guides_update" on public.lab_expense_guides;
+drop policy if exists "lab_expense_guides_delete" on public.lab_expense_guides;
+
+create policy "lab_expense_guides_read"   on public.lab_expense_guides for select using (true);
+create policy "lab_expense_guides_insert" on public.lab_expense_guides for insert with check (true);
+create policy "lab_expense_guides_update" on public.lab_expense_guides for update using (true);
+create policy "lab_expense_guides_delete" on public.lab_expense_guides for delete using (true);
