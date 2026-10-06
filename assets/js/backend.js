@@ -212,9 +212,25 @@ window.DB = (function () {
       }).catch(function () { return 0; });
   }
 
+  /* 老记录无 id 时生成"内容哈希 id"：同一条记录无论在哪台电脑、重试多少次，
+   * 生成的 id 都相同 → upsert 按 id 合并，不会在云端越堆越多。 */
+  function stableId(which, d) {
+    var s = which + "|" + JSON.stringify(d, function (k, v) { return k === "id" ? undefined : v; });
+    var h = 5381;
+    for (var i = 0; i < s.length; i++) { h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; }
+    return "IMP" + h.toString(36);
+  }
+
   function migrateLocalDrafts(which) {
     var drafts = lget(LOCAL_KEY[which], []);
     if (!drafts.length) return Promise.resolve(0);
+    /* 老版本存下的记录可能没有 id（早期纯静态站不强制）：没有 id 就按内容生成稳定 id，
+       否则上传时因缺少主键必然失败、且一直无声重试。 */
+    drafts = drafts.map(function (d) {
+      if (d && !d.id) d.id = stableId(which, d);
+      return d;
+    });
+    lset(LOCAL_KEY[which], drafts);
     return Promise.all(drafts.map(function (d) {
       return fetch(cfg().url + "/rest/v1/" + TABLES[which].table + "?on_conflict=id", {
         method: "POST", headers: headers({ "Prefer": "resolution=merge-duplicates" }),
@@ -226,9 +242,32 @@ window.DB = (function () {
         // 全部成功：原键内容移入备份键（留底），原键清空，下次不再重复传
         lset(LOCAL_KEY[which] + "-migrated-backup", drafts);
         lset(LOCAL_KEY[which], []);
+      } else if (drafts.length) {
+        // 有失败：明确提示（此前是完全静默，用户只会觉得"同步没生效"）
+        try {
+          var el = document.createElement("div");
+          el.style.cssText = "position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:9999;" +
+            "background:#fdf0db; color:#8a5a00; border:1px solid #ecd9a8; border-left:4px solid #d99a2b;" +
+            "border-radius:10px; padding:10px 18px; font-size:14px; box-shadow:0 4px 16px rgba(0,0,0,.12); max-width:86vw;";
+          el.innerHTML = "⚠ 自动同步：本机 <b>" + (drafts.length - ok) + "</b> 条记录上传未成功（已保留在本机，" +
+            "刷新页面会自动重试；若反复出现，请检查网络后按 Ctrl+F5 强制刷新）";
+          document.body.appendChild(el);
+          setTimeout(function () { el.style.transition = "opacity .6s"; el.style.opacity = "0"; }, 8000);
+          setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 8800);
+        } catch (e) {}
       }
       return ok;
     });
+  }
+
+  /* 一键"把本机所有未同步内容搬上云端"：依次对每个栏目执行完整迁移管线。
+   * 供管理页救援面板与红条重试按钮使用；按 id 幂等，重复执行安全。 */
+  function migrateAll() {
+    var jobs = Object.keys(TABLES).map(function (which) {
+      var dataKey = which;   // hydrate 里 seedIfEmpty 用的 window.DATA 键与逻辑名一致
+      return hydrate(which, dataKey).catch(function () { return null; });
+    });
+    return Promise.all(jobs);
   }
 
   function migrateToast(n, seedN, delN) {
@@ -346,7 +385,7 @@ window.DB = (function () {
   return {
     ready: ready, onStatus: onStatus, statusBanner: statusBanner,
     list: list, upsert: upsert, remove: remove, hydrate: hydrate,
-    configured: configured, TABLES: TABLES,
+    migrateAll: migrateAll, configured: configured, TABLES: TABLES,
     get mode() { return state.mode; },
     get reason() { return state.reason; }
   };

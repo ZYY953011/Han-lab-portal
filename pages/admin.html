@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理合并 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/style.css?v=3.5">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -15,6 +15,17 @@
       🧰 <b>管理员专用</b>：把组员发来的 JSON 粘进来，本页自动识别类型、按 id 去重合并，生成可发布的数据文件内容——
       <b>① 复制/下载文件手动上传</b>，或 <b>② 填一次 GitHub 信息后「一键提交」</b>（不用再打开 Git 或网页端上传）。
       普通组员不用进这一页。
+    </div>
+
+    <!-- 云端同步救援面板：网站已接入云端后，本面板是排查"本机数据没同步"的一站式工具 -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title" style="margin-top:0;">☁️ 云端同步状态（新增·救援面板）</div>
+      <p id="syncPanelHint" style="font-size:13px; color:var(--muted); margin:0 0 10px;">正在检测云端连接…</p>
+      <div id="syncPanelBox" style="font-size:13.5px; line-height:2;"></div>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="syncNowBtn" onclick="syncAllNow()">⬆ 一键把本机待同步内容全部上传云端</button>
+        <span style="font-size:12.5px; color:var(--muted); align-self:center;">按 id 幂等合并，重复点也安全；上传成功后本机记录自动转入备份。</span>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:14px;">
@@ -68,8 +79,9 @@
     <p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="../index.html">← 返回首页</a></p>
   </main>
 
-  <script src="../assets/js/config.js"></script>
-  <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/config.js?v=3.5"></script>
+  <script src="../assets/js/app.js?v=3.5"></script>
+  <script src="../assets/js/backend.js?v=3.5"></script>
   <script>
     injectHeader("管理合并");
     document.getElementById("head").innerHTML = pageHead(
@@ -79,12 +91,12 @@
 
     /* ---------- 类型定义：导出内容 → 目标文件 / 变量名 ---------- */
     var TYPES = {
-      meetings:    { label:"组会",     file:"assets/js/data/meeting-overrides.js",     ov:"meetingOverrides",     del:"meetingDeletions",     dataKey:"meetings" },
-      plans:       { label:"月度计划", file:"assets/js/data/plan-overrides.js",        ov:"planOverrides",        del:"planDeletions",        dataKey:"plans" },
-      achievements:{ label:"研究成果", file:"assets/js/data/achievement-overrides.js", ov:"achievementOverrides", del:"achievementDeletions", dataKey:"achievements" },
-      members:     { label:"成员",     file:"assets/js/data/member-overrides.js",      ov:"memberOverrides",      del:"memberDeletions",      dataKey:"members" },
-      equipment:   { label:"仪器耗材", file:"assets/js/data/equipment-overrides.js",   ov:"equipmentOverrides",   del:"equipmentDeletions",   dataKey:"equipment" },
-      projects:    { label:"项目",     file:"assets/js/data/project-overrides.js",     ov:"projectOverrides",     del:"",                     dataKey:"projects" }
+      meetings:    { label:"组会",     file:"assets/js/data/meeting-overrides.js?v=3.5",     ov:"meetingOverrides",     del:"meetingDeletions",     dataKey:"meetings" },
+      plans:       { label:"月度计划", file:"assets/js/data/plan-overrides.js?v=3.5",        ov:"planOverrides",        del:"planDeletions",        dataKey:"plans" },
+      achievements:{ label:"研究成果", file:"assets/js/data/achievement-overrides.js?v=3.5", ov:"achievementOverrides", del:"achievementDeletions", dataKey:"achievements" },
+      members:     { label:"成员",     file:"assets/js/data/member-overrides.js?v=3.5",      ov:"memberOverrides",      del:"memberDeletions",      dataKey:"members" },
+      equipment:   { label:"仪器耗材", file:"assets/js/data/equipment-overrides.js?v=3.5",   ov:"equipmentOverrides",   del:"equipmentDeletions",   dataKey:"equipment" },
+      projects:    { label:"项目",     file:"assets/js/data/project-overrides.js?v=3.5",     ov:"projectOverrides",     del:"",                     dataKey:"projects" }
     };
 
     Object.keys(TYPES).forEach(function(k){
@@ -373,8 +385,80 @@
     }
     window.pushAll = pushAll;
 
+    /* ---------- 云端同步救援面板 ----------
+     * 场景：管理员（或组员）的浏览器里有"本机草稿"时期的记录（如仪器耗材、组会等），
+     * 换了浏览器或别人打开看不到。本面板列出每个栏目本机待同步的条数，
+     * 一键执行完整迁移管线（应用本机删除 → 空表种入 → 上传合并本机记录）。 */
+    var SYNC_KEYS = [
+      ["meetings", "组会通知"], ["plans", "成员月度计划"], ["expenses", "报账"],
+      ["equipment", "仪器耗材"], ["datasets", "数据文件夹"], ["projects", "项目"],
+      ["methods", "实验方法"], ["samples", "样品"], ["reminders", "提醒"],
+      ["students", "学生培养"], ["members", "成员"], ["achievements", "研究成果"], ["resources", "学习资源"]
+    ];
+    function lcount(k){ try { var v = JSON.parse(localStorage.getItem(k) || "[]"); return Array.isArray(v) ? v.length : 0; } catch(e){ return 0; } }
+    function renderSyncPanel(){
+      var box = document.getElementById("syncPanelBox");
+      var total = 0, rows = "";
+      SYNC_KEYS.forEach(function(pair){
+        var which = pair[0], label = pair[1];
+        var def = window.DB ? DB.TABLES[which] : null;
+        if(!def) return;
+        /* 本机草稿键与 backend.js 的 LOCAL_KEY / LOCAL_DEL 一致 */
+        var n = lcount(localKeyOf(which));
+        var d = lcount(localDelKeyOf(which));
+        total += n + d;
+        if(n || d) rows += "<div>• <b>" + esc2(label) + "</b>：本机待上传 <b>" + n + "</b> 条，待应用删除 " + d + " 条</div>";
+      });
+      box.innerHTML = total
+        ? rows + "<div style='margin-top:6px; color:#8a5a00;'>合计 <b>" + total + "</b> 条本机内容尚未进云端——它们只在这台电脑的浏览器里，组员看不到。</div>"
+        : "<div style='color:#2e9e5b;'>✅ 本浏览器没有待同步的内容，所有记录都已进云端（或本机本来就没有草稿）。</div>";
+      document.getElementById("syncNowBtn").style.display = total ? "" : "none";
+    }
+    function localKeyOf(which){
+      /* 与 backend.js 的 LOCAL_KEY 保持一致（页面保存草稿用的键） */
+      var map = { meetings:"meeting-local", plans:"plan-items", expenses:"exp-local", equipment:"equip-items",
+        datasets:"ds-items", projects:"proj-projects", methods:"method-local", samples:"sample-local",
+        reminders:"remind-local", members:"member-items", achievements:"achv-items", resources:"resource-local" };
+      return map[which];
+    }
+    function localDelKeyOf(which){
+      var map = { meetings:"meeting-deleted", plans:"plan-deleted", expenses:"exp-deleted", equipment:"equip-deleted",
+        datasets:"ds-deleted", projects:"proj-deleted", methods:"method-deleted", samples:"sample-deleted",
+        reminders:"remind-deleted", members:"member-deleted", achievements:"achv-deleted", resources:"resource-deleted" };
+      return map[which];
+    }
+    function syncAllNow(){
+      var btn = document.getElementById("syncNowBtn");
+      btn.disabled = true; btn.textContent = "上传中…";
+      DB.ready().then(function(mode){
+        var hint = document.getElementById("syncPanelHint");
+        if(mode !== "cloud"){
+          hint.innerHTML = "<span style='color:#c43d3d;'>云端未连接（" + esc2(DB.reason || "原因未知") + "）。请检查网络后刷新页面重试。</span>";
+          btn.disabled = false; btn.textContent = "⬆ 一键把本机待同步内容全部上传云端";
+          return;
+        }
+        hint.innerHTML = "🟢 云端已连接，开始逐栏目迁移…";
+        return DB.migrateAll().then(function(){
+          hint.innerHTML = "<span style='color:#2e9e5b;'>✅ 迁移完成。本机待同步内容已全部上传合并到云端（组员打开网站即可见）。</span>";
+          btn.style.display = "none";
+          renderSyncPanel();
+        });
+      }).catch(function(e){
+        var hint = document.getElementById("syncPanelHint");
+        hint.innerHTML = "<span style='color:#c43d3d;'>上传失败：" + esc2(e && e.message || e) + "。已保留本机，可重试。</span>";
+        btn.disabled = false; btn.textContent = "⬆ 一键把本机待同步内容全部上传云端";
+      });
+    }
+    window.syncAllNow = syncAllNow;
+    (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
+      var hint = document.getElementById("syncPanelHint");
+      if(mode === "cloud") hint.innerHTML = "🟢 云端实时模式已连接。下面是本浏览器各栏目「只存在本机」的内容统计：";
+      else hint.innerHTML = "⚠ 当前未连接云端（" + esc2(window.DB ? DB.reason : "本页未启用云端") + "）——先恢复连接，本面板才能上传。";
+      renderSyncPanel();
+    }).catch(function(){});
+
     renderPending();
   </script>
-<script src="../assets/js/gate.js"></script>
+<script src="../assets/js/gate.js?v=3.5"></script>
 </body>
 </html>

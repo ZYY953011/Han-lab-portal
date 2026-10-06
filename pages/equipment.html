@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>仪器耗材 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/style.css?v=3.5">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -60,11 +60,11 @@
     </div>
   </main>
 
-  <script src="../assets/js/data/equipment.js"></script>
-  <script src="../assets/js/data/equipment-overrides.js"></script>
-  <script src="../assets/js/config.js"></script>
-  <script src="../assets/js/app.js"></script>
-  <script src="../assets/js/backend.js"></script>
+  <script src="../assets/js/data/equipment.js?v=3.5"></script>
+  <script src="../assets/js/data/equipment-overrides.js?v=3.5"></script>
+  <script src="../assets/js/config.js?v=3.5"></script>
+  <script src="../assets/js/app.js?v=3.5"></script>
+  <script src="../assets/js/backend.js?v=3.5"></script>
   <script>
     injectHeader("仪器耗材");
     document.getElementById("head").insertAdjacentHTML("afterend",
@@ -83,7 +83,7 @@
       if(hint) hint.innerHTML = '🟢 云端实时模式：添加/编辑/删除保存后<b>全组立即可见</b>，无需导出或发布。';
       return DB.hydrate("equipment","equipment").then(function(){
         try { if(typeof window.__officialEq !== "undefined") window.__officialEq = (window.DATA.equipment||[]).slice(); } catch(e){}
-        try { if(typeof render === "function") render(); } catch(e){}
+        try { renderStats(); initFilters(); if(typeof render === "function") render(); } catch(e){}
       });
     }).catch(function(){});
     document.getElementById("head").innerHTML = pageHead(
@@ -121,7 +121,7 @@
     }
 
     /* ---------- 统计栏 ---------- */
-    (function(){
+    function renderStats(){
       var all = window.DATA.equipment || [];
       var inst = all.filter(e=>e.category!=="耗材");
       var cons = all.filter(e=>e.category==="耗材");
@@ -137,20 +137,28 @@
         '<div class="stat"><div class="num">' + alert.length + '</div><div class="lab">需关注（需采购/偏少/维修/报废）</div></div>';
       document.getElementById("statNote").textContent =
         "统计口径：按当前台账实时汇总——仪器设备按数量合计，耗材按种类计；状态为需采购、偏少、维修中、已报废的条目计入「需关注」。";
-    })();
+    }
+    renderStats();
 
     /* ---------- 筛选器初始化 ---------- */
-    (function initFilters(){
+    function initFilters(){
       var all = window.DATA.equipment || [];
       var locSel = document.getElementById("locFilter");
+      var curLoc = locSel.value;
+      locSel.innerHTML = '<option value="">全部位置</option>';
       [...new Set(all.map(e=>e.location).filter(Boolean))].sort().forEach(function(l){
         var o = document.createElement("option"); o.value = l; o.textContent = l; locSel.appendChild(o);
       });
+      locSel.value = curLoc;
       var stSel = document.getElementById("statusFilter");
+      var curSt = stSel.value;
+      stSel.innerHTML = '<option value="">全部状态</option>';
       [...new Set(all.map(e=>e.status).filter(Boolean))].sort().forEach(function(s){
         var o = document.createElement("option"); o.value = s; o.textContent = s; stSel.appendChild(o);
       });
-    })();
+      stSel.value = curSt;
+    }
+    initFilters();
 
     /* ---------- 列表渲染 ---------- */
     function filtered(){
@@ -354,6 +362,6 @@
     });
     render();
   </script>
-<script src="../assets/js/gate.js"></script>
+<script src="../assets/js/gate.js?v=3.5"></script>
 </body>
 </html>

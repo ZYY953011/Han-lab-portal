@@ -268,26 +268,42 @@ function areaLockHtml(key, title, inputId, errId, extraNote) {
 }
 
 /* ---------- 「仅本机可见」提示条 ----------
- * 网站是纯静态站，大家在页面上添加的内容先存在本人浏览器的 localStorage，
- * 换电脑/换浏览器就看不到；只有管理员发布后才对全组可见。
- * 这里在页面顶部显式提醒，避免误以为“已经上传了”。
+ * 云端已连接时本条会被自动隐藏（backend.js 注入样式）；只有云端没连上时才出现。
+ * 现在的恢复方式不再是"导出发管理员"：刷新页面即可自动把本机内容上传合并到云端。
  * 用法：document.getElementById("head").insertAdjacentHTML("afterend", unpublishedBar(n, "exportXxx()"));
  */
 function unpublishedBar(count, exportCall, extraBtnHtml) {
   var issueUrl = (typeof window.ISSUE_NEW_URL === "function") ? window.ISSUE_NEW_URL() : "";
   var issueBtn = issueUrl
-    ? `<a class="btn btn-outline btn-sm" href="${issueUrl}" target="_blank" rel="noopener">🚀 去 GitHub 发布（1–2 分钟自动更新）</a>`
+    ? `<a class="btn btn-outline btn-sm" href="${issueUrl}" target="_blank" rel="noopener">🚀 去 GitHub 发布（备用）</a>`
     : "";
   if (!count && !issueUrl) return "";
   var left = count
-    ? `<span>⚠️ 你有 <b>${count}</b> 条修改<b>只保存在这台电脑</b>（换电脑或别人打开看不到）。</span>`
-    : `<span>📌 想让全组都看到新内容？</span>`;
+    ? `<span>⚠️ 你有 <b>${count}</b> 条记录<b>目前只保存在这台电脑</b>（云端还没连上）。刷新页面会自动把它们上传到云端，<b>无需发给任何人</b>。`
+    : `<span>📌 想让全组都看到新内容？保存后会自动同步云端。</span>`;
   return `<div class="warn-box local-draft-bar" style="margin:10px 0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
     ${left}
     <span style="display:flex; gap:8px; flex-wrap:wrap;">
-      ${count ? `<button class="btn btn-primary btn-sm" onclick="${exportCall}">导出我的修改</button>` : ""}
+      ${count ? `<button class="btn btn-primary btn-sm" onclick="location.reload()">🔄 刷新并重试同步</button>` : ""}
+      ${count && exportCall ? `<button class="btn btn-outline btn-sm" onclick="${exportCall}">导出备份（备用）</button>` : ""}
       ${extraBtnHtml || ""}
       ${issueBtn}
     </span>
   </div>`;
 }
+
+/* ---------- 版本升级后自动刷新一次 ----------
+ * 防止浏览器缓存旧版脚本导致"改了没反应/新功能不出现"。
+ * 首次访问只记录版本号；检测到版本号变化（老访客升级）时，等页面加载完再自动 reload 一次
+ * （延时触发，避免打断页面正常加载）。 */
+(function(){
+  try {
+    var k = "hb-seen-version", seen = localStorage.getItem(k);
+    if (window.SITE_VERSION && seen && seen !== window.SITE_VERSION) {
+      localStorage.setItem(k, window.SITE_VERSION);
+      setTimeout(function () { location.reload(); }, 400);
+    } else if (window.SITE_VERSION && !seen) {
+      localStorage.setItem(k, window.SITE_VERSION);
+    }
+  } catch (e) {}
+})();
