@@ -10,14 +10,15 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <div id="dbBanner"></div>
     <div class="note-box" style="margin-bottom:14px;">💡 设计原则：<b>需要的时候能快速找到，平时不被过量信息干扰。</b>按分类筛选，按需查看。</div>
 
     <div class="card" style="margin-bottom:14px;">
       <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <span id="form-title">添加资源</span>
-        <button class="btn btn-outline btn-sm" onclick="exportLocalResources()">导出我添加的资源（JSON）</button>
+        <button class="btn btn-outline btn-sm local-only-btn" onclick="exportLocalResources()">导出我添加的资源（JSON）</button>
       </div>
-      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">填写名称、网址、分类和简介，点保存即可。新增的分类会自动出现在筛选下拉框里。</p>
+      <p id="resHint" style="font-size:13px; color:var(--muted); margin:0 0 10px;">填写名称、网址、分类和简介，点保存后全组实时可见。新增的分类会自动出现在筛选下拉框里。</p>
       <div class="material-add-form" style="margin-bottom:8px;">
         <input type="text" id="res-title" placeholder="资源名称">
         <input type="text" id="res-url" placeholder="网址（可空）" style="flex:2;">
@@ -54,7 +55,7 @@
     <div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本地添加的资源（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeResExportBox()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/resources.js</code> 的 <code>window.DATA.resources</code> 数组中，全组即可看到。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>
         <textarea id="resExportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>
@@ -63,6 +64,7 @@
   <script src="../assets/js/data/resources.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("学习资源");
     document.getElementById("head").innerHTML = pageHead(
@@ -76,18 +78,34 @@
     function saveLocalResources(arr){
       localStorage.setItem("resource-local", JSON.stringify(arr));
     }
-    function allResources(){
-      var list = (window.DATA.resources || []).slice();
-      getLocalResources().forEach(function(item, idx){
-        var copy = Object.assign({}, item);
-        copy.__localIdx = idx;
-        list.push(copy);
-      });
-      return list;
+    function getLocalDeleted(){
+      try { var raw = localStorage.getItem("resource-deleted"); return raw ? JSON.parse(raw) : []; } catch(e){ return []; }
     }
+    function saveLocalDeleted(arr){
+      localStorage.setItem("resource-deleted", JSON.stringify(arr));
+    }
+    /* 老数据没有 id：按标题生成稳定 id（同一标题在所有设备上生成相同 id，避免重复） */
+    function ensureIds(list){
+      (list||[]).forEach(function(r){
+        if(r && !r.id) r.id = "R-" + encodeURIComponent(r.title || r.category || "res").replace(/%/g,"").slice(0,32);
+      });
+    }
+    /* 应用本机修改（合并进全量列表，须在渲染前执行） */
+    (function applyLocal(){
+      var list = window.DATA.resources = window.DATA.resources || [];
+      ensureIds(list);
+      ensureIds(getLocalResources());
+      getLocalResources().forEach(function(p){
+        if(!p || !p.id) return;
+        var i = list.findIndex(function(x){ return x.id === p.id; });
+        if(i>=0) list[i] = Object.assign({}, list[i], p); else list.push(p);
+      });
+      var del = getLocalDeleted();
+      if(del.length) window.DATA.resources = list.filter(function(r){ return del.indexOf(r.id)<0; });
+    })();
 
     function getCategories(){
-      return [...new Set(allResources().map(r => r.category).filter(Boolean))].sort();
+      return [...new Set((window.DATA.resources||[]).map(r => r.category).filter(Boolean))].sort();
     }
 
     function updateCatSelect(){
@@ -98,13 +116,10 @@
     }
 
     function card(r){
-      var actions = '';
-      if(typeof r.__localIdx === 'number'){
-        actions = '<div style="display:flex; gap:6px; margin-top:8px;">' +
-          '<button class="btn btn-xs btn-outline" onclick="editResource(' + r.__localIdx + ')">编辑</button>' +
-          '<button class="btn btn-xs btn-danger" onclick="deleteResource(' + r.__localIdx + ')">删除</button>' +
-          '</div>';
-      }
+      var actions = '<div style="display:flex; gap:6px; margin-top:8px;">' +
+        '<button class="btn btn-xs btn-outline" onclick="editResource(\'' + esc(r.id) + '\')">编辑</button>' +
+        '<button class="btn btn-xs btn-danger" onclick="deleteResource(\'' + esc(r.id) + '\')">删除</button>' +
+        '</div>';
       var titleHtml = r.url
         ? '<a href="' + esc(r.url) + '" target="_blank">' + esc(r.title) + '</a>'
         : '<span style="color:var(--text);">' + esc(r.title) + '</span>';
@@ -125,15 +140,25 @@
     function render(){
       var cat = document.getElementById("cat").value;
       var kw = document.getElementById("kw").value.trim().toLowerCase();
-      var list = allResources().filter(function(r){
+      var list = (window.DATA.resources||[]).filter(function(r){
         var ok1 = !cat || r.category===cat;
-        var ok2 = !kw || (r.title+r.intro+r.category).toLowerCase().includes(kw);
+        var ok2 = !kw || ((r.title||"")+(r.intro||"")+(r.category||"")).toLowerCase().includes(kw);
         return ok1 && ok2;
       });
       document.getElementById("list").innerHTML = list.length ? list.map(card).join("") : emptyTip("没有匹配的资源");
     }
 
+    function nextResId(){
+      var max = 0;
+      (window.DATA.resources||[]).forEach(function(x){
+        var m = /^R(\d+)$/.exec(x.id||"");
+        if(m) max = Math.max(max, parseInt(m[1],10));
+      });
+      return "R" + String(max+1).padStart(3,"0");
+    }
+
     function submitResource(){
+      var id = document.getElementById("res-idx").value.trim();
       var title = document.getElementById("res-title").value.trim();
       var url = document.getElementById("res-url").value.trim();
       var cat = document.getElementById("res-cat").value.trim();
@@ -141,35 +166,74 @@
       var intro = document.getElementById("res-intro").value.trim();
       var recommend = document.getElementById("res-recommend").value;
       var addedBy = document.getElementById("res-addedBy").value.trim();
-      var idx = document.getElementById("res-idx").value.trim();
 
       if(!title){ alert("请填写资源名称"); return; }
       var category = newCat || cat || "其他";
       if(!intro){ intro = "—"; }
 
-      var arr = getLocalResources();
-      var item = { title: title, url: url, category: category, intro: intro, forWho: addedBy || "—", when: "随时", minutes: 5, recommend: recommend, addedBy: addedBy || "—" };
-      if(idx !== ""){
-        var i = parseInt(idx, 10);
-        if(arr[i]) arr[i] = item;
-      } else {
-        arr.push(item);
+      /* 编辑时以现有条目打底，避免丢失表单之外的旧字段 */
+      var existing = id ? (window.DATA.resources||[]).find(function(x){ return x.id===id; }) : null;
+      var item = Object.assign({}, existing || {}, {
+        id: id || nextResId(),
+        title: title, url: url, category: category, intro: intro,
+        forWho: addedBy || "—", when: (existing && existing.when) || "随时",
+        minutes: (existing && existing.minutes) || 5,
+        recommend: recommend, addedBy: addedBy || "—"
+      });
+      var saveBtn = document.getElementById("res-submit-btn");
+      var restoreBtn = function(){ saveBtn.disabled = false; saveBtn.textContent = "保存"; };
+      /* 云端实时：保存后全组立即可见 */
+      if(window.DB && DB.mode === "cloud"){
+        try{
+          saveBtn.disabled = true; saveBtn.textContent = "保存中…";
+          DB.upsert("resources", item).then(function(){
+            location.reload();
+          }).catch(function(e){
+            restoreBtn();
+            alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后重新点一次保存即可同步全组。");
+            saveLocalResource(item);
+          });
+          return;
+        }catch(err){ restoreBtn(); alert("保存出错：" + (err && err.message || err)); }
       }
+      saveLocalResource(item);
+    }
+    function saveLocalResource(item){
+      var arr = getLocalResources();
+      var i = arr.findIndex(function(x){ return x.id === item.id; });
+      if(i>=0) arr[i] = item; else arr.push(item);
       saveLocalResources(arr);
       location.reload();
     }
     window.submitResource = submitResource;
 
-    function deleteResource(idx){
-      if(!confirm("确定删除这条资源吗？")) return;
-      var arr = getLocalResources();
-      if(idx >= 0 && idx < arr.length){ arr.splice(idx, 1); saveLocalResources(arr); location.reload(); }
+    function deleteResource(id){
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除这条资源吗？删除后全组都不再显示。"
+        : "确定删除这条资源吗？当前是本机草稿模式，删除后仅本浏览器隐藏；恢复云端后可重新同步。";
+      if(!confirm(tip)) return;
+      /* 云端实时：删除后全组都不再显示 */
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("resources", id).then(function(){ location.reload(); })
+          .catch(function(e){
+            alert("云端删除失败：" + e.message + "\n已先在本机隐藏，恢复网络后可重新删除。");
+            saveLocalResources(getLocalResources().filter(function(x){ return x.id !== id; }));
+            location.reload();
+          });
+        return;
+      }
+      var official = (window.DATA.resources||[]).some(function(x){ return x.id === id; });
+      saveLocalResources(getLocalResources().filter(function(x){ return x.id !== id; }));
+      if(official){
+        var del = getLocalDeleted();
+        if(del.indexOf(id)<0){ del.push(id); saveLocalDeleted(del); }
+      }
+      location.reload();
     }
     window.deleteResource = deleteResource;
 
-    function editResource(idx){
-      var arr = getLocalResources();
-      var r = arr[idx];
+    function editResource(id){
+      var r = (window.DATA.resources||[]).find(function(x){ return x.id === id; });
       if(!r) return;
       document.getElementById("res-title").value = r.title || "";
       document.getElementById("res-url").value = r.url || "";
@@ -178,7 +242,7 @@
       document.getElementById("res-intro").value = (r.intro === "—" ? "" : (r.intro || ""));
       document.getElementById("res-recommend").value = r.recommend || "★★★★★";
       document.getElementById("res-addedBy").value = (r.addedBy === "—" ? "" : (r.addedBy || ""));
-      document.getElementById("res-idx").value = idx;
+      document.getElementById("res-idx").value = r.id || "";
       document.getElementById("res-submit-btn").textContent = "更新";
       document.getElementById("res-cancel-btn").style.display = "";
       document.getElementById("form-title").textContent = "编辑资源";
@@ -219,6 +283,24 @@
     document.getElementById("cat").addEventListener("change", render);
     document.getElementById("kw").addEventListener("input", render);
     render();
+
+    // ---------- 云端实时模式：连接后拉取全组数据并重渲染 ----------
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      var hint = document.getElementById("resHint");
+      if(mode !== "cloud"){
+        if(hint) hint.innerHTML = '⚠ 本机草稿模式（云端未连接）：修改只在本浏览器可见。可能是网络波动，刷新页面可重试；恢复云端后本机修改会自动同步全组。';
+        if(hint) hint.style.color = "#b45309";
+        return;
+      }
+      if(hint) hint.innerHTML = '🟢 云端实时模式：添加/编辑/删除保存后<b>全组立即可见</b>（手机/其他电脑打开都一样）。';
+      return DB.hydrate("resources", "resources").then(function(){
+        updateCatSelect();
+        render();
+      });
+    }).catch(function(){});
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

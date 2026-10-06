@@ -29,7 +29,7 @@
         <button class="btn btn-outline btn-sm local-only-btn" onclick="exportEqLocal()">导出我添加的修改（JSON）</button>
       </div>
     </div>
-    <p style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除先保存在本机浏览器；点「导出我添加的修改（JSON）」发给管理员合并上传后，全组即可见。</p>
+    <p id="eqFormHint" style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除保存后全组实时可见（数据保存在云端）。</p>
 
     <!-- 仪器设备 -->
     <div class="section-title" style="margin-top:18px;">仪器设备 <span id="instCount" style="font-size:14px; color:var(--muted); font-weight:400;"></span></div>
@@ -75,7 +75,12 @@
     (window.DB ? DB.ready() : Promise.resolve("local")).then(function(mode){
       var el = document.getElementById("dbBanner");
       if(el && window.DB) el.innerHTML = DB.statusBanner();
-      if(mode !== "cloud") return;
+      var hint = document.getElementById("eqFormHint");
+      if(mode !== "cloud"){
+        if(hint) hint.innerHTML = '⚠ 当前是本机草稿模式（云端未连接）：保存只在本浏览器可见。可能是网络波动，刷新页面可重试。';
+        return;
+      }
+      if(hint) hint.innerHTML = '🟢 云端实时模式：添加/编辑/删除保存后<b>全组立即可见</b>，无需导出或发布。';
       return DB.hydrate("equipment","equipment").then(function(){
         try { if(typeof window.__officialEq !== "undefined") window.__officialEq = (window.DATA.equipment||[]).slice(); } catch(e){}
         try { if(typeof render === "function") render(); } catch(e){}
@@ -86,7 +91,7 @@
       [{name:"首页", url:"../index.html"}, {name:"仪器耗材"}]
     );
 
-    /* ---------- 本机临时修改（添加/编辑/删除，可导出交管理员合并） ---------- */
+    /* ---------- 本机临时修改（云端未连接时的兜底，恢复后自动同步） ---------- */
     function getEqItems(){ try{ return JSON.parse(localStorage.getItem("equip-items")||"[]"); }catch(e){ return []; } }
     function saveEqItems(arr){ localStorage.setItem("equip-items", JSON.stringify(arr)); }
     function getEqDeleted(){ try{ return JSON.parse(localStorage.getItem("equip-deleted")||"[]"); }catch(e){ return []; } }
@@ -230,7 +235,7 @@
           <button class="btn btn-primary" onclick="submitEq()">保存</button>
           <button class="btn btn-outline" onclick="closeEqModal()" style="margin-left:8px;">取消</button>
         </div>
-        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅本机可见；请点工具栏「导出我添加的修改（JSON）」发给管理员合并，全组才可见。</p>
+        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见（云端）；若提示未连接云端，则暂存本机，恢复后刷新页面再保存一次即可同步全组。</p>
       </div>
     </div>`;
     document.body.appendChild(eqModal);
@@ -287,7 +292,7 @@
       saveEqItems(arr);
       if(window.DB && DB.mode === "cloud"){
         DB.upsert("equipment", obj).then(function(){ location.reload(); })
-          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已保存在本机，可导出交管理员。"); location.reload(); });
+          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后刷新页面再保存一次即可同步全组。"); location.reload(); });
         return;
       }
       location.reload();
@@ -295,7 +300,10 @@
     window.submitEq = submitEq;
 
     function deleteEq(id){
-      if(!confirm("确定删除这条记录吗？\n（先仅本机生效；导出发给管理员合并后，全组生效）")) return;
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除这条记录吗？删除后全组都不再显示。"
+        : "确定删除这条记录吗？当前是本机草稿模式，删除后仅本浏览器隐藏。";
+      if(!confirm(tip)) return;
       if(window.DB && DB.mode === "cloud"){
         DB.remove("equipment", id).then(function(){ location.reload(); })
           .catch(function(e){ alert("云端删除失败：" + e.message); });
@@ -311,7 +319,7 @@
     }
     window.deleteEq = deleteEq;
 
-    /* ---------- 导出：内容即管理员覆盖 equipment-overrides.js 的完整文件 ---------- */
+    /* ---------- 导出（备用：自动同步失败时供排查） ---------- */
     function exportEqLocal(){
       var items = getEqItems(), del = getEqDeleted();
       if(!items.length && !del.length){ alert("当前浏览器没有待合并的修改。"); return; }
@@ -333,7 +341,7 @@
     eqExportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本机仪器耗材修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeEqExport()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员；管理员用它<b>整体覆盖</b> <code>assets/js/data/equipment-overrides.js</code> 并上传 GitHub，全组即可见。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>
         <textarea id="eexBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>`;

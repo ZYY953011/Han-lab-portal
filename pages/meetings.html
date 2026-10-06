@@ -17,7 +17,7 @@
         <span id="form-title">添加组会</span>
         <button class="btn btn-outline btn-sm local-only-btn" onclick="exportLocalMeetings()">导出我添加的组会（JSON）</button>
       </div>
-      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">填写时间、地点、汇报人和材料链接，保存后仅当前浏览器可见；点导出后交给管理员合并。</p>
+      <p id="mtFormHint" style="font-size:13px; color:var(--muted); margin:0 0 10px;">填写时间、地点、汇报人和材料链接，保存后全组实时可见（数据保存在云端）。</p>
       <div class="material-add-form" style="margin-bottom:8px;">
         <input type="date" id="mt-date" placeholder="日期">
         <input type="time" id="mt-time" placeholder="时间">
@@ -48,8 +48,8 @@
     <div class="note-box" style="margin-bottom:12px;">
       🔒 <b>填写与锁定规则：</b>每人每月填写一条本月计划（姓名、月份、计划内容），填写后可先作为<b>草稿</b>修改，确认无误点<b>「定稿」</b>——定稿后本人<b>不能再编辑或删除</b>这条计划，全组与导师都能看到定稿版。<br>
       ① 月底未完成不用删计划：定稿计划下月<b>如实填写「完成情况」</b>（完成 / 部分完成 / 未完成 + 说明）即可，如实记录不追责、隐瞒删改才追责；<br>
-      ② 确因笔误要改内容：点「申请修改」并<b>必填修改原因</b>，修改申请连同原因一起导出给管理员审核合并，全程留痕；<br>
-      ③ 本页的删除/修改在管理员合并前<b>只影响你自己的浏览器</b>，全组看到的始终是管理员发布版本。
+      ② 确因笔误要改内容：点「申请修改」并<b>必填修改原因</b>，修改说明随记录保存在云端留痕，全组可见；<br>
+      ③ 所有增删改都实时同步云端——保存后全组看到的就是最新内容，无需任何导出或人工转发。
     </div>
     <div id="planList"></div>
 
@@ -70,7 +70,7 @@
     <div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本地添加的组会（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeMtExportBox()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员：把 <code>meetings</code> 数组里的内容（含新增/修改）贴入 <code>assets/js/data/meetings.js</code> 的 <code>window.DATA.meetings</code> 中（相同 id 覆盖），并从该数组中删除 <code>deleted</code> 里列出的 id，全组即可同步。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>
         <textarea id="mtExportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>
@@ -98,7 +98,15 @@
     __cloudReady.then(function(mode){
       var el = document.getElementById("dbBanner");
       if(el && window.DB) el.innerHTML = DB.statusBanner();
-      if(mode !== "cloud") return;
+      var mtHint = document.getElementById("mtFormHint");
+      var pmHint = document.getElementById("pmHint");
+      if(mode !== "cloud"){
+        if(mtHint) mtHint.innerHTML = '⚠ 当前是本机草稿模式（云端未连接）：保存只在本浏览器可见，恢复网络后刷新页面重试。';
+        if(pmHint) pmHint.innerHTML = '⚠ 本机草稿模式：保存只在本浏览器可见，恢复网络后刷新页面重试。';
+        return;
+      }
+      if(mtHint) mtHint.innerHTML = '🟢 云端实时模式：保存后<b>全组立即可见</b>，无需导出或发布。';
+      if(pmHint) pmHint.innerHTML = '🟢 云端实时模式：保存后全组可见；定稿前可随意修改，定稿后改动走「申请修改」（云端留痕）。';
       return Promise.all([DB.hydrate("meetings","meetings"), DB.hydrate("plans","plans")])
         .then(function(){
           try { if(typeof renderMeetings === "function") renderMeetings(); } catch(e){}
@@ -241,7 +249,7 @@
       if(window.DB && DB.mode === "cloud"){
         DB.upsert("meetings", item).then(function(){
           location.reload();
-        }).catch(function(e){ alert("云端保存失败：" + e.message + "\n已同时保存在本机，可点「导出」交给管理员。"); location.reload(); });
+        }).catch(function(e){ alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后刷新页面再保存一次即可同步全组。"); location.reload(); });
         return;
       }
       location.reload();
@@ -249,7 +257,10 @@
     window.submitMeeting = submitMeeting;
 
     function deleteMeetingById(id, isLocal){
-      if(!confirm("确定删除这条组会吗？删除后仅当前浏览器隐藏；如需全组同步，请点右上角「导出」并把结果发给管理员。")) return;
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除这条组会吗？删除后全组都不再显示。"
+        : "确定删除这条组会吗？当前是本机草稿模式，删除后仅本浏览器隐藏；恢复云端后可重新同步。";
+      if(!confirm(tip)) return;
       if(window.DB && DB.mode === "cloud"){
         DB.remove("meetings", id).then(function(){ location.reload(); })
           .catch(function(e){ alert("云端删除失败：" + e.message); });
@@ -328,7 +339,7 @@
       if(!arr.length && !del.length){ alert("当前浏览器没有临时添加或删除的组会"); return; }
       document.getElementById("mtExportWrap").querySelector(".modal-head b").textContent = "导出本地添加的组会（JSON）";
       document.getElementById("mtExportWrap").querySelector(".modal-body p").innerHTML =
-        '把下方内容<b>全部复制</b>发给管理员（也可直接粘到「管理合并」页）：管理员用它<b>整体覆盖</b> <code>assets/js/data/meeting-overrides.js</code> 并上传 GitHub，全组即可见。';
+        '（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。';
       document.getElementById("mtExportBox").value =
         "window.DATA = window.DATA || {};\n" +
         "window.DATA.meetingOverrides = " + JSON.stringify(arr, null, 2) + ";\n" +
@@ -435,7 +446,7 @@
       var meta = "";
       if(it.status === "final" && it.finalAt) meta = '定稿于 ' + esc(fmtTime(it.finalAt));
       var reviseNote = (it.status === "final" && it.revising)
-        ? '<div style="margin-top:8px; font-size:12.5px; color:#b97400; background:#fdf0db; border-radius:8px; padding:6px 10px;">✏️ 修改申请原因：' + esc(it.reviseReason || "未填写") + '（' + esc(fmtTime(it.revisedAt)) + ' · 待管理员审核合并，本机先显示修改后内容）</div>' : "";
+        ? '<div style="margin-top:8px; font-size:12.5px; color:#b97400; background:#fdf0db; border-radius:8px; padding:6px 10px;">✏️ 修改申请原因：' + esc(it.reviseReason || "未填写") + '（' + esc(fmtTime(it.revisedAt)) + ' · 云端留痕，全组可见修改说明）</div>' : "";
       var doneBlock =
         '<div style="margin-top:10px; background:var(--bg, #f7f8fa); border-radius:8px; padding:8px 12px; font-size:13px;">' +
           '<b>完成情况：</b>' +
@@ -465,7 +476,7 @@
     planModal.innerHTML = '<div class="modal-box" style="max-width:560px;">' +
       '<div class="modal-head"><b id="pmTitle">添加我的月度计划</b><button class="btn btn-sm btn-outline" onclick="closePlanModal()">关闭</button></div>' +
       '<div class="modal-body">' +
-        '<div id="pmReviseTip" style="display:none; margin-bottom:10px; font-size:13px; color:#b97400; background:#fdf0db; border-radius:8px; padding:8px 12px;">该计划已定稿。修改需填写<b>修改原因</b>，导出后由管理员审核合并；全组在合并前看到的仍是原定稿版本。</div>' +
+        '<div id="pmReviseTip" style="display:none; margin-bottom:10px; font-size:13px; color:#b97400; background:#fdf0db; border-radius:8px; padding:8px 12px;">该计划已定稿。修改需填写<b>修改原因</b>（云端留痕，全组可见修改说明）。</div>' +
         '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">' +
           '<div><label>姓名 <span style="color:red">*</span></label>' +
             '<input type="text" id="pmName" list="pmNameList" placeholder="填写人姓名" style="width:100%;">' +
@@ -473,14 +484,14 @@
           '<div><label>月份 <span style="color:red">*</span></label><input type="month" id="pmMonth" style="width:100%;"></div>' +
           '<div style="grid-column:1/-1;"><label>计划内容 <span style="color:red">*</span>（本月要做的事，一条一行）</label>' +
             '<textarea id="pmContent" rows="6" placeholder="如：&#10;1. 完成 2026 年春玉米田间取样与室内分析；&#10;2. 撰写小论文引言部分；&#10;3. 准备 10 月组会汇报 PPT。" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea></div>' +
-          '<div style="grid-column:1/-1;" id="pmReasonWrap"><label>修改原因 <span style="color:red">*</span>（必填，将随导出内容一并发给管理员）</label>' +
+          '<div style="grid-column:1/-1;" id="pmReasonWrap"><label>修改原因 <span style="color:red">*</span>（必填，将随记录保存在云端留痕）</label>' +
             '<input type="text" id="pmReason" placeholder="如：笔误，日期写错了" style="width:100%;"></div>' +
         '</div>' +
         '<div style="margin-top:14px;">' +
           '<button class="btn btn-primary" onclick="submitPlan()">保存</button>' +
           '<button class="btn btn-outline" onclick="closePlanModal()" style="margin-left:8px;">取消</button>' +
         '</div>' +
-        '<p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅本机可见；定稿前可随意修改。定稿后如需改动走「申请修改」，由管理员审核后全组生效。</p>' +
+        '<p id="pmHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见（云端）；定稿前可随意修改。定稿后如需改动走「申请修改」，修改说明云端留痕、全组可见。</p>' +
       '</div>' +
     '</div>';
     document.body.appendChild(planModal);
@@ -542,7 +553,7 @@
       saveLocalPlans(arr);
       if(window.DB && DB.mode === "cloud"){
         DB.upsert("plans", item).then(function(){ location.reload(); })
-          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已保存在本机，可点「导出计划」交给管理员。"); location.reload(); });
+          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后重新保存一次即可同步全组。"); location.reload(); });
         return;
       }
       location.reload();
@@ -552,7 +563,7 @@
     function requestRevise(id){
       var it = allPlans().find(function(x){ return x.id === id; });
       if(!it) return;
-      if(!confirm("定稿计划的修改需要说明原因并经管理员审核合并后才会对全组生效（全程留痕）。\n继续吗？")) return;
+      if(!confirm("定稿计划的修改需说明原因（云端留痕），保存后全组可见。\n继续吗？")) return;
       openPlanModal(id, "revise");
     }
     window.requestRevise = requestRevise;
@@ -582,7 +593,7 @@
     function deletePlan(id){
       var it = allPlans().find(function(x){ return x.id === id; });
       if(!it) return;
-      if(it.status === "final"){ alert("已定稿的计划不能删除。如确有需要，请联系管理员处理。"); return; }
+      if(it.status === "final"){ alert("已定稿的计划不能删除。如确有需要，请点「申请修改」并说明原因。"); return; }
       if(!confirm("确定删除这条草稿计划吗？")) return;
       if(window.DB && DB.mode === "cloud"){
         DB.remove("plans", id).then(function(){ location.reload(); })
@@ -667,14 +678,14 @@
     }
     window.submitDone = submitDone;
 
-    /* ---------- 导出（发给管理员覆盖 plan-overrides.js） ---------- */
+    /* ---------- 导出（备用：自动同步失败时供排查） ---------- */
     function exportPlans(){
       var items = getLocalPlans(), del = getPlanDeleted();
       if(!items.length && !del.length){ alert("当前浏览器没有待合并的计划修改。"); return; }
       var box = document.getElementById("mtExportBox");
       document.getElementById("mtExportWrap").querySelector(".modal-head b").textContent = "导出月度计划修改（JSON）";
       document.getElementById("mtExportWrap").querySelector(".modal-body p").innerHTML =
-        '把下方内容<b>全部复制</b>发给管理员；管理员用它<b>整体覆盖</b> <code>assets/js/data/plan-overrides.js</code> 中的 <code>planOverrides</code> 与 <code>planDeletions</code> 数组并上传 GitHub，全组即可见。导出内容含「申请修改」的原因，管理员可据此审核。';
+        '（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。';
       box.value = JSON.stringify({ plans: items, deleted: del }, null, 2);
       document.getElementById("mtExportWrap").classList.add("open");
       box.select();

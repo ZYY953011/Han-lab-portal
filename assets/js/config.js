@@ -58,6 +58,10 @@ window.REPO_URL = "";
 window.SUPABASE_URL = "https://ouxiungckdloyjwryiud.supabase.co";       // Project URL。Data API 页复制的完整 API URL（带 /rest/v1）直接填也没关系，网站会自动纠正
 window.SUPABASE_ANON_KEY = "sb_publishable_nPW25nStPCAeIT2n7zrXUw_b_gNS0Is";  // API Keys 页的 Publishable key（sb_publishable_ 开头），点复制按钮拿完整值
 
+// 网站版本号：每次更新代码后把这里的值 +0.1（或改日期），页脚会显示。
+// 用途：打开网站看页脚版本，即可确认 GitHub 上的新代码已生效（排查"改了没反应"时先看这里）。
+window.SITE_VERSION = "v3.4";
+
 /* 一键发布链接：优先用 Issue 模板选择页（最省事），没有就用新建 Issue 页 */
 window.ISSUE_NEW_URL = function () {
   if (!window.REPO_URL) return "";

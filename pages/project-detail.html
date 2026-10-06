@@ -282,7 +282,7 @@
             '<div style="font-size:13.5px; margin-bottom:8px;"><b>登记一笔支出</b>' +
               (window.DB && DB.mode === "cloud"
                 ? ''
-                : '<span style="color:#b97400;">（本机草稿模式：仅本机可见，点「导出台账修改」交给管理员合并）</span>') +
+                : '<span style="color:#b45309;">（本机草稿模式：暂存本机，恢复云端后重新保存即可同步全组）</span>') +
             '</div>' +
             '<div class="material-add-form" style="margin-bottom:6px;">' +
               '<input type="date" id="fe-date" style="max-width:150px;">' +
@@ -469,7 +469,7 @@
         var hint = document.getElementById("bmCloudHint");
         if(hint) hint.innerHTML = (window.DB && DB.mode === "cloud")
           ? '<span style="color:#2e9e5b;">🟢 云端实时：保存后全组共享</span>'
-          : '（本机草稿模式：仅本机可见）';
+          : '（本机草稿模式：暂存本机，恢复云端后重新保存即可同步全组）';
         renderBudgetRows();
         document.getElementById("budgetModal").classList.add("open");
       }
@@ -596,7 +596,7 @@
       fundExportWrap.innerHTML = '<div class="modal-box" style="max-width:720px;">' +
         '<div class="modal-head"><b>导出经费台账修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeFundExportBox()">关闭</button></div>' +
         '<div class="modal-body">' +
-          '<p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员：管理员在 <code>assets/js/data/project-overrides.js</code> 中找到 <code>projectId</code> 对应的项目对象，把其中的 <code>funding</code> 字段替换为本内容里的 <code>funding</code>（没有该字段就新增），上传 GitHub 后全组即可见。</p>' +
+          '<p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>' +
           '<textarea id="fundExportBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>' +
         '</div>' +
       '</div>';
@@ -682,7 +682,7 @@
       exportWrap.innerHTML = '<div class="modal-box" style="max-width:720px;">' +
         '<div class="modal-head"><b>导出本地添加的项目资料（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeProjExportBox()">关闭</button></div>' +
         '<div class="modal-body">' +
-          '<p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/project-materials.js</code> 的 <code>projectMaterialOverrides</code> 中，全组即可看到。</p>' +
+          '<p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>' +
           '<textarea id="projExportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>' +
         '</div>' +
       '</div>';
@@ -769,6 +769,36 @@
           }
         }).catch(function(err){ if(err && err.__migrated) return; });
       }).catch(function(){});
+
+      /* —— 关键修复：把本块内定义的工具函数挂到全局 ——
+       * 页面尾部的 submitMat/deleteMat/editMat/saveProjectProgress 是在顶层定义的，
+       * 作用域链看不到本块内的函数；不导出的话，点「保存资料/保存进展/删除/编辑」
+       * 会静默报错（表现为点了没反应）。 */
+      window.getLocalMaterials = getLocalMaterials;
+      window.saveLocalMaterials = saveLocalMaterials;
+      window.getLocalProgress = getLocalProgress;
+      window.saveLocalProgress = saveLocalProgress;
+      window.matKey = matKey;
+      window.progressKey = progressKey;
+      window.nowISO = nowISO;
+      window.curDateStr = curDateStr;
+      window.allMaterials = allMaterials;
+      window.materialRow = materialRow;
+      window.renderMaterials = renderMaterials;
+      window.fileIcon = fileIcon;
+      window.allProgress = allProgress;
+      window.renderProgress = renderProgress;
+      window.fundingData = fundingData;
+      window.renderFunding = renderFunding;
+      window.fundBudgetKey = fundBudgetKey;
+      window.fundExpKey = fundExpKey;
+      window.getLocalBudget = getLocalBudget;
+      window.saveLocalBudget = saveLocalBudget;
+      window.getLocalExp = getLocalExp;
+      window.saveLocalExp = saveLocalExp;
+      window.renderExpenseTable = renderExpenseTable;
+      window.renderExpenseForm = renderExpenseForm;
+      window.saveBudgetEverywhere = saveBudgetEverywhere;
     }
     }).catch(function(e){ console.error("详情页渲染失败：", e); });
 
@@ -889,7 +919,7 @@
       if(idx >= 0){ history[idx] = rec; }
       else { history.unshift(rec); }
       localStorage.setItem("proj-progress-" + p.id, JSON.stringify(history));
-      alert("已保存本月进展（本机草稿模式：仅本机可见）");
+      alert("已保存本月进展（本机草稿模式：暂存本机，恢复云端后重新保存即可同步全组）");
       finish();
     }
     window.saveProjectProgress = saveProjectProgress;

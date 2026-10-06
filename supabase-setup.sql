@@ -4,8 +4,9 @@
 -- 用法：Supabase 项目 → SQL Editor → 新建查询 → 整段粘贴 → Run
 -- 执行一次即可。重复执行不会报错（都用了 IF NOT EXISTS / OR REPLACE）。
 --
--- 表结构对应网站的五个"高频栏目"，保存后全组立即可见。
--- 低频栏目（项目、成果、成员）仍走 GitHub Issue 发布流程。
+-- 网站全部 13 个动态栏目的数据表：组会、计划、报账、仪器耗材、数据、项目、
+-- 实验方法、样品、提醒、学生培养、成员、成果、学习资源。保存后全组实时可见。
+-- 整段可重复执行（幂等）：已存在的表/策略会先删后建，不会动数据行。
 -- ============================================================
 
 -- ---------- 1. 组会通知 ----------
@@ -272,3 +273,91 @@ create policy "lab_reminders_read"   on public.lab_reminders for select using (t
 create policy "lab_reminders_insert" on public.lab_reminders for insert with check (true);
 create policy "lab_reminders_update" on public.lab_reminders for update using (true);
 create policy "lab_reminders_delete" on public.lab_reminders for delete using (true);
+
+-- ---------- 10. 学生培养（阶段状态与培养材料，全组实时共享） ----------
+create table if not exists public.lab_students (
+  id       text primary key,
+  name     text,
+  type     text,
+  tutor    text,
+  enroll   text,
+  data     jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+alter table public.lab_students enable row level security;
+
+drop policy if exists "lab_students_read"   on public.lab_students;
+drop policy if exists "lab_students_insert" on public.lab_students;
+drop policy if exists "lab_students_update" on public.lab_students;
+drop policy if exists "lab_students_delete" on public.lab_students;
+
+create policy "lab_students_read"   on public.lab_students for select using (true);
+create policy "lab_students_insert" on public.lab_students for insert with check (true);
+create policy "lab_students_update" on public.lab_students for update using (true);
+create policy "lab_students_delete" on public.lab_students for delete using (true);
+
+-- ---------- 11. 组内成员（名片信息，全组实时共享） ----------
+create table if not exists public.lab_members (
+  id         text primary key,
+  name       text,
+  role       text,
+  status     text,
+  data       jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+alter table public.lab_members enable row level security;
+
+drop policy if exists "lab_members_read"   on public.lab_members;
+drop policy if exists "lab_members_insert" on public.lab_members;
+drop policy if exists "lab_members_update" on public.lab_members;
+drop policy if exists "lab_members_delete" on public.lab_members;
+
+create policy "lab_members_read"   on public.lab_members for select using (true);
+create policy "lab_members_insert" on public.lab_members for insert with check (true);
+create policy "lab_members_update" on public.lab_members for update using (true);
+create policy "lab_members_delete" on public.lab_members for delete using (true);
+
+-- ---------- 12. 研究成果（论文/获奖/专利等，全组实时共享） ----------
+create table if not exists public.lab_achievements (
+  id         text primary key,
+  title      text,
+  type       text,
+  year       text,
+  data       jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+alter table public.lab_achievements enable row level security;
+
+drop policy if exists "lab_achievements_read"   on public.lab_achievements;
+drop policy if exists "lab_achievements_insert" on public.lab_achievements;
+drop policy if exists "lab_achievements_update" on public.lab_achievements;
+drop policy if exists "lab_achievements_delete" on public.lab_achievements;
+
+create policy "lab_achievements_read"   on public.lab_achievements for select using (true);
+create policy "lab_achievements_insert" on public.lab_achievements for insert with check (true);
+create policy "lab_achievements_update" on public.lab_achievements for update using (true);
+create policy "lab_achievements_delete" on public.lab_achievements for delete using (true);
+
+-- ---------- 13. 学习资源（全组实时共享） ----------
+create table if not exists public.lab_resources (
+  id         text primary key,
+  title      text,
+  category   text,
+  data       jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
+alter table public.lab_resources enable row level security;
+
+drop policy if exists "lab_resources_read"   on public.lab_resources;
+drop policy if exists "lab_resources_insert" on public.lab_resources;
+drop policy if exists "lab_resources_update" on public.lab_resources;
+drop policy if exists "lab_resources_delete" on public.lab_resources;
+
+create policy "lab_resources_read"   on public.lab_resources for select using (true);
+create policy "lab_resources_insert" on public.lab_resources for insert with check (true);
+create policy "lab_resources_update" on public.lab_resources for update using (true);
+create policy "lab_resources_delete" on public.lab_resources for delete using (true);

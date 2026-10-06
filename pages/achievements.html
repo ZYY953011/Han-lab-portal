@@ -10,6 +10,7 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <div id="dbBanner"></div>
     <!-- 成果统计栏：数字由下方脚本按数据自动汇总，改数据即自动更新 -->
     <div class="stat-row" id="stats" style="margin-top:4px;"></div>
     <p id="statNote" style="font-size:12.5px; color:var(--muted); margin:8px 0 0;"></p>
@@ -18,10 +19,10 @@
       <select id="year"></select>
       <div style="display:flex; gap:6px; margin-left:auto;">
         <button class="btn btn-primary btn-sm" onclick="openAchvModal()">＋ 添加成果</button>
-        <button class="btn btn-outline btn-sm" onclick="exportAchvLocal()">导出我添加的修改（JSON）</button>
+        <button class="btn btn-outline btn-sm local-only-btn" onclick="exportAchvLocal()">导出我添加的修改（JSON）</button>
       </div>
     </div>
-    <p style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除先保存在本机浏览器；点「导出我添加的修改（JSON）」把内容发给管理员合并上传后，全组即可见。</p>
+    <p id="acHint" style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除保存后全组实时可见（数据保存在云端）。</p>
     <div class="table-wrap" style="margin-top:8px;">
       <table>
         <thead><tr><th>类型</th><th>标题</th><th>作者</th><th>期刊/来源</th><th>年份</th><th>分区/IF</th><th>所属项目</th><th>链接</th><th style="width:110px;">操作</th></tr></thead>
@@ -34,12 +35,13 @@
   <script src="../assets/js/data/achievement-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("成果");
     document.getElementById("head").insertAdjacentHTML("afterend",
       unpublishedBar(((window.getLocalItems && getLocalItems()) || []).length + ((window.getLocalDeleted && getLocalDeleted()) || []).length, "exportAchvLocal()"));
     document.getElementById("head").innerHTML = pageHead(
-      "研究成果", "论文、专利、软著、获奖、基金等，支持按年份、类型筛选。获奖证书等证明文件因涉及隐私未公开上传，如需查看请联系获奖本人或网页管理员。",
+      "研究成果", "论文、专利、软著、获奖、基金等，支持按年份、类型筛选。获奖证书等证明文件因涉及隐私未公开上传，如需查看请联系获奖本人。",
       [{name:"首页", url:"../index.html"}, {name:"研究成果"}]
     );
 
@@ -47,7 +49,7 @@
     var baseTypes = ["期刊/会议论文","学位论文","获奖","专利","软著","专著","基金"];
     var types = [...new Set(baseTypes.concat((window.DATA.achievements||[]).map(a=>a.type).filter(Boolean)))];
 
-    // ---------- 本机临时修改（添加/编辑/删除，仅本机可见，可导出交给管理员合并） ----------
+    // ---------- 本机临时修改（云端未连接时的兜底，恢复后自动同步） ----------
     function getLocalItems(){ try{ return JSON.parse(localStorage.getItem("achv-items")||"[]"); }catch(e){ return []; } }
     function saveLocalItems(arr){ localStorage.setItem("achv-items", JSON.stringify(arr)); }
     function getLocalDeleted(){ try{ return JSON.parse(localStorage.getItem("achv-deleted")||"[]"); }catch(e){ return []; } }
@@ -113,7 +115,7 @@
           <button class="btn btn-primary" onclick="submitAchv()">保存</button>
           <button class="btn btn-outline" onclick="closeAchvModal()" style="margin-left:8px;">取消</button>
         </div>
-        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅本机可见；请点工具栏「导出我添加的修改（JSON）」发给管理员合并，全组才可见。</p>
+        <p id="amHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见（云端）；若提示未连接云端，则暂存本机，恢复后刷新页面再保存一次即可同步全组。</p>
       </div>
     </div>`;
     document.body.appendChild(achvModal);
@@ -163,6 +165,25 @@
         url: document.getElementById("amUrl").value.trim(),
         note: document.getElementById("amNote").value.trim()
       };
+      /* 云端实时：保存后全组立即可见 */
+      if(window.DB && DB.mode === "cloud"){
+        var saveBtn = document.querySelector("#achvModal .btn-primary");
+        var restoreBtn = function(){ if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = "保存"; } };
+        try{
+          if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = "保存中…"; }
+          DB.upsert("achievements", obj).then(function(){
+            location.reload();
+          }).catch(function(e){
+            restoreBtn();
+            alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后重新点一次保存即可同步全组。");
+            saveLocalAchv(obj);
+          });
+          return;
+        }catch(err){ restoreBtn(); alert("保存出错：" + (err && err.message || err)); }
+      }
+      saveLocalAchv(obj);
+    }
+    function saveLocalAchv(obj){
       var arr = getLocalItems();
       var i = arr.findIndex(x=>x.id===obj.id);
       if(i>=0) arr[i] = obj; else arr.push(obj);
@@ -172,7 +193,20 @@
     window.submitAchv = submitAchv;
 
     function deleteAchv(id){
-      if(!confirm("确定删除这条成果吗？\n（先仅本机生效；导出发给管理员合并后，全组生效）")) return;
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除这条成果吗？删除后全组都不再显示。"
+        : "确定删除这条成果吗？当前是本机草稿模式，删除后仅本浏览器隐藏；恢复云端后可重新同步。";
+      if(!confirm(tip)) return;
+      /* 云端实时：删除后全组都不再显示 */
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("achievements", id).then(function(){ location.reload(); })
+          .catch(function(e){
+            alert("云端删除失败：" + e.message + "\n已先在本机隐藏，恢复网络后可重新删除。");
+            saveLocalItems(getLocalItems().filter(x=>x.id!==id));
+            location.reload();
+          });
+        return;
+      }
       var official = (window.__officialAchv||[]).some(x=>x.id===id);
       // 本机新增的：直接从本机列表移除；官方条目：记入隐藏名单
       saveLocalItems(getLocalItems().filter(x=>x.id!==id));
@@ -184,7 +218,7 @@
     }
     window.deleteAchv = deleteAchv;
 
-    // 导出：内容即为管理员覆盖 achievement-overrides.js 的完整文件
+    // 导出（备用：自动同步失败时供排查）
     function exportAchvLocal(){
       var items = getLocalItems(), del = getLocalDeleted();
       if(!items.length && !del.length){ alert("当前浏览器没有待合并的修改。"); return; }
@@ -206,7 +240,7 @@
     achvExportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本机成果修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeAchvExport()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员；管理员用它<b>整体覆盖</b> <code>assets/js/data/achievement-overrides.js</code> 并上传 GitHub，全组即可见。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>
         <textarea id="aexBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>`;
@@ -216,7 +250,7 @@
     document.getElementById("year").innerHTML = `<option value="">全部年份</option>` + years.map(y=>`<option>${y}</option>`).join("");
 
     // ---------- 成果统计栏 ----------
-    (function(){
+    function renderStats(){
       var all = window.DATA.achievements || [];
       var papers = all.filter(a=>a.type==="期刊/会议论文");
       var theses = all.filter(a=>a.type==="学位论文");
@@ -253,7 +287,8 @@
 
       document.getElementById("statNote").textContent =
         "统计口径：以上数字由页面自动汇总当前已录入的成果，录入新成果后自动更新；SCI/中文按期刊名称自动判断，个别期刊如判断有误，可在该成果数据中加 lang:\"SCI\" 或 lang:\"中文\" 手工指定；专利按类型「专利」计数，专著与软著合并计数；部分记录未填年份，不影响总数统计。";
-    })();
+    }
+    renderStats();
 
 
     var typeColor = {"期刊/会议论文":"blue","学位论文":"purple","获奖":"orange","专利":"green","软著":"blue","专著":"blue","基金":"gray"};
@@ -286,6 +321,29 @@
     document.getElementById("type").addEventListener("change", render);
     document.getElementById("year").addEventListener("change", render);
     render();
+
+    // ---------- 云端实时模式：连接后拉取全组数据并重渲染 ----------
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      var hint = document.getElementById("acHint");
+      if(mode !== "cloud"){
+        if(hint) hint.innerHTML = '⚠ 本机草稿模式（云端未连接）：修改只在本浏览器可见。可能是网络波动，刷新页面可重试；恢复云端后本机修改会自动同步全组。';
+        if(hint) hint.style.color = "#b45309";
+        return;
+      }
+      if(hint) hint.innerHTML = '🟢 云端实时模式：添加/编辑/删除保存后<b>全组立即可见</b>（手机/其他电脑打开都一样）。';
+      return DB.hydrate("achievements", "achievements").then(function(){
+        // 年份下拉按云端数据补充新年份
+        var years2 = [...new Set((window.DATA.achievements||[]).map(a=>a.year).filter(Boolean))].sort((a,b)=>b-a);
+        var cur = document.getElementById("year").value;
+        document.getElementById("year").innerHTML = `<option value="">全部年份</option>` + years2.map(y=>`<option>${esc(y)}</option>`).join("");
+        document.getElementById("year").value = cur;
+        renderStats();
+        render();
+      });
+    }).catch(function(){});
   </script>
 <script src="../assets/js/gate.js"></script>
 </body>

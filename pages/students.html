@@ -10,6 +10,7 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <div id="dbBanner"></div>
     <div class="note-box" style="margin-bottom:14px;">💡 覆盖入组 → 培养计划 → 开题 → 中期 → 预答辩 → 毕业答辩 → 学位材料 → 毕业全过程。点击表格行可展开完整时间轴与培养材料。</div>
 
     <div class="section-title">培养概况</div>
@@ -21,7 +22,7 @@
     <div class="section-title">培养进度总览</div>
     <div class="note-box" style="margin-bottom:8px; font-size:13px;">
       💡 阶段时间按「硕士入学当年 12 月开题、第 2 年 12 月中期、第 3 年答辩；博士第 2 学期开题、第 4 学期中期、第 8 学期答辩」自动推算。
-      如有专项计划等特殊情况，管理员可在 <code>assets/js/data/student-materials.js</code> 的 <code>studentStageOverrides</code> 中手动覆盖。
+      组员如遇专项计划等特殊情况，点各阶段旁的「✎ 设置」手动调整即可，保存后全组实时可见。
     </div>
     <div class="toolbar" id="toolbar" style="margin-top:8px;">
       <span style="font-size:13.5px; color:var(--muted);">筛选：</span>
@@ -30,8 +31,8 @@
       <button class="btn btn-sm filter-btn btn-outline" data-filter="中期考核" onclick="setFilter('中期考核')">待中期考核</button>
       <button class="btn btn-sm filter-btn btn-outline" data-filter="预答辩" onclick="setFilter('预答辩')">待预答辩</button>
       <button class="btn btn-sm filter-btn btn-outline" data-filter="毕业答辩" onclick="setFilter('毕业答辩')">待正式答辩</button>
-      <button class="btn btn-sm btn-outline" onclick="exportLocalMaterials()">导出我添加的材料（JSON）</button>
-      <button class="btn btn-sm btn-outline" onclick="exportStageOverrides()">导出状态修改（JSON）</button>
+      <button class="btn btn-sm btn-outline local-only-btn" onclick="exportLocalMaterials()">导出我添加的材料（JSON）</button>
+      <button class="btn btn-sm btn-outline local-only-btn" onclick="exportStageOverrides()">导出状态修改（JSON）</button>
     </div>
     <div class="table-wrap" style="margin-top:8px;">
       <table>
@@ -46,6 +47,7 @@
   <script src="../assets/js/data/student-materials.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("学生培养");
     document.getElementById("head").innerHTML = pageHead(
@@ -179,14 +181,27 @@
       } catch(e){ return []; }
     }
 
+    /* 材料读取：云端模式优先取学生对象上的 materialsOf（全组共享），回退本机 localStorage */
+    function stageMaterials(s, stage){
+      if (s && s.materialsOf && s.materialsOf[stage] && s.materialsOf[stage].length) return s.materialsOf[stage];
+      return getLocalMaterials(s ? s.id : "", stage);
+    }
+
     function saveLocalMaterial(id, stage, item){
       var arr = getLocalMaterials(id, stage);
       arr.push(item);
       localStorage.setItem(lsKey(id, stage), JSON.stringify(arr));
     }
 
+    function refreshDetail(id){
+      if(openedRows.has(id)){
+        var detail = document.getElementById('detail-' + id);
+        if(detail){ detail.remove(); renderDetail(id); }
+      }
+    }
+
     function renderMaterialBlock(s, st){
-      var locals = getLocalMaterials(s.id, st.name);
+      var locals = stageMaterials(s, st.name);
       var all = (st.materials || []).concat(locals);
       var hasFeishu = st.feishu && st.feishu.indexOf("PASTE_FEISHU_LINK") === -1;
       var isMatStage = materialStages.indexOf(st.name) !== -1;
@@ -275,7 +290,7 @@
     exportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本地添加的材料（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeExportBox()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/student-materials.js</code>，即可让全组可见。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机添加的材料会自动上传合并到云端，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>
         <textarea id="exportBox" rows="12" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>`;
@@ -304,7 +319,7 @@
           <button class="btn btn-outline" onclick="resetStageOverride()">恢复自动</button>
           <button class="btn btn-outline" onclick="closeStageModal()">取消</button>
         </div>
-        <p style="font-size:12px; color:var(--muted); margin-top:10px;">设置仅保存在本浏览器，刷新或换设备不保留。管理员可在筛选栏点「导出状态修改（JSON）」收集后合并到全站。</p>
+        <p id="stHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见（云端）；若提示未连接云端，则暂存本机，恢复后刷新页面再设置一次即可同步全组。</p>
       </div>
     </div>`;
     document.body.appendChild(stageModal);
@@ -345,16 +360,27 @@
         alert("请填写资料链接（飞书云盘链接）");
         return;
       }
+      /* 云端实时：材料写入学生记录，全组立即可见（含手机端） */
+      var s = students.find(function(x){ return x.id === id; });
+      if(window.DB && DB.mode === "cloud" && s){
+        s.materialsOf = s.materialsOf || {};
+        s.materialsOf[stage] = s.materialsOf[stage] || [];
+        s.materialsOf[stage].push(item);
+        DB.upsert("students", s).then(function(){
+          closeMaterialModal();
+          refreshDetail(id);
+        }).catch(function(e){
+          alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后重新添加一次即可同步全组。");
+          saveLocalMaterial(id, stage, item);
+          closeMaterialModal();
+          refreshDetail(id);
+        });
+        return;
+      }
       saveLocalMaterial(id, stage, item);
       closeMaterialModal();
       // 刷新当前展开行的时间轴
-      if(openedRows.has(id)){
-        var detail = document.getElementById('detail-' + id);
-        if(detail){
-          detail.remove();
-          renderDetail(id);
-        }
-      }
+      refreshDetail(id);
     }
     window.submitMaterial = submitMaterial;
 
@@ -372,7 +398,7 @@
       }
       var json = JSON.stringify(out, null, 2);
       var textarea = document.getElementById("exportBox");
-      textarea.value = "// 将以下内容贴入 assets/js/data/student-materials.js 的对应成员 stages 下，\n// 即可让所有人看到本地添加的材料。\n" + json;
+      textarea.value = "（备用功能）网站已接入云端：恢复网络后刷新本页，本机添加的材料会自动上传合并到云端，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。\n" + json;
       textarea.parentElement.parentElement.classList.add("open");
       textarea.select();
     }
@@ -405,13 +431,30 @@
     window.closeStageModal = closeStageModal;
 
     function saveStageOverride(id, stageName, data){
+      /* 云端实时：状态写入学生记录，全组立即可见 */
+      var s = students.find(function(x){ return x.id === id; });
+      if(window.DB && DB.mode === "cloud" && s){
+        var st = s.stages.find(function(x){ return x.name === stageName; });
+        if(st){ Object.assign(st, data); st.done = (st.status === "已完成"); }
+        DB.upsert("students", s).then(function(){
+          applyLocalOverrides(); renderTable();
+        }).catch(function(e){
+          alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后重新设置一次即可同步全组。");
+          saveLocalStage(id, stageName, data);
+          applyLocalOverrides(); renderTable();
+        });
+        return;
+      }
+      saveLocalStage(id, stageName, data);
+      applyLocalOverrides();
+      renderTable();
+    }
+    function saveLocalStage(id, stageName, data){
       var key = 'training-override-' + id;
       var ov = {};
       try { ov = JSON.parse(localStorage.getItem(key)) || {}; } catch(e) {}
       ov[stageName] = data;
       localStorage.setItem(key, JSON.stringify(ov));
-      applyLocalOverrides();
-      renderTable();
     }
     window.saveStageOverride = saveStageOverride;
 
@@ -429,6 +472,23 @@
     function resetStageOverride(){
       var id = stageModal.dataset.id;
       var stageName = stageModal.dataset.stage;
+      /* 云端模式：把该阶段恢复为基线值并写回云端 */
+      if(window.DB && DB.mode === "cloud"){
+        var s = students.find(function(x){ return x.id === id; });
+        var base = studentsBase.find(function(x){ return x.id === id; });
+        if(s && base){
+          var bst = base.stages.find(function(x){ return x.name === stageName; });
+          var idx = s.stages.findIndex(function(x){ return x.name === stageName; });
+          if(bst && idx >= 0){ s.stages[idx] = JSON.parse(JSON.stringify(bst)); }
+          DB.upsert("students", s).then(function(){
+            applyLocalOverrides(); renderTable(); closeStageModal();
+          }).catch(function(e){
+            alert("云端保存失败：" + e.message + "\n已在本机恢复，恢复网络后请重新设置。");
+            applyLocalOverrides(); renderTable(); closeStageModal();
+          });
+        } else { applyLocalOverrides(); renderTable(); closeStageModal(); }
+        return;
+      }
       var key = 'training-override-' + id;
       try {
         var ov = JSON.parse(localStorage.getItem(key)) || {};
@@ -442,7 +502,7 @@
     }
     window.resetStageOverride = resetStageOverride;
 
-    // 导出本浏览器中设置的状态修改（管理员合并到 student-materials.js）
+    // 导出（备用：自动同步失败时供排查）
     function exportStageOverrides(){
       var out = {};
       for(var i=0;i<localStorage.length;i++){
@@ -454,12 +514,92 @@
       }
       var json = JSON.stringify(out, null, 2);
       var ta = document.getElementById("exportBox");
-      ta.value = "// 将以下内容追加进 assets/js/data/student-materials.js 的 studentStageOverrides：\n" +
-        "Object.assign(window.DATA.studentStageOverrides || {}, " + json + ");";
+      ta.value = "（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会自动上传合并到云端，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。\n" +
+        json;
       ta.parentElement.parentElement.classList.add("open");
       ta.select();
     }
     window.exportStageOverrides = exportStageOverrides;
+
+    /* ---------- 云端接入：培养状态与材料实时同步全组（手机/其他电脑都可见） ---------- */
+
+    /* 首次接入云端时，把本浏览器里已保存的状态修改和材料自动迁移上云 */
+    function migrateLocalTraining(){
+      var changed = {};
+      var i, k;
+      for(i = localStorage.length - 1; i >= 0; i--){
+        k = localStorage.key(i);
+        if(k && k.indexOf("training-override-") === 0){
+          var id1 = k.replace("training-override-", "");
+          try {
+            var ov = JSON.parse(localStorage.getItem(k)) || {};
+            var s1 = students.find(function(x){ return x.id === id1; });
+            if(s1 && Object.keys(ov).length){
+              Object.keys(ov).forEach(function(name){
+                var st = s1.stages.find(function(x){ return x.name === name; });
+                if(st){ Object.assign(st, ov[name]); st.done = (st.status === "已完成"); }
+              });
+              changed[id1] = s1;
+            }
+          } catch(e){}
+        }
+      }
+      for(i = localStorage.length - 1; i >= 0; i--){
+        k = localStorage.key(i);
+        if(k && k.indexOf("training-materials-") === 0){
+          var rest = k.replace("training-materials-", "");
+          var stage = rest.split("-").pop();
+          var id2 = rest.slice(0, rest.length - stage.length - 1);
+          try {
+            var arr = JSON.parse(localStorage.getItem(k)) || [];
+            var s2 = students.find(function(x){ return x.id === id2; });
+            if(s2 && arr.length){
+              s2.materialsOf = s2.materialsOf || {};
+              s2.materialsOf[stage] = s2.materialsOf[stage] || [];
+              arr.forEach(function(it){
+                if(!s2.materialsOf[stage].some(function(x){ return x.title === it.title && x.url === it.url && x.date === it.date; })) s2.materialsOf[stage].push(it);
+              });
+              changed[id2] = s2;
+            }
+          } catch(e){}
+        }
+      }
+      var ids = Object.keys(changed);
+      if(!ids.length) return Promise.resolve(0);
+      return Promise.all(ids.map(function(id3){ return DB.upsert("students", changed[id3]); }))
+        .then(function(){
+          ids.forEach(function(id4){
+            localStorage.removeItem("training-override-" + id4);
+            var rm = [];
+            for(var m = 0; m < localStorage.length; m++){
+              var kk = localStorage.key(m);
+              if(kk && kk.indexOf("training-materials-" + id4 + "-") === 0) rm.push(kk);
+            }
+            rm.forEach(function(kk2){ localStorage.removeItem(kk2); });
+          });
+          return ids.length;
+        }).catch(function(){ return 0; });
+    }
+
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      var stHint = document.getElementById("stHint");
+      if(mode !== "cloud"){
+        if(stHint) stHint.innerHTML = '⚠ 本机草稿模式（云端未连接）：设置只在本浏览器可见。可能是网络波动，刷新页面可重试。';
+        return;
+      }
+      if(stHint) stHint.innerHTML = '🟢 云端实时模式：设置与材料保存后<b>全组立即可见</b>（手机/其他电脑打开都一样）。';
+      return DB.hydrate("students", "students").then(function(){
+        students = window.DATA.students || [];
+        try { studentsBase = JSON.parse(JSON.stringify(students)); } catch(e){}
+        return migrateLocalTraining();
+      }).then(function(){
+        applyLocalOverrides();
+        renderTable();
+      });
+    }).catch(function(){});
 
     applyLocalOverrides();
     renderTable();

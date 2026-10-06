@@ -33,6 +33,10 @@ window.DB = (function () {
     projects:  { table: "lab_projects", full: true, fields: ["id","name","shortName","leader","source","code","fiscalCode","start","end","budget","status","stage","progress","pinned","members"] },
     methods:   { table: "lab_methods",  full: true, fields: ["id","name","category","author","version","updated","sopUrl"] },
     samples:   { table: "lab_samples",  full: true, fields: ["id","name","type","project","owner","location","remain","total","unit","status"] },
+    students:  { table: "lab_students", full: true, fields: ["id","name","type","tutor","enroll"] },
+    members:   { table: "lab_members",  full: true, fields: ["id","name","role","status"] },
+    achievements: { table: "lab_achievements", full: true, fields: ["id","title","type","year"] },
+    resources: { table: "lab_resources", full: true, fields: ["id","title","category"] },
     reminders: { table: "lab_reminders", fields: ["id","title","date","note","link","source"] }
   };
 
@@ -73,11 +77,17 @@ window.DB = (function () {
       return Promise.resolve("local");
     }
     var c = cfg();
-    return fetch(c.url + "/rest/v1/" + TABLES.meetings.table + "?select=id&limit=1", {
-      headers: { "apikey": c.key, "Authorization": "Bearer " + c.key }
+    var probe = function () {
+      return fetch(c.url + "/rest/v1/" + TABLES.meetings.table + "?select=id&limit=1", {
+        headers: { "apikey": c.key, "Authorization": "Bearer " + c.key }
+      });
+    };
+    /* 探测失败自动重试一次（手机/校园网首次访问常因网络抖动误判为断网） */
+    return probe().catch(function () {
+      return new Promise(function (res) { setTimeout(res, 900); }).then(probe);
     }).then(function (r) {
       state.checked = true;
-      if (r.ok) {
+      if (r && r.ok) {
         setMode("cloud", "");
         /* 云端模式：全站隐藏「导出/发布」按钮与「仅本机可见」提示条——
            保存即全组可见，这些过渡期工具不再需要，避免干扰组员。 */
@@ -89,11 +99,11 @@ window.DB = (function () {
         } catch (e) {}
         return "cloud";
       }
-      setMode("local", "云端返回 " + r.status + "，已回退到本机模式");
+      setMode("local", "云端返回 " + (r ? r.status : "无响应") + "，已回退到本机模式");
       return "local";
     }).catch(function (e) {
       state.checked = true;
-      setMode("local", "连接云端失败（" + e.message + "），已回退到本机模式");
+      setMode("local", "连接云端失败（" + e.message + "），已回退到本机模式——也可能是网络波动，刷新页面可重试");
       return "local";
     });
   }
@@ -145,13 +155,15 @@ window.DB = (function () {
     meetings: "meeting-local", plans: "plan-items", expenses: "exp-local",
     equipment: "equip-items", datasets: "ds-items",
     projects: "proj-projects", methods: "method-local", samples: "sample-local",
-    reminders: "remind-local"
+    reminders: "remind-local", members: "member-items", achievements: "achv-items",
+    resources: "resource-local"
   };
   var LOCAL_DEL = {
     meetings: "meeting-deleted", plans: "plan-deleted", expenses: "exp-deleted",
     equipment: "equip-deleted", datasets: "ds-deleted",
     projects: "proj-deleted", methods: "method-deleted", samples: "sample-deleted",
-    reminders: "remind-deleted"
+    reminders: "remind-deleted", members: "member-deleted", achievements: "achv-deleted",
+    resources: "resource-deleted"
   };
   function lget(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function lset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }

@@ -60,9 +60,8 @@
       <div class="modal-head"><b>导出数据管理修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeDsExport()">关闭</button></div>
       <div class="modal-body">
         <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">
-          两种发布方式（任选其一）：<br>
-          <b>① 最省事（推荐）</b>：把下面这段内容复制，去 GitHub 仓库开一个 <b>New Issue</b>，选「数据文件夹登记」模板粘进去提交，机器人会在 1–2 分钟内自动写入并更新网站；<br>
-          <b>② 交给管理员</b>：把内容发给管理员，由「管理合并」页合并发布。
+          （备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。<br>
+          仅当自动同步始终失败时，才把下方内容交给网站维护者排查。
         </p>
         <textarea id="dsExportBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
@@ -113,7 +112,6 @@
         try { if(typeof render === "function") render(); } catch(e){}
       });
     }).catch(function(){});
-
     function nextDsId(){
       var max = 0;
       (window.DATA.datasetFolders||[]).forEach(function(x){
@@ -198,7 +196,7 @@
       saveDsItems(arr);
       if(window.DB && DB.mode === "cloud"){
         DB.upsert("datasets", item).then(function(){ location.reload(); })
-          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已保存在本机，可导出交管理员。"); location.reload(); });
+          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后刷新页面再保存一次即可同步全组。"); location.reload(); });
         return;
       }
       location.reload();
@@ -236,7 +234,10 @@
     window.resetDsForm = resetDsForm;
 
     function deleteDs(id){
-      if(!confirm("确定删除这条数据文件夹登记吗？\n（先仅本机生效；导出发给管理员或提交 Issue 合并后，全组生效）")) return;
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除这条数据文件夹登记吗？删除后全组都不再显示。"
+        : "确定删除这条数据文件夹登记吗？当前是本机草稿模式，删除后仅本浏览器隐藏。";
+      if(!confirm(tip)) return;
       if(window.DB && DB.mode === "cloud"){
         DB.remove("datasets", id).then(function(){ location.reload(); })
           .catch(function(e){ alert("云端删除失败：" + e.message); });

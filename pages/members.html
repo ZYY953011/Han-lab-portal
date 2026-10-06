@@ -10,6 +10,7 @@
 <body>
   <main class="container">
     <div id="head"></div>
+    <div id="dbBanner"></div>
     <!-- 成员统计栏：数字由下方脚本按数据自动汇总，改数据即自动更新 -->
     <div class="stat-row" id="stats" style="margin-top:4px;"></div>
     <p id="statNote" style="font-size:12.5px; color:var(--muted); margin:8px 0 0;"></p>
@@ -23,10 +24,10 @@
       </select>
       <div style="display:flex; gap:6px; margin-left:auto;">
         <button class="btn btn-primary btn-sm" onclick="openMemberModal()">＋ 添加成员</button>
-        <button class="btn btn-outline btn-sm" onclick="exportMemberLocal()">导出我添加的修改（JSON）</button>
+        <button class="btn btn-outline btn-sm local-only-btn" onclick="exportMemberLocal()">导出我添加的修改（JSON）</button>
       </div>
     </div>
-    <p style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除先保存在本机浏览器；点「导出我添加的修改（JSON）」把内容发给管理员合并上传后，全组即可见。录入手机号、邮箱前请先征得本人同意。</p>
+    <p id="mbHint" style="font-size:12.5px; color:var(--muted); margin:6px 0 0;">提示：添加/编辑/删除保存后全组实时可见（数据保存在云端）。录入手机号、邮箱前请先征得本人同意。</p>
     <div class="grid grid-3" id="list" style="margin-top:10px;"></div>
   </main>
 
@@ -34,6 +35,7 @@
   <script src="../assets/js/data/member-overrides.js"></script>
   <script src="../assets/js/config.js"></script>
   <script src="../assets/js/app.js"></script>
+  <script src="../assets/js/backend.js"></script>
   <script>
     injectHeader("成员");
     document.getElementById("head").insertAdjacentHTML("afterend",
@@ -43,7 +45,7 @@
       [{name:"首页", url:"../index.html"}, {name:"成员"}]
     );
 
-    // ---------- 本机临时修改（添加/编辑/删除，仅本机可见，可导出交给管理员合并） ----------
+    // ---------- 本机临时修改（云端未连接时的兜底，恢复后自动同步） ----------
     function getMemberItems(){ try{ return JSON.parse(localStorage.getItem("member-items")||"[]"); }catch(e){ return []; } }
     function saveMemberItems(arr){ localStorage.setItem("member-items", JSON.stringify(arr)); }
     function getMemberDeleted(){ try{ return JSON.parse(localStorage.getItem("member-deleted")||"[]"); }catch(e){ return []; } }
@@ -74,7 +76,7 @@
     }
 
     // ---------- 成员统计栏 ----------
-    (function(){
+    function renderStats(){
       var all = window.DATA.members || [];
       // 口径：博士后单列；其余按在校状态分——"在籍"=在读，"不在籍"=已毕业
       var cur  = all.filter(m=>m.role!=="博士后" && m.status && m.status.indexOf("不在籍")<0);
@@ -95,7 +97,8 @@
         '<div class="stat"><div class="num">' + post.length + '</div><div class="lab">博士后</div></div>';
       document.getElementById("statNote").textContent =
         "统计口径：按成员数据里的「在校状态」自动汇总——在籍 = 在读，不在籍 = 已毕业；博士后单列不计入学生。新增或修改成员后数字自动更新。";
-    })();
+    }
+    renderStats();
 
 
     function card(m){
@@ -141,6 +144,24 @@
     document.getElementById("role").addEventListener("change", render);
     render();
 
+    // ---------- 云端实时模式：连接后拉取全组数据并重渲染 ----------
+    var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
+    __cloudReady.then(function(mode){
+      var el = document.getElementById("dbBanner");
+      if(el && window.DB) el.innerHTML = DB.statusBanner();
+      var hint = document.getElementById("mbHint");
+      if(mode !== "cloud"){
+        if(hint) hint.innerHTML = '⚠ 本机草稿模式（云端未连接）：修改只在本浏览器可见。可能是网络波动，刷新页面可重试；恢复云端后本机修改会自动同步全组。';
+        if(hint) hint.style.color = "#b45309";
+        return;
+      }
+      if(hint) hint.innerHTML = '🟢 云端实时模式：添加/编辑/删除保存后<b>全组立即可见</b>（手机/其他电脑打开都一样）。';
+      return DB.hydrate("members", "members").then(function(){
+        renderStats();
+        render();
+      });
+    }).catch(function(){});
+
     // ---------- 添加 / 编辑成员弹窗 ----------
     var memberModal = document.createElement("div");
     memberModal.id = "memberModal";
@@ -172,7 +193,7 @@
           <button class="btn btn-primary" onclick="submitMember()">保存</button>
           <button class="btn btn-outline" onclick="closeMemberModal()" style="margin-left:8px;">取消</button>
         </div>
-        <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅本机可见；请点工具栏「导出我添加的修改（JSON）」发给管理员合并，全组才可见。</p>
+        <p id="mmHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见（云端）；若提示未连接云端，则暂存本机，恢复后刷新页面再保存一次即可同步全组。</p>
       </div>
     </div>`;
     document.body.appendChild(memberModal);
@@ -206,6 +227,8 @@
       var id = document.getElementById("memberModal").dataset.id;
       var name = document.getElementById("mmName").value.trim();
       if(!name){ alert("请填写姓名"); return; }
+      var saveBtn = document.querySelector("#memberModal .btn-primary");
+      var restoreBtn = function(){ if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = "保存"; } };
       var obj = {
         id: id || nextMemberId(),
         name: name,
@@ -221,6 +244,23 @@
         phone: document.getElementById("mmPhone").value.trim(),
         wechat: document.getElementById("mmWechat").value.trim()
       };
+      /* 云端实时：保存后全组立即可见 */
+      if(window.DB && DB.mode === "cloud"){
+        try{
+          if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = "保存中…"; }
+          DB.upsert("members", obj).then(function(){
+            location.reload();
+          }).catch(function(e){
+            restoreBtn();
+            alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后重新点一次保存即可同步全组。");
+            saveMemberLocal(obj);
+          });
+          return;
+        }catch(err){ restoreBtn(); alert("保存出错：" + (err && err.message || err)); }
+      }
+      saveMemberLocal(obj);
+    }
+    function saveMemberLocal(obj){
       var arr = getMemberItems();
       var i = arr.findIndex(x=>x.id===obj.id);
       if(i>=0) arr[i] = obj; else arr.push(obj);
@@ -230,7 +270,20 @@
     window.submitMember = submitMember;
 
     function deleteMember(id){
-      if(!confirm("确定删除这位成员吗？\n（先仅本机生效；导出发给管理员合并后，全组生效）")) return;
+      var tip = (window.DB && DB.mode === "cloud")
+        ? "确定删除这位成员吗？删除后全组都不再显示。"
+        : "确定删除这位成员吗？当前是本机草稿模式，删除后仅本浏览器隐藏；恢复云端后可重新同步。";
+      if(!confirm(tip)) return;
+      /* 云端实时：删除后全组都不再显示 */
+      if(window.DB && DB.mode === "cloud"){
+        DB.remove("members", id).then(function(){ location.reload(); })
+          .catch(function(e){
+            alert("云端删除失败：" + e.message + "\n已先在本机隐藏，恢复网络后可重新删除。");
+            saveMemberItems(getMemberItems().filter(x=>x.id!==id));
+            location.reload();
+          });
+        return;
+      }
       var official = (window.__officialMembers||[]).some(x=>x.id===id);
       saveMemberItems(getMemberItems().filter(x=>x.id!==id));
       if(official){
@@ -241,7 +294,7 @@
     }
     window.deleteMember = deleteMember;
 
-    // 导出：内容即为管理员覆盖 member-overrides.js 的完整文件
+    // 导出（备用：自动同步失败时供排查）
     function exportMemberLocal(){
       var items = getMemberItems(), del = getMemberDeleted();
       if(!items.length && !del.length){ alert("当前浏览器没有待合并的修改。"); return; }
@@ -263,7 +316,7 @@
     memberExportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本机成员修改（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeMemberExport()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">把下方内容<b>全部复制</b>发给管理员；管理员用它<b>整体覆盖</b> <code>assets/js/data/member-overrides.js</code> 并上传 GitHub，全组即可见。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>
         <textarea id="mexBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>`;

@@ -243,7 +243,7 @@
           <button class="btn btn-primary" id="apSaveBtn" onclick="submitAddProject()">保存</button>
           <button class="btn btn-outline" onclick="closeAddProjectModal()" style="margin-left:8px;">取消</button>
         </div>
-        <p id="apHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅在本浏览器可见；请点「导出我添加的项目（JSON）」交给管理员合并到全站。</p>
+        <p id="apHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见（云端）；若提示未连接云端，则暂存本机，恢复后刷新页面再保存一次即可同步全组。</p>
       </div>
     </div>`;
     document.body.appendChild(modal);
@@ -427,7 +427,7 @@
     exportWrap.innerHTML = `<div class="modal-box" style="max-width:720px;">
       <div class="modal-head"><b>导出本地添加的项目（JSON）</b><button class="btn btn-sm btn-outline" onclick="closeProjExportBox()">关闭</button></div>
       <div class="modal-body">
-        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">复制下方内容，交给管理员贴入 <code>assets/js/data/project-overrides.js</code> 的 <code>window.DATA.projectOverrides</code> 数组中，全组即可看到。</p>
+        <p style="font-size:13px; color:var(--muted); margin-bottom:8px;">（备用功能）网站已接入云端：恢复网络后刷新本页，本机修改会<b>自动上传合并到云端</b>，无需发给任何人。仅当自动同步始终失败时，才把下方内容交给网站维护者排查。</p>
         <textarea id="projExportBox" rows="14" style="width:100%; font-family:monospace; font-size:12px;"></textarea>
       </div>
     </div>`;

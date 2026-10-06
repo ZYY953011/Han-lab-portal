@@ -130,8 +130,8 @@ function injectHeader(activeName) {
   const foot = el("footer", { class: "footer" });
   foot.innerHTML = `
     <div class="footer-inner">
-      <div>${esc(SITE.groupName)} · ${esc(SITE.siteName)}（第一版原型）</div>
-      <div>本网站为静态原型，数据均为示例。后续可接入表格/云盘/API。</div>
+      <div>${esc(SITE.groupName)} · ${esc(SITE.siteName)} · 当前版本 ${esc(window.SITE_VERSION || "v3.4")}</div>
+      <div>组内共同维护的动态网站：数据云端实时同步（Supabase），保存后全组立即可见。</div>
     </div>`;
   document.body.append(foot);
 
