@@ -240,7 +240,7 @@
           <div style="grid-column:1/-1;"><label><input type="checkbox" id="apPinned" style="width:auto; margin-right:6px;">标记为必读项目</label></div>
         </div>
         <div style="margin-top:14px;">
-          <button class="btn btn-primary" onclick="submitAddProject()">保存</button>
+          <button class="btn btn-primary" id="apSaveBtn" onclick="submitAddProject()">保存</button>
           <button class="btn btn-outline" onclick="closeAddProjectModal()" style="margin-left:8px;">取消</button>
         </div>
         <p id="apHint" style="font-size:12px; color:var(--muted); margin-top:10px;">保存后仅在本浏览器可见；请点「导出我添加的项目（JSON）」交给管理员合并到全站。</p>
@@ -305,6 +305,10 @@
     window.closeAddProjectModal = closeAddProjectModal;
 
     function submitAddProject(){
+      /* 整体兜底：任何异常都用弹窗告知，绝不出现"点了没反应" */
+      var saveBtn = document.getElementById("apSaveBtn");
+      var restoreBtn = function(){ if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = "保存"; } };
+      try {
       var id = document.getElementById("apId").value.trim();
       var name = document.getElementById("apName").value.trim();
       var leader = document.getElementById("apLeader").value.trim();
@@ -361,7 +365,7 @@
         var arr = getLocalProjects();
         var idx = arr.findIndex(function(x){ return x.id === id; });
         if(idx >= 0) arr[idx] = p; else arr.push(p);
-        localStorage.setItem(localProjectsKey(), JSON.stringify(arr));
+        localStorage.setItem("proj-projects", JSON.stringify(arr));
       };
       var applyView = function(){
         var pidx = projects.findIndex(function(x){ return x.id === id; });
@@ -374,12 +378,15 @@
       };
 
       if(window.DB && DB.mode === "cloud"){
-        // 云端实时：保存即全组可见
+        // 云端实时：保存即全组可见（按钮显示"保存中…"，成功关弹窗，失败弹提示并本机兜底）
+        if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = "保存中…"; }
         DB.upsert("projects", p).then(function(res){
           if(res && res.item) p = Object.assign({}, p, res.item);
           applyView();
+          restoreBtn();
         }).catch(function(e){
-          alert("云端保存失败：" + e.message + "\n已改为本机草稿保存，稍后可导出交给管理员。");
+          restoreBtn();
+          alert("云端保存失败：" + (e && e.message ? e.message : e) + "\n已改为本机草稿保存，恢复云端后重新保存一次即可同步全组。");
           saveLocal();
           applyView();
         });
@@ -387,6 +394,10 @@
       }
       saveLocal();
       applyView();
+      } catch(err){
+        restoreBtn();
+        alert("保存出错：" + (err && err.message ? err.message : err) + "\n请截图此提示并联系管理员检查页面版本。");
+      }
     }
     window.submitAddProject = submitAddProject;
 
@@ -398,7 +409,7 @@
         projects = projects.filter(function(x){ return x.id !== id; });
         window.DATA.projects = projects;
         var arr = getLocalProjects().filter(function(x){ return x.id !== id; });
-        localStorage.setItem(localProjectsKey(), JSON.stringify(arr));
+        localStorage.setItem("proj-projects", JSON.stringify(arr));
         renderStats();
         document.getElementById("recentUpdates").innerHTML = recentUpdatesHTML();
         render();
@@ -453,7 +464,9 @@
         var hint = document.getElementById("apHint");
         if(hint) hint.innerHTML = '🟢 云端实时模式：保存后<b>全组立即可见</b>，无需导出或发布。';
       } else {
-        // 本机模式：显示「仅本机可见」提示条
+        // 本机模式：弹窗小字改黄字警示 + 显示「仅本机可见」提示条
+        var hint2 = document.getElementById("apHint");
+        if(hint2){ hint2.innerHTML = '⚠ <b>本机草稿模式</b>：保存只在这台电脑可见（云端未连接）。请检查网络后刷新页面重试；恢复云端后重新点一次保存即可同步全组。'; hint2.style.color = "#b45309"; }
         document.getElementById("head").insertAdjacentHTML("afterend",
           unpublishedBar((typeof getLocalProjects === "function" ? getLocalProjects() : []).length, "exportLocalProjects()"));
         return;
