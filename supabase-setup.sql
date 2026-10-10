@@ -397,3 +397,31 @@ create policy "lab_expense_guides_read"   on public.lab_expense_guides for selec
 create policy "lab_expense_guides_insert" on public.lab_expense_guides for insert with check (true);
 create policy "lab_expense_guides_update" on public.lab_expense_guides for update using (true);
 create policy "lab_expense_guides_delete" on public.lab_expense_guides for delete using (true);
+
+-- ---------- 16. 仪器耗材照片（Supabase Storage 存储，全组共享） ----------
+-- 用途：给每台仪器/耗材挂 1–4 张实拍照片，表格里显示缩略图、点击看大图。
+-- 照片文件存在 Supabase Storage 的 equipment-photos 存储桶（公开读），
+-- 记录里只存 URL 列表（photos 列，JSON 字符串）。
+-- 网页上传前会自动压缩（长边约 1000px、JPEG），一张照片约 100KB，免费额度够用上万张。
+
+alter table public.lab_equipment add column if not exists photos text;
+
+-- 存储桶与访问策略（仅 Supabase 环境有 storage 结构；本地 PostgreSQL 执行时自动跳过）
+do $$
+begin
+  if exists (select 1 from pg_namespace where nspname = 'storage') then
+    insert into storage.buckets (id, name, public)
+    values ('equipment-photos', 'equipment-photos', true)
+    on conflict (id) do update set public = true;
+
+    drop policy if exists "equipment photos read"   on storage.objects;
+    drop policy if exists "equipment photos insert" on storage.objects;
+    drop policy if exists "equipment photos update" on storage.objects;
+    drop policy if exists "equipment photos delete" on storage.objects;
+
+    create policy "equipment photos read"   on storage.objects for select using (bucket_id = 'equipment-photos');
+    create policy "equipment photos insert" on storage.objects for insert with check (bucket_id = 'equipment-photos');
+    create policy "equipment photos update" on storage.objects for update using (bucket_id = 'equipment-photos');
+    create policy "equipment photos delete" on storage.objects for delete using (bucket_id = 'equipment-photos');
+  end if;
+end $$;

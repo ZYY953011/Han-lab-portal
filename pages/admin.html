@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理合并 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=3.7">
+  <link rel="stylesheet" href="../assets/css/style.css?v=3.8">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -79,9 +79,9 @@
     <p style="margin-top:16px;"><a class="btn btn-outline btn-sm" href="../index.html">← 返回首页</a></p>
   </main>
 
-  <script src="../assets/js/config.js?v=3.7"></script>
-  <script src="../assets/js/app.js?v=3.7"></script>
-  <script src="../assets/js/backend.js?v=3.7"></script>
+  <script src="../assets/js/config.js?v=3.8"></script>
+  <script src="../assets/js/app.js?v=3.8"></script>
+  <script src="../assets/js/backend.js?v=3.8"></script>
   <script>
     injectHeader("管理合并");
     document.getElementById("head").innerHTML = pageHead(
@@ -91,12 +91,12 @@
 
     /* ---------- 类型定义：导出内容 → 目标文件 / 变量名 ---------- */
     var TYPES = {
-      meetings:    { label:"组会",     file:"assets/js/data/meeting-overrides.js?v=3.7",     ov:"meetingOverrides",     del:"meetingDeletions",     dataKey:"meetings" },
-      plans:       { label:"月度计划", file:"assets/js/data/plan-overrides.js?v=3.7",        ov:"planOverrides",        del:"planDeletions",        dataKey:"plans" },
-      achievements:{ label:"研究成果", file:"assets/js/data/achievement-overrides.js?v=3.7", ov:"achievementOverrides", del:"achievementDeletions", dataKey:"achievements" },
-      members:     { label:"成员",     file:"assets/js/data/member-overrides.js?v=3.7",      ov:"memberOverrides",      del:"memberDeletions",      dataKey:"members" },
-      equipment:   { label:"仪器耗材", file:"assets/js/data/equipment-overrides.js?v=3.7",   ov:"equipmentOverrides",   del:"equipmentDeletions",   dataKey:"equipment" },
-      projects:    { label:"项目",     file:"assets/js/data/project-overrides.js?v=3.7",     ov:"projectOverrides",     del:"",                     dataKey:"projects" }
+      meetings:    { label:"组会",     file:"assets/js/data/meeting-overrides.js?v=3.8",     ov:"meetingOverrides",     del:"meetingDeletions",     dataKey:"meetings" },
+      plans:       { label:"月度计划", file:"assets/js/data/plan-overrides.js?v=3.8",        ov:"planOverrides",        del:"planDeletions",        dataKey:"plans" },
+      achievements:{ label:"研究成果", file:"assets/js/data/achievement-overrides.js?v=3.8", ov:"achievementOverrides", del:"achievementDeletions", dataKey:"achievements" },
+      members:     { label:"成员",     file:"assets/js/data/member-overrides.js?v=3.8",      ov:"memberOverrides",      del:"memberDeletions",      dataKey:"members" },
+      equipment:   { label:"仪器耗材", file:"assets/js/data/equipment-overrides.js?v=3.8",   ov:"equipmentOverrides",   del:"equipmentDeletions",   dataKey:"equipment" },
+      projects:    { label:"项目",     file:"assets/js/data/project-overrides.js?v=3.8",     ov:"projectOverrides",     del:"",                     dataKey:"projects" }
     };
 
     Object.keys(TYPES).forEach(function(k){
@@ -460,6 +460,6 @@
 
     renderPending();
   </script>
-<script src="../assets/js/gate.js?v=3.7"></script>
+<script src="../assets/js/gate.js?v=3.8"></script>
 </body>
 </html>

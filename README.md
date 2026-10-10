@@ -739,3 +739,33 @@ assets/js/config.js  →  window.QUICK_LINKS
 **验证**：本地 PostgreSQL 两遍执行零报错（14 表 56 策略）；点击级自动化测试 33/33 通过——首载自动灌入 ✓ 刷新不重复 ✓ 概览编辑写回云端 ✓ 无痕窗口可见 ✓ 添加「固定资产建账」类目 ✓ 模板链接可点击且指向配置地址 ✓ 编辑更新不新增 ✓ 删除云端生效 ✓ 本机模式回退+草稿 ✓；全站 16 页按钮函数扫描全绿。
 
 **版本号已升到 v3.7**：部署后看页脚确认。
+
+### 补充修复 9：仪器耗材「照片」功能——一眼看清仪器长什么样（本轮追加 9）
+
+**需求**：给仪器耗材栏目加照片，让大家快速知道这个仪器/耗材是什么样子；要便捷、轻量。
+
+**照片存在哪里？** 存在 **Supabase Storage**（对象存储），不是存在 GitHub 上，也不是塞进数据库。理由：
+- GitHub Pages 是纯静态托管，网页里没法用账号密码传文件；数据库（Postgres）存二进制图片又贵又慢。
+- Supabase Storage 免费额度 **1 GB**，照片上传前在浏览器里自动压缩到**约 100 KB/张**，1 GB ≈ **上万张**，课题组完全够用。
+- 存储桶 `equipment-photos` 设为**公开可读**，所有人（含手机、无痕窗口）都能直接看到照片，不需要登录。
+
+**怎么用（三步）**：
+1. 仪器耗材页 → 找到目标条目 → 点「编辑」（或右上角「＋ 添加条目」）→ 拉到弹窗底部「📷 照片」区 → 点「📷 添加照片」→ 选图（可多选，**每条最多 4 张**）。
+2. 选完图会自动**在浏览器里压缩**（长边缩到 1000px、JPEG 质量 0.8，一般 100KB 左右），然后上传，弹窗里立刻出现缩略图。缩略图右上角「×」可移除。
+3. 点「保存」→ 写回云端，**全组实时可见**；表格「名称」列左侧会显示第一张照片的小缩略图。
+
+**看大图**：表格里点任意缩略图 → 全屏大图查看器，有「‹ ›」左右切换、「1 / 2」计数、点背景或「✕」关闭。
+
+**技术实现（供维护参考）**：
+1. **数据库**：`lab_equipment` 新增 `photos` 列（存 URL 数组的 JSON 字符串）；新增公开存储桶 `equipment-photos` 及其读写策略（supabase-setup.sql 第 16 节）。
+2. **SQL 幂等**：`alter table ... add column if not exists`；Storage 相关语句包在 `do $$ begin if exists (select 1 from pg_namespace where nspname='storage') then ... end if; end $$;` 里——这样在本地 PostgreSQL 上测试时会自动跳过 storage 部分（本地没有 storage schema），一份 SQL 两边都能跑。
+3. **浏览器端压缩**：`<input type=file>` → `URL.createObjectURL` → `Image` → `canvas` 缩放 → `canvas.toBlob("image/jpeg", 0.8)`，避免把手机拍的 5 MB 原图直接传上去。
+4. **上传**：`POST {base}/storage/v1/object/equipment-photos/{path}`，带 `Authorization: Bearer {anonKey}`、`x-upsert: true`，body 是压缩后的 Blob；返回公开 URL `{base}/storage/v1/object/public/equipment-photos/{path}`。
+5. **弹窗布局加固**：照片区加上后弹窗变高，小屏会把底部按钮挤出视口。改成三段式 flex（头/身/底）——`modal-body` 独立滚动、**「取消 / 保存」固定在底部**，照片再多也不影响按钮可点。
+6. **上限与容错**：每条最多 4 张（超出弹提示）；上传失败会汇总提示（如"未连接云端，照片无法上传"），不会静默丢图。
+
+**你需要做的**：Supabase SQL Editor 重新执行一次 `supabase-setup.sql`（整段粘贴 → Run；可重复执行）。**注意**：这一步会创建存储桶，必须用 Supabase 的 SQL Editor 跑（本地 PostgreSQL 跑会跳过 storage 部分，这是预期行为）。
+
+**验证**：本地 PostgreSQL 两遍执行零报错（14 表、`photos text` 列就位、DO 块正确跳过 storage）；点击级自动化测试 **16/16 通过**——缩略图渲染 ✓ 无照片不显示 ✓ 大图查看器切换/关闭 ✓ 编辑回填 ✓ 上传 2 张（压缩+上传+预览）✓ 4 张上限拦截 ✓ 保存写回云端 ✓ 上传文件真的落到 Storage ✓ × 移除 ✓ 保存后云端更新 ✓ 无痕窗口全组可见 ✓；全站 16 页按钮函数扫描全绿。
+
+**版本号已升到 v3.8**：部署后看页脚确认。

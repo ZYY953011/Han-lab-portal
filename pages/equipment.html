@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>仪器耗材 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=3.7">
+  <link rel="stylesheet" href="../assets/css/style.css?v=3.8">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -60,11 +60,11 @@
     </div>
   </main>
 
-  <script src="../assets/js/data/equipment.js?v=3.7"></script>
-  <script src="../assets/js/data/equipment-overrides.js?v=3.7"></script>
-  <script src="../assets/js/config.js?v=3.7"></script>
-  <script src="../assets/js/app.js?v=3.7"></script>
-  <script src="../assets/js/backend.js?v=3.7"></script>
+  <script src="../assets/js/data/equipment.js?v=3.8"></script>
+  <script src="../assets/js/data/equipment-overrides.js?v=3.8"></script>
+  <script src="../assets/js/config.js?v=3.8"></script>
+  <script src="../assets/js/app.js?v=3.8"></script>
+  <script src="../assets/js/backend.js?v=3.8"></script>
   <script>
     injectHeader("仪器耗材");
     document.getElementById("head").insertAdjacentHTML("afterend",
@@ -177,11 +177,26 @@
       return list;
     }
 
+    function parsePhotos(v){
+      try {
+        var arr = typeof v === "string" ? JSON.parse(v) : (Array.isArray(v) ? v : []);
+        return Array.isArray(arr) ? arr.filter(function(u){ return typeof u === "string" && u.indexOf("http") === 0; }) : [];
+      } catch(err){ return []; }
+    }
+    window.parsePhotos = parsePhotos;
+
     function row(e){
       var stColor = {"在用":"green","充足":"green","闲置":"gray","偏少":"orange","借用中":"blue",
                      "维修中":"orange","需采购":"red","已报废":"gray"}[e.status] || "gray";
+      var photos = parsePhotos(e.photos);
+      var thumb = photos.length
+        ? '<img src="' + esc(photos[0]) + '" alt="照片" loading="lazy" ' +
+          'style="width:52px; height:52px; object-fit:cover; border-radius:8px; border:1px solid var(--border); cursor:zoom-in; margin-right:8px; vertical-align:middle; flex-shrink:0;" ' +
+          'onclick="showEqPhotoViewer(\'' + esc(e.id) + '\')" ' +
+          'onerror="this.style.display=\'none\'">'
+        : '';
       return '<tr>' +
-        '<td><b>' + esc(e.name) + '</b></td>' +
+        '<td><div style="display:flex; align-items:center;">' + thumb + '<b>' + esc(e.name) + '</b></div></td>' +
         '<td>' + esc(e.model||"—") + '</td>' +
         '<td>' + esc(e.brand||"—") + '</td>' +
         '<td>' + esc(e.qty||"—") + ' ' + esc(e.unit||"") + '</td>' +
@@ -214,9 +229,9 @@
     var eqModal = document.createElement("div");
     eqModal.id = "eqModal";
     eqModal.className = "modal";
-    eqModal.innerHTML = `<div class="modal-box" style="max-width:680px;">
-      <div class="modal-head"><b id="eqTitle">添加条目</b><button class="btn btn-sm btn-outline" onclick="closeEqModal()">关闭</button></div>
-      <div class="modal-body">
+    eqModal.innerHTML = `<div class="modal-box" style="max-width:680px; display:flex; flex-direction:column; padding:0;">
+      <div class="modal-head" style="flex-shrink:0;"><b id="eqTitle">添加条目</b><button class="btn btn-sm btn-outline" onclick="closeEqModal()">关闭</button></div>
+      <div class="modal-body" style="overflow-y:auto; flex:1; min-height:0;">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
           <div><label>类别 <span style="color:red">*</span></label>
             <select id="eqCategory" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
@@ -238,12 +253,19 @@
             </select></div>
           <div style="grid-column:1/-1;"><label>电子说明书 / 购置材料链接（飞书链接）</label><input type="text" id="eqUrl" placeholder="https://my.feishu.cn/…"></div>
           <div style="grid-column:1/-1;"><label>备注</label><input type="text" id="eqNote" placeholder="借用规则、安全须知、低于多少请补货等"></div>
-        </div>
-        <div style="margin-top:14px;">
-          <button class="btn btn-primary" onclick="submitEq()">保存</button>
-          <button class="btn btn-outline" onclick="closeEqModal()" style="margin-left:8px;">取消</button>
+          <div style="grid-column:1/-1;">
+            <label>📷 照片（选填，最多 4 张；上传前自动压缩，一张约 100KB）</label>
+            <div id="eqPhotoList" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;"></div>
+            <input type="file" id="eqPhotoInput" accept="image/*" multiple style="display:none;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('eqPhotoInput').click()">📷 添加照片</button>
+            <span id="eqPhotoHint" style="font-size:12px; color:var(--muted); margin-left:8px;"></span>
+          </div>
         </div>
         <p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见（云端）；若提示未连接云端，则暂存本机，恢复后刷新页面再保存一次即可同步全组。</p>
+      </div>
+      <div style="flex-shrink:0; padding:12px 18px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; background:#fff; border-radius:0 0 var(--radius) var(--radius);">
+        <button class="btn btn-outline" onclick="closeEqModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitEq()">保存</button>
       </div>
     </div>`;
     document.body.appendChild(eqModal);
@@ -264,6 +286,8 @@
       document.getElementById("eqStatus").value       = e && e.status ? e.status : "在用";
       document.getElementById("eqUrl").value          = e ? (e.url||"") : "";
       document.getElementById("eqNote").value         = e ? (e.note||"") : "";
+      eqPhotoState = e ? parsePhotos(e.photos) : [];
+      renderPhotoList();
       document.getElementById("eqModal").dataset.id = id || "";
       document.getElementById("eqModal").classList.add("open");
     }
@@ -292,7 +316,8 @@
         price: document.getElementById("eqPrice").value.trim(),
         status: document.getElementById("eqStatus").value,
         url: document.getElementById("eqUrl").value.trim(),
-        note: document.getElementById("eqNote").value.trim()
+        note: document.getElementById("eqNote").value.trim(),
+        photos: JSON.stringify(eqPhotoState)
       };
       var arr = getEqItems();
       var i = arr.findIndex(x=>x.id===obj.id);
@@ -326,6 +351,160 @@
       location.reload();
     }
     window.deleteEq = deleteEq;
+
+    /* ---------- 照片功能：自动压缩 + 上传 Supabase Storage + 大图查看 ----------
+     * 存储：照片文件存 Supabase Storage 的 equipment-photos 存储桶（公开读），
+     *       记录里只存 URL 列表（photos 列，JSON 字符串），免费 1GB 可存上万张。
+     * 压缩：选图后先在浏览器里缩到长边约 1000px、转 JPEG，一张约 100KB，
+     *       手机拍的大照片也能秒传、打开也快。 */
+    var eqPhotoState = [];    // 当前编辑条目的照片 URL 列表
+    var eqPhotoBusy = false;  // 是否正在上传（防连点）
+    var EQ_PHOTO_MAX = 4;
+
+    function compressImage(file, maxDim, quality){
+      return new Promise(function(resolve, reject){
+        var img = new Image();
+        var objectUrl = URL.createObjectURL(file);
+        img.onload = function(){
+          try {
+            var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+            var canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(objectUrl);
+            canvas.toBlob(function(blob){
+              if(blob) resolve(blob); else reject(new Error("图片压缩失败"));
+            }, "image/jpeg", quality);
+          } catch(err){ URL.revokeObjectURL(objectUrl); reject(err); }
+        };
+        img.onerror = function(){ URL.revokeObjectURL(objectUrl); reject(new Error("图片读取失败")); };
+        img.src = objectUrl;
+      });
+    }
+
+    function supabaseBase(){
+      return (window.SUPABASE_URL || "").trim()
+        .replace(/\/+$/, "").replace(/\/rest\/v1\/?$/i, "").replace(/\/+$/, "");
+    }
+    function uploadEqPhotoBlob(blob){
+      var base = supabaseBase(), key = (window.SUPABASE_ANON_KEY || "").trim();
+      if(!base || !key) return Promise.reject(new Error("未连接云端，照片无法上传"));
+      var path = "equipment/" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+      return fetch(base + "/storage/v1/object/equipment-photos/" + path, {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "image/jpeg", "x-upsert": "true" },
+        body: blob
+      }).then(function(r){
+        if(!r.ok) return r.text().then(function(t){ throw new Error("照片上传失败(" + r.status + ") " + String(t).slice(0, 140)); });
+        return base + "/storage/v1/object/public/equipment-photos/" + path;
+      });
+    }
+
+    function renderPhotoList(){
+      var wrap = document.getElementById("eqPhotoList");
+      var hint = document.getElementById("eqPhotoHint");
+      if(!wrap) return;
+      wrap.innerHTML = eqPhotoState.map(function(u, i){
+        return '<div style="position:relative; width:76px; height:76px;">' +
+          '<img src="' + esc(u) + '" style="width:76px; height:76px; object-fit:cover; border-radius:8px; border:1px solid var(--border); cursor:zoom-in;" onclick="showEqPhotoViewerByUrl(\'' + esc(u) + '\')">' +
+          '<button type="button" title="移除" onclick="removeEqPhoto(' + i + ')" ' +
+          'style="position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; border:none; background:#e5484d; color:#fff; font-size:12px; line-height:20px; cursor:pointer; padding:0;">×</button>' +
+        '</div>';
+      }).join("");
+      if(hint){
+        hint.textContent = eqPhotoBusy ? "⏳ 正在压缩上传…" :
+          (eqPhotoState.length >= EQ_PHOTO_MAX ? "已达 " + EQ_PHOTO_MAX + " 张上限" : "");
+      }
+      var addBtn = wrap.parentElement ? wrap.parentElement.querySelector("button") : null;
+    }
+    window.renderPhotoList = renderPhotoList;
+
+    function removeEqPhoto(i){
+      if(i >= 0 && i < eqPhotoState.length){ eqPhotoState.splice(i, 1); renderPhotoList(); }
+    }
+    window.removeEqPhoto = removeEqPhoto;
+
+    function handleEqPhotoFiles(files){
+      if(!files || !files.length) return;
+      var room = EQ_PHOTO_MAX - eqPhotoState.length;
+      if(room <= 0){ alert("最多 " + EQ_PHOTO_MAX + " 张照片，如需更换请先点缩略图右上角 × 移除。"); return; }
+      var list = Array.prototype.slice.call(files, 0, room);
+      if(files.length > room) alert("一次最多再添加 " + room + " 张，超出的已忽略。");
+      eqPhotoBusy = true; renderPhotoList();
+      var seq = Promise.resolve();
+      var failMsgs = [];
+      list.forEach(function(f){
+        seq = seq.then(function(){
+          return compressImage(f, 1000, 0.8).then(function(blob){
+            return uploadEqPhotoBlob(blob).then(function(url){
+              if(eqPhotoState.length < EQ_PHOTO_MAX) eqPhotoState.push(url);
+            });
+          }).catch(function(e){ failMsgs.push((f.name || "照片") + "：" + e.message); });
+        });
+      });
+      seq.then(function(){
+        eqPhotoBusy = false; renderPhotoList();
+        if(failMsgs.length) alert("部分照片没有传上去：\n" + failMsgs.join("\n") + "\n\n（若提示未连接云端，请刷新页面后重试）");
+      });
+    }
+    window.handleEqPhotoFiles = handleEqPhotoFiles;
+
+    /* ---------- 大图查看器 ---------- */
+    var eqViewer = document.createElement("div");
+    eqViewer.id = "eqPhotoViewer";
+    eqViewer.className = "modal";
+    eqViewer.innerHTML =
+      '<div style="position:relative; max-width:92vw; max-height:92vh; display:flex; align-items:center; justify-content:center;">' +
+        '<img id="eqViewerImg" src="" style="max-width:92vw; max-height:86vh; border-radius:10px; box-shadow:0 12px 48px rgba(0,0,0,.35); background:#fff;">' +
+        '<button id="eqViewerPrev" onclick="eqViewerStep(-1)" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); width:40px; height:40px; border-radius:50%; border:none; background:rgba(255,255,255,.92); font-size:18px; cursor:pointer;">‹</button>' +
+        '<button id="eqViewerNext" onclick="eqViewerStep(1)" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); width:40px; height:40px; border-radius:50%; border:none; background:rgba(255,255,255,.92); font-size:18px; cursor:pointer;">›</button>' +
+        '<button onclick="closeEqViewer()" style="position:absolute; top:-14px; right:-14px; width:34px; height:34px; border-radius:50%; border:none; background:#1f2937; color:#fff; font-size:15px; cursor:pointer;">✕</button>' +
+        '<div id="eqViewerCount" style="position:absolute; bottom:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.6); color:#fff; font-size:13px; padding:4px 12px; border-radius:99px;"></div>' +
+      '</div>';
+    document.body.appendChild(eqViewer);
+    var eqViewerList = [], eqViewerIdx = 0;
+
+    function showEqPhotoViewerById2(id, list){
+      eqViewerList = (list && list.length) ? list : parsePhotos(((window.DATA.equipment||[]).find(function(x){ return x && x.id === id; }) || {}).photos);
+      eqViewerIdx = 0;
+      if(!eqViewerList.length) return;
+      renderEqViewer();
+      eqViewer.classList.add("open");
+    }
+    function showEqPhotoViewer(id){ showEqPhotoViewerById2(id, null); }
+    function showEqPhotoViewerByUrl(url){ eqViewerList = [url]; eqViewerIdx = 0; renderEqViewer(); eqViewer.classList.add("open"); }
+    function renderEqViewer(){
+      var img = document.getElementById("eqViewerImg");
+      if(img) img.src = eqViewerList[eqViewerIdx] || "";
+      var c = document.getElementById("eqViewerCount");
+      if(c) c.textContent = eqViewerList.length > 1 ? (eqViewerIdx + 1) + " / " + eqViewerList.length : "";
+      var has2 = eqViewerList.length > 1;
+      var pv = document.getElementById("eqViewerPrev"), nx = document.getElementById("eqViewerNext");
+      if(pv) pv.style.display = has2 ? "" : "none";
+      if(nx) nx.style.display = has2 ? "" : "none";
+    }
+    function eqViewerStep(d){
+      if(!eqViewerList.length) return;
+      eqViewerIdx = (eqViewerIdx + d + eqViewerList.length) % eqViewerList.length;
+      renderEqViewer();
+    }
+    function closeEqViewer(){ eqViewer.classList.remove("open"); }
+    eqViewer.addEventListener("click", function(ev){ if(ev.target === eqViewer) closeEqViewer(); });
+    window.showEqPhotoViewer = showEqPhotoViewer;
+    window.showEqPhotoViewerByUrl = showEqPhotoViewerByUrl;
+    window.eqViewerStep = eqViewerStep;
+    window.closeEqViewer = closeEqViewer;
+
+    /* 照片选择（input change） */
+    (function(){
+      var inp = document.getElementById("eqPhotoInput");
+      if(!inp) return;
+      inp.addEventListener("change", function(){
+        handleEqPhotoFiles(inp.files);
+        inp.value = "";   // 允许重复选择同一文件
+      });
+    })();
 
     /* ---------- 导出（备用：自动同步失败时供排查） ---------- */
     function exportEqLocal(){
@@ -362,6 +541,6 @@
     });
     render();
   </script>
-<script src="../assets/js/gate.js?v=3.7"></script>
+<script src="../assets/js/gate.js?v=3.8"></script>
 </body>
 </html>
