@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>仪器耗材 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=3.8">
+  <link rel="stylesheet" href="../assets/css/style.css?v=3.9">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -60,11 +60,11 @@
     </div>
   </main>
 
-  <script src="../assets/js/data/equipment.js?v=3.8"></script>
-  <script src="../assets/js/data/equipment-overrides.js?v=3.8"></script>
-  <script src="../assets/js/config.js?v=3.8"></script>
-  <script src="../assets/js/app.js?v=3.8"></script>
-  <script src="../assets/js/backend.js?v=3.8"></script>
+  <script src="../assets/js/data/equipment.js?v=3.9"></script>
+  <script src="../assets/js/data/equipment-overrides.js?v=3.9"></script>
+  <script src="../assets/js/config.js?v=3.9"></script>
+  <script src="../assets/js/app.js?v=3.9"></script>
+  <script src="../assets/js/backend.js?v=3.9"></script>
   <script>
     injectHeader("仪器耗材");
     document.getElementById("head").insertAdjacentHTML("afterend",
@@ -391,12 +391,25 @@
       var base = supabaseBase(), key = (window.SUPABASE_ANON_KEY || "").trim();
       if(!base || !key) return Promise.reject(new Error("未连接云端，照片无法上传"));
       var path = "equipment/" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+      /* 密钥兼容两代格式：
+       *  - 老版 anon key（eyJ… JWT）：Authorization Bearer 与 apikey 头都带
+       *  - 新版密钥（sb_publishable_…，不是 JWT）：只带 apikey 头——
+       *    Storage 会把 Bearer 头当 JWT 解析，非 JWT 会报 Invalid Compact JWS(403) */
+      var isJwt = key.indexOf("eyJ") === 0;
+      var headers = { "apikey": key, "Content-Type": "image/jpeg", "x-upsert": "true" };
+      if(isJwt) headers["Authorization"] = "Bearer " + key;
       return fetch(base + "/storage/v1/object/equipment-photos/" + path, {
         method: "POST",
-        headers: { "Authorization": "Bearer " + key, "Content-Type": "image/jpeg", "x-upsert": "true" },
+        headers: headers,
         body: blob
       }).then(function(r){
-        if(!r.ok) return r.text().then(function(t){ throw new Error("照片上传失败(" + r.status + ") " + String(t).slice(0, 140)); });
+        if(!r.ok) return r.text().then(function(t){
+          var msg = "照片上传失败(" + r.status + ") " + String(t).slice(0, 140);
+          if(r.status === 400 || r.status === 403){
+            msg += " —— 常见原因：config.js 里的 SUPABASE_ANON_KEY 填错或不完整。请到 Supabase 控制台 → Settings → API Keys，复制完整的 Publishable / anon key 重新覆盖 config.js 后发布。";
+          }
+          throw new Error(msg);
+        });
         return base + "/storage/v1/object/public/equipment-photos/" + path;
       });
     }
@@ -541,6 +554,6 @@
     });
     render();
   </script>
-<script src="../assets/js/gate.js?v=3.8"></script>
+<script src="../assets/js/gate.js?v=3.9"></script>
 </body>
 </html>

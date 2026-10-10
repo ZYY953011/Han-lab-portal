@@ -769,3 +769,23 @@ assets/js/config.js  →  window.QUICK_LINKS
 **验证**：本地 PostgreSQL 两遍执行零报错（14 表、`photos text` 列就位、DO 块正确跳过 storage）；点击级自动化测试 **16/16 通过**——缩略图渲染 ✓ 无照片不显示 ✓ 大图查看器切换/关闭 ✓ 编辑回填 ✓ 上传 2 张（压缩+上传+预览）✓ 4 张上限拦截 ✓ 保存写回云端 ✓ 上传文件真的落到 Storage ✓ × 移除 ✓ 保存后云端更新 ✓ 无痕窗口全组可见 ✓；全站 16 页按钮函数扫描全绿。
 
 **版本号已升到 v3.8**：部署后看页脚确认。
+
+### 补充修复 9.1：照片上传报 Invalid Compact JWS(403) —— 新版 API Key 兼容（v3.9）
+
+**现象**：上传照片弹「照片上传失败(400) … Invalid Compact JWS / AccessDenied」。
+
+**原因**：Supabase 现在提供两种密钥——老版 anon key（`eyJ…` 开头的 JWT）与新版 Publishable key（`sb_publishable_…`，不是 JWT）。数据表接口两种都认，但**照片上传只带 `Authorization: Bearer` 头时，Storage 会把非 JWT 的新密钥当 JWT 解析**，直接拒绝。
+
+**修复**：上传请求改为兼容两代密钥——新版密钥走 `apikey` 请求头（不带 Bearer），老版密钥 `apikey` + `Bearer` 双头；上传失败时的错误提示也补充了自查指引。
+
+**你需要做的**：无需改动密钥配置，重新打包部署 v3.9 即可。若仍失败，到 Supabase 控制台 → Settings → API Keys 复制**完整的** Publishable/anon key 覆盖 `assets/js/config.js` 里的 `SUPABASE_ANON_KEY`。
+
+**验证**：自动化测试 5/5 通过——新版 `sb_publishable_` 密钥上传成功且请求头正确（仅 apikey、无 Bearer）✓ 老版 JWT 密钥双头正确 ✓ 两种密钥下上传文件均落到 Storage ✓。版本号升到 v3.9。
+
+### 补充修复 9.2：交付包 config.js 误残留测试值（v3.9 重打包）
+
+**问题**：v3.8/v3.9 首次交付的压缩包里，`assets/js/config.js` 的两行配置是我本地测试用的值（`http://localhost:8898` / `mock-test-key`），部署后网站连不上真实 Supabase，照片上传必然失败。
+
+**修复**：两行已清空为占位提示（含去哪复制的说明），并全包扫描确认无其它测试残留（`localhost:8898`、`mock-test-key`、`mock-supabase` 均零命中）。同时验证了**未配置时页面正常降级**：页面照常渲染、自动提示本机模式、零 JS 报错，不会白屏。
+
+**重要提醒**：以后每次拿到新压缩包，**第一件事就是检查 `assets/js/config.js` 这两行是否为你自己的真实值**——这是网站能否连上云端的唯一开关。
