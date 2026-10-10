@@ -55,7 +55,7 @@ window.REPO_URL = "";
  * RLS（行级安全策略）控制；建表 SQL 里已按“本组内部可读写”配置。
  * 请勿放入机密数据（财务明细、身份证号等）——本网站是轻量内部平台。
  */
-window.SUPABASE_URL = "https://ouxiungckdloyjwryiud.supabase.co";       // Project URL。Data API 页复制的完整 API URL（带 /rest/v1）直接填也没关系，网站会自动纠正
+window.SUPABASE_URL = "https://ouxiungckdloyjwryiud.supabase.co/rest/v1/";       // Project URL。Data API 页复制的完整 API URL（带 /rest/v1）直接填也没关系，网站会自动纠正
 window.SUPABASE_ANON_KEY = "sb_publishable_nPW25nStPCAeIT2n7zrXUw_b_gNS0Is";  // API Keys 页的 Publishable key（sb_publishable_ 开头），点复制按钮拿完整值
 
 // 网站版本号：每次更新代码后把这里的值 +0.1（或改日期），页脚会显示。
