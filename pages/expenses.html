@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>报账与采购 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=4.0">
+  <link rel="stylesheet" href="../assets/css/style.css?v=4.1">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -86,8 +86,9 @@
           <label>⚠ 注意事项</label>
           <textarea id="gv-note" rows="2" placeholder="出差前需线上审批；票据 30 天内提交审核。"
             style="width:100%; box-sizing:border-box; padding:9px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; font-family:inherit; resize:vertical;"></textarea>
-          <label>📄 模板 / 报账单据文档链接（飞书等，留空则显示「模板未配置」）</label>
-          <input type="text" id="gv-url" placeholder="粘贴飞书文档/表格链接">
+          <label>📄 模板 / 报账单据链接（可添加多个飞书文档/表格，留空则显示「模板未配置」）</label>
+          <div id="gv-links" style="display:flex; flex-direction:column; gap:6px;"></div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="gvAddLinkRow()" style="margin-top:6px;">＋ 添加一条链接</button>
         </div>
         <label>排序号（数字越小越靠前，默认即可）</label>
         <input type="text" id="gv-sort" placeholder="10">
@@ -99,10 +100,10 @@
     </div>
   </div>
 
-  <script src="../assets/js/data/expenses.js?v=4.0"></script>
-  <script src="../assets/js/config.js?v=4.0"></script>
-  <script src="../assets/js/app.js?v=4.0"></script>
-  <script src="../assets/js/backend.js?v=4.0"></script>
+  <script src="../assets/js/data/expenses.js?v=4.1"></script>
+  <script src="../assets/js/config.js?v=4.1"></script>
+  <script src="../assets/js/app.js?v=4.1"></script>
+  <script src="../assets/js/backend.js?v=4.1"></script>
   <script>
     injectHeader("报账");
 
@@ -185,8 +186,11 @@
       document.getElementById("flows").innerHTML = cats.length ? cats.map(function(x){
         var mats = String(x.materials || "").split("\n").map(function(s){ return s.trim(); }).filter(Boolean).join("、") || "—";
         var faqs = String(x.faq || "").split("\n").map(function(s){ return s.trim(); }).filter(Boolean).join("；") || "—";
-        var tplBtn = x.templateUrl
-          ? '<a class="btn btn-sm btn-outline" href="' + esc(x.templateUrl) + '" target="_blank" rel="noopener">📄 模板 / 报账单据 ↗</a>'
+        var links = parseGuideLinks(x);
+        var tplBtn = links.length
+          ? links.map(function(L, i){
+              return '<a class="btn btn-sm btn-outline" style="margin:0 6px 6px 0;" href="' + esc(L.u) + '" target="_blank" rel="noopener" title="' + esc(L.u) + '">📄 ' + esc(L.t || ("模板 / 单据 " + (i+1))) + ' ↗</a>';
+            }).join("")
           : '<span class="btn btn-sm btn-outline" style="opacity:.55; cursor:not-allowed;">模板未配置</span>';
         return '<div class="card">' +
           '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
@@ -220,6 +224,47 @@
     }
     window.renderGuide = renderGuide;
 
+    /* ---------- 模板/单据多链接：解析与编辑 ---------- */
+    function parseGuideLinks(x){
+      var out = [];
+      try {
+        var v = x && x.links ? JSON.parse(x.links) : [];
+        if(Array.isArray(v)) out = v.filter(function(L){ return L && typeof L.u === "string" && L.u.trim(); })
+                                   .map(function(L){ return { t: String(L.t||"").trim(), u: String(L.u).trim() }; });
+      } catch(e){}
+      /* 兼容老数据：只有单个 templateUrl */
+      if(!out.length && x && (x.templateUrl || x.template)){
+        var u = String(x.templateUrl || x.template).trim();
+        if(u) out = [{ t: "模板 / 报账单据", u: u }];
+      }
+      return out;
+    }
+    window.parseGuideLinks = parseGuideLinks;
+
+    function gvAddLinkRow(t, u){
+      var wrap = document.getElementById("gv-links");
+      var row = document.createElement("div");
+      row.style.cssText = "display:flex; gap:6px; align-items:center;";
+      row.innerHTML =
+        '<input type="text" class="gv-link-t" placeholder="名称（如：差旅报销模板）" style="flex:0 0 200px;">' +
+        '<input type="text" class="gv-link-u" placeholder="粘贴飞书文档/表格链接" style="flex:1;">' +
+        '<button type="button" class="btn btn-xs btn-danger" onclick="gvRemoveLinkRow(this)" title="移除这条链接">✕</button>';
+      row.querySelector(".gv-link-t").value = t || "";
+      row.querySelector(".gv-link-u").value = u || "";
+      wrap.appendChild(row);
+    }
+    function gvRemoveLinkRow(btn){ btn.closest("div").remove(); }
+    function gvCollectLinks(){
+      var out = [];
+      document.querySelectorAll("#gv-links > div").forEach(function(row){
+        var t = row.querySelector(".gv-link-t").value.trim();
+        var u = row.querySelector(".gv-link-u").value.trim();
+        if(u) out.push({ t: t, u: u });
+      });
+      return out;
+    }
+    window.gvAddLinkRow = gvAddLinkRow; window.gvRemoveLinkRow = gvRemoveLinkRow; window.gvCollectLinks = gvCollectLinks;
+
     /* ---------- 打开编辑弹窗 ---------- */
     function findGuideItem(id){
       return currentGuideList().find(function(x){ return x && x.id === id; });
@@ -237,7 +282,10 @@
       document.getElementById("gv-materials").value = item ? (item.materials || "") : "";
       document.getElementById("gv-faq").value = item ? (item.faq || "") : "";
       document.getElementById("gv-note").value = item ? (item.note || "") : "";
-      document.getElementById("gv-url").value = item ? (item.templateUrl || item.template || "") : "";
+      document.getElementById("gv-links").innerHTML = "";
+      var existLinks = item ? parseGuideLinks(item) : [];
+      if(existLinks.length) existLinks.forEach(function(L){ gvAddLinkRow(L.t, L.u); });
+      else if(mode === "cat") gvAddLinkRow();   /* 新类目默认给一行 */
       document.getElementById("gv-sort").value = item && item.sort != null ? item.sort : "";
       document.getElementById("gvTitle").textContent = mode === "cat"
         ? (item ? "编辑类目：" + (item.title || "") : "添加类目")
@@ -273,7 +321,7 @@
           materials: document.getElementById("gv-materials").value.replace(/\r/g, ""),
           faq: document.getElementById("gv-faq").value.replace(/\r/g, ""),
           note: document.getElementById("gv-note").value.trim(),
-          templateUrl: document.getElementById("gv-url").value.trim()
+          links: JSON.stringify(gvCollectLinks())
         };
       } else {
         item = { id: gid || nextGuideId(), kind: "info", title: title, value: document.getElementById("gv-value").value.trim() };
@@ -387,6 +435,6 @@
       }).then(renderGuide).catch(function(e){ console.error("报账指南加载失败：", e); renderGuide(); });
     });
   </script>
-<script src="../assets/js/gate.js?v=4.0"></script>
+<script src="../assets/js/gate.js?v=4.1"></script>
 </body>
 </html>
