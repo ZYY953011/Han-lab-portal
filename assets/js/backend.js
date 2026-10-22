@@ -26,13 +26,13 @@ window.DB = (function () {
    *       读取时自动把 data 展开成完整对象，写入时自动把整对象塞进 data。 */
   var TABLES = {
     meetings:  { table: "lab_meetings",  fields: ["id","date","time","place","reporter","topic","pptUrl","docUrl","publishDate","publisher"] },
-    plans:     { table: "lab_plans",     fields: ["id","name","month","content","status","finalAt","revising","reviseReason","revisedAt","done","doneNote","doneBy","doneAt"] },
+    plans:     { table: "lab_plans",     fields: ["id","name","month","content","status","finalAt","revising","reviseReason","revisedAt","done","doneNote","doneBy","doneAt","tasks"] },
     expenses:  { table: "lab_expenses",  fields: ["id","projectId","date","cat","item","amount","person","receipt","note"] },
     equipment: { table: "lab_equipment", fields: ["id","category","name","model","brand","qty","unit","location","keeper","purchaseDate","price","status","url","note","photos"] },
     datasets:  { table: "lab_datasets",  fields: ["id","site","uploader","date","url","note"] },
     projects:  { table: "lab_projects", full: true, fields: ["id","name","shortName","leader","source","code","fiscalCode","start","end","budget","status","stage","progress","pinned","members"] },
     methods:   { table: "lab_methods",  full: true, fields: ["id","name","category","author","version","updated","sopUrl"] },
-    samples:   { table: "lab_samples",  full: true, fields: ["id","name","type","project","owner","location","remain","total","unit","status"] },
+    samples:   { table: "lab_samples",  full: true, fields: ["id","name","type","project","owner","location","remain","total","unit","status","photos"] },
     students:  { table: "lab_students", full: true, fields: ["id","name","type","tutor","enroll"] },
     members:   { table: "lab_members",  full: true, fields: ["id","name","role","status"] },
     achievements: { table: "lab_achievements", full: true, fields: ["id","title","type","year"] },

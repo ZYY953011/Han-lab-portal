@@ -4,16 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>样品详情 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=4.1">
+  <link rel="stylesheet" href="../assets/css/style.css?v=4.2">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
   <main class="container" id="main"></main>
 
-  <script src="../assets/js/data/samples.js?v=4.1"></script>
-  <script src="../assets/js/config.js?v=4.1"></script>
-  <script src="../assets/js/app.js?v=4.1"></script>
-  <script src="../assets/js/backend.js?v=4.1"></script>
+  <script src="../assets/js/data/samples.js?v=4.2"></script>
+  <script src="../assets/js/config.js?v=4.2"></script>
+  <script src="../assets/js/photo-helper.js?v=4.2"></script>
+  <script src="../assets/js/app.js?v=4.2"></script>
+  <script src="../assets/js/backend.js?v=4.2"></script>
   <script>
     injectHeader("样品");
     var id = getParam("id");
@@ -54,6 +55,11 @@
             <a class="btn btn-primary btn-sm" href="samples.html?edit=${esc(s.id)}">✏️ 编辑</a>
             <button class="btn btn-danger btn-sm" onclick="deleteThis()">🗑 删除</button>
           </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;" id="photoCard">
+          <div class="section-title" style="margin-top:0;">照片</div>
+          <div id="photoGrid" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
         </div>
 
         <div class="card" style="margin-bottom:16px;">
@@ -99,6 +105,26 @@
     }
     render();
 
+    /* 照片展示（数据就绪后调用；render 内也会尝试） */
+    function renderPhotos(){
+      var s = allSamples().find(function(x){ return x.id === id; });
+      var ph = PH.parsePhotos(s && s.photos);
+      var card = document.getElementById("photoCard");
+      var grid = document.getElementById("photoGrid");
+      if(!card || !grid) return;
+      if(!ph.length){ card.style.display = "none"; return; }
+      card.style.display = "";
+      grid.innerHTML = ph.map(function(u, i){
+        return '<img src="' + esc(u) + '" loading="lazy" data-i="' + i + '"' +
+          ' style="width:140px; height:140px; object-fit:cover; border-radius:10px; border:1px solid var(--border); cursor:zoom-in;">';
+      }).join("");
+      Array.prototype.forEach.call(grid.querySelectorAll("img"), function(img){
+        img.onclick = function(){ PH.showViewer(ph, Number(img.dataset.i)); };
+      });
+    }
+    window.renderPhotos = renderPhotos;
+    if (typeof allSamples === "function") renderPhotos();
+
     function deleteThis(){
       if(!confirm("确定删除该样品吗？")) return;
       var go = function(){ location.href = "samples.html"; };
@@ -118,9 +144,9 @@
     var __cloudReady = (window.DB ? DB.ready() : Promise.resolve("local"));
     __cloudReady.then(function(mode){
       if(mode !== "cloud") return;
-      return DB.hydrate("samples", "samples").then(function(){ render(); });
+      return DB.hydrate("samples", "samples").then(function(){ render(); if(window.renderPhotos) renderPhotos(); });
     }).catch(function(){});
   </script>
-<script src="../assets/js/gate.js?v=4.1"></script>
+<script src="../assets/js/gate.js?v=4.2"></script>
 </body>
 </html>

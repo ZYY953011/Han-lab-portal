@@ -425,3 +425,30 @@ begin
     create policy "equipment photos delete" on storage.objects for delete using (bucket_id = 'equipment-photos');
   end if;
 end $$;
+
+-- ---------- 17. 样品照片 + 月度计划任务模板（v4.2） ----------
+-- a) 样品照片：与仪器耗材照片同一套机制（photos 列存 URL JSON，sample-photos 存储桶公开读）
+alter table public.lab_samples add column if not exists photos text;
+
+-- b) 月度计划任务模板：tasks 列存 JSON（两个任务，各含半月检查与月末完成情况）
+alter table public.lab_plans add column if not exists tasks text;
+
+-- 样品照片存储桶与访问策略（本地 PostgreSQL 执行时自动跳过）
+do $$
+begin
+  if exists (select 1 from pg_namespace where nspname = 'storage') then
+    insert into storage.buckets (id, name, public)
+    values ('sample-photos', 'sample-photos', true)
+    on conflict (id) do update set public = true;
+
+    drop policy if exists "sample photos read"   on storage.objects;
+    drop policy if exists "sample photos insert" on storage.objects;
+    drop policy if exists "sample photos update" on storage.objects;
+    drop policy if exists "sample photos delete" on storage.objects;
+
+    create policy "sample photos read"   on storage.objects for select using (bucket_id = 'sample-photos');
+    create policy "sample photos insert" on storage.objects for insert with check (bucket_id = 'sample-photos');
+    create policy "sample photos update" on storage.objects for update using (bucket_id = 'sample-photos');
+    create policy "sample photos delete" on storage.objects for delete using (bucket_id = 'sample-photos');
+  end if;
+end $$;

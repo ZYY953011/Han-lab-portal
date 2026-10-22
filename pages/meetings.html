@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>组会安排与记录 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=4.1">
+  <link rel="stylesheet" href="../assets/css/style.css?v=4.2">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -40,17 +40,19 @@
     <div class="section-title" style="margin-top:18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <span>成员月度计划</span>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <select id="planMonth" onchange="renderPlans()" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:#fff;"></select>
+        <select id="planMonth" onchange="renderPlans(); if(window.toggleSummary && summaryViewOn()) renderSummary();" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:#fff;"></select>
+        <button class="btn btn-outline btn-sm" id="planSummaryBtn" onclick="toggleSummary()">📋 导师总表</button>
         <button class="btn btn-primary btn-sm" onclick="openPlanModal()">＋ 添加我的计划</button>
         <button class="btn btn-outline btn-sm local-only-btn" onclick="exportPlans()">导出计划（JSON）</button>
       </div>
     </div>
     <div class="note-box" style="margin-bottom:12px;">
-      🔒 <b>填写与锁定规则：</b>每人每月填写一条本月计划（姓名、月份、计划内容），填写后可先作为<b>草稿</b>修改，确认无误点<b>「定稿」</b>——定稿后本人<b>不能再编辑或删除</b>这条计划，全组与导师都能看到定稿版。<br>
-      ① 月底未完成不用删计划：定稿计划下月<b>如实填写「完成情况」</b>（完成 / 部分完成 / 未完成 + 说明）即可，如实记录不追责、隐瞒删改才追责；<br>
-      ② 确因笔误要改内容：点「申请修改」并<b>必填修改原因</b>，修改说明随记录保存在云端留痕，全组可见；<br>
-      ③ 所有增删改都实时同步云端——保存后全组看到的就是最新内容，无需任何导出或人工转发。
+      📝 <b>填写模板：</b>每人每月一条计划，按模板填<b>两个重点任务</b>；<b>月中</b>点「半月检查」记录一次进展（未开始 / 进行中 / 已完成 / 受阻），<b>月底</b>如实填写每个任务的完成情况（完成 / 部分完成 / 未完成 + 说明）。<br>
+      ① 计划填写后先作为<b>草稿</b>修改，确认无误点<b>「定稿」</b>——定稿后本人不能再编辑或删除，全组与导师都能看到定稿版；<br>
+      ② 确因笔误要改内容：点「申请修改」并<b>必填修改原因</b>，修改说明云端留痕、全组可见；<br>
+      ③ 所有增删改都实时同步云端——保存后全组看到的就是最新内容，导师用「📋 导师总表」一屏看全组。
     </div>
+    <div id="planSummaryWrap" style="display:none; margin-bottom:12px;"></div>
     <div id="planList"></div>
 
     <div class="section-title" style="margin-top:18px;">组会日历（最近 / 即将）</div>
@@ -76,13 +78,13 @@
     </div>
   </div>
 
-  <script src="../assets/js/data/meetings.js?v=4.1"></script>
-  <script src="../assets/js/data/meeting-overrides.js?v=4.1"></script>
-  <script src="../assets/js/data/members.js?v=4.1"></script>
-  <script src="../assets/js/data/plan-overrides.js?v=4.1"></script>
-  <script src="../assets/js/config.js?v=4.1"></script>
-  <script src="../assets/js/app.js?v=4.1"></script>
-  <script src="../assets/js/backend.js?v=4.1"></script>
+  <script src="../assets/js/data/meetings.js?v=4.2"></script>
+  <script src="../assets/js/data/meeting-overrides.js?v=4.2"></script>
+  <script src="../assets/js/data/members.js?v=4.2"></script>
+  <script src="../assets/js/data/plan-overrides.js?v=4.2"></script>
+  <script src="../assets/js/config.js?v=4.2"></script>
+  <script src="../assets/js/app.js?v=4.2"></script>
+  <script src="../assets/js/backend.js?v=4.2"></script>
   <script>
     injectHeader("组会");
     document.getElementById("head").insertAdjacentHTML("afterend",
@@ -397,6 +399,20 @@
       if(v === "none") return '<span class="badge badge-red">未完成</span>';
       return "";
     }
+    /* 任务模板解析（旧记录无 tasks 返回空数组） */
+    function parseTasks(it){
+      try {
+        var t = it && it.tasks ? JSON.parse(it.tasks) : [];
+        return Array.isArray(t) ? t : [];
+      } catch(e){ return []; }
+    }
+    function midBadge(v){
+      if(v === "done") return '<span class="badge badge-green">半月✅已完成</span>';
+      if(v === "doing") return '<span class="badge badge-blue">半月🔄进行中</span>';
+      if(v === "stuck") return '<span class="badge badge-red">半月⛔受阻</span>';
+      if(v === "todo") return '<span class="badge badge-gray">半月·未开始</span>';
+      return '<span style="font-size:12px; color:var(--muted);">半月未检查</span>';
+    }
 
     function renderPlans(){
       var list = allPlans();
@@ -433,6 +449,7 @@
 
     function planCard(it){
       var actions = "";
+      var tasks = parseTasks(it);
       if(it.status !== "final"){
         actions =
           '<button class="btn btn-xs btn-outline" onclick="openPlanModal(\'' + esc(it.id) + '\',\'edit\')">编辑</button>' +
@@ -441,20 +458,47 @@
       } else {
         actions =
           '<button class="btn btn-xs btn-outline" onclick="requestRevise(\'' + esc(it.id) + '\')">申请修改</button>' +
-          ' <button class="btn btn-xs btn-primary" onclick="openDoneModal(\'' + esc(it.id) + '\')">' + (it.done ? "更新完成情况" : "填写完成情况") + '</button>';
+          (tasks.length
+            ? ' <button class="btn btn-xs btn-outline" onclick="openMidModal(\'' + esc(it.id) + '\')">半月检查</button>'
+            : "") +
+          ' <button class="btn btn-xs btn-primary" onclick="openDoneModal(\'' + esc(it.id) + '\')">' + (planDoneFilled(it) ? "更新完成情况" : "填写完成情况") + '</button>';
       }
       var meta = "";
       if(it.status === "final" && it.finalAt) meta = '定稿于 ' + esc(fmtTime(it.finalAt));
       var reviseNote = (it.status === "final" && it.revising)
         ? '<div style="margin-top:8px; font-size:12.5px; color:#b97400; background:#fdf0db; border-radius:8px; padding:6px 10px;">✏️ 修改申请原因：' + esc(it.reviseReason || "未填写") + '（' + esc(fmtTime(it.revisedAt)) + ' · 云端留痕，全组可见修改说明）</div>' : "";
-      var doneBlock =
-        '<div style="margin-top:10px; background:var(--bg, #f7f8fa); border-radius:8px; padding:8px 12px; font-size:13px;">' +
-          '<b>完成情况：</b>' +
-          (it.done
-            ? doneBadge(it.done) + ' ' + esc(it.doneNote || "") +
-              ' <span style="color:var(--muted); font-size:12px;">（' + esc(it.doneBy || "—") + ' · ' + esc(fmtTime(it.doneAt)) + ' 填写）</span>'
-            : '<span style="color:var(--muted);">尚未填写（次月月初如实填写，未完成也请如实记录，不需要删除计划）</span>') +
-        '</div>';
+
+      /* 新模板：两个任务，各带半月检查 + 月末完成情况 */
+      var bodyBlock;
+      if(tasks.length){
+        bodyBlock = tasks.map(function(t, i){
+          var taskNo = i + 1;
+          var mid = t.mid || {};
+          var end = t.end || {};
+          var midLine = mid && mid.status
+            ? midBadge(mid.status) + ' <span style="font-size:12.5px;">' + esc(mid.note || "") + '</span> <span style="font-size:11.5px; color:var(--muted);">(' + esc(mid.by || "—") + ' · ' + esc(fmtTime(mid.at)) + ')</span>'
+            : '<span style="font-size:12.5px; color:var(--muted);">未检查（月中点「半月检查」记录进展）</span>';
+          var endLine = end && end.status
+            ? doneBadge(end.status) + ' <span style="font-size:12.5px;">' + esc(end.note || "") + '</span> <span style="font-size:11.5px; color:var(--muted);">(' + esc(end.by || "—") + ' · ' + esc(fmtTime(end.at)) + ')</span>'
+            : '<span style="font-size:12.5px; color:var(--muted);">月末填写</span>';
+          return '<div style="margin-top:8px; padding:8px 12px; background:var(--bg, #f7f8fa); border-radius:8px;">' +
+            '<b style="font-size:13.5px;">任务 ' + taskNo + '：</b><span style="font-size:14px;">' + esc(t.content || "") + '</span>' +
+            '<div style="margin-top:5px; font-size:12.5px;"><b>半月检查：</b>' + midLine + '</div>' +
+            '<div style="margin-top:3px; font-size:12.5px;"><b>月末完成：</b>' + endLine + '</div>' +
+          '</div>';
+        }).join("");
+      } else {
+        /* 旧记录：自由文本 + 单一完成情况 */
+        bodyBlock =
+          '<div style="margin-top:8px; font-size:14px; line-height:1.75; white-space:pre-wrap;">' + esc(it.content || "") + '</div>' +
+          '<div style="margin-top:10px; background:var(--bg, #f7f8fa); border-radius:8px; padding:8px 12px; font-size:13px;">' +
+            '<b>完成情况：</b>' +
+            (it.done
+              ? doneBadge(it.done) + ' ' + esc(it.doneNote || "") +
+                ' <span style="color:var(--muted); font-size:12px;">（' + esc(it.doneBy || "—") + ' · ' + esc(fmtTime(it.doneAt)) + ' 填写）</span>'
+              : '<span style="color:var(--muted);">尚未填写（次月月初如实填写，未完成也请如实记录，不需要删除计划）</span>') +
+          '</div>';
+      }
       return '<div class="card" style="margin-bottom:10px; padding:14px 16px;">' +
         '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">' +
           '<span class="badge badge-purple">' + esc(it.name || "未署名") + '</span>' +
@@ -463,9 +507,14 @@
           '<span style="font-size:12px; color:var(--muted);">' + meta + '</span>' +
           '<span style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">' + actions + '</span>' +
         '</div>' +
-        '<div style="margin-top:8px; font-size:14px; line-height:1.75; white-space:pre-wrap;">' + esc(it.content || "") + '</div>' +
-        reviseNote + doneBlock +
+        bodyBlock +
+        reviseNote +
       '</div>';
+    }
+    function planDoneFilled(it){
+      var t = parseTasks(it);
+      if(t.length) return t.some(function(x){ return x.end && x.end.status; });
+      return !!it.done;
     }
 
     /* ---------- 添加 / 编辑 / 申请修改 弹窗 ---------- */
@@ -482,8 +531,10 @@
             '<input type="text" id="pmName" list="pmNameList" placeholder="填写人姓名" style="width:100%;">' +
             '<datalist id="pmNameList">' + memberNames.map(function(n){ return '<option value="' + esc(n) + '">'; }).join("") + '</datalist></div>' +
           '<div><label>月份 <span style="color:red">*</span></label><input type="month" id="pmMonth" style="width:100%;"></div>' +
-          '<div style="grid-column:1/-1;"><label>计划内容 <span style="color:red">*</span>（本月要做的事，一条一行）</label>' +
-            '<textarea id="pmContent" rows="6" placeholder="如：&#10;1. 完成 2026 年春玉米田间取样与室内分析；&#10;2. 撰写小论文引言部分；&#10;3. 准备 10 月组会汇报 PPT。" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea></div>' +
+          '<div style="grid-column:1/-1;"><label>任务 1 <span style="color:red">*</span>（本月第一个重点任务）</label>' +
+            '<textarea id="pmTask1" rows="3" placeholder="如：完成 2026 年春玉米田间取样与室内分析" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea></div>' +
+          '<div style="grid-column:1/-1;"><label>任务 2 <span style="color:red" id="pmTask2Req">*</span>（本月第二个重点任务，可留空）</label>' +
+            '<textarea id="pmTask2" rows="3" placeholder="如：撰写小论文引言部分；准备 10 月组会汇报 PPT" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea></div>' +
           '<div style="grid-column:1/-1;" id="pmReasonWrap"><label>修改原因 <span style="color:red">*</span>（必填，将随记录保存在云端留痕）</label>' +
             '<input type="text" id="pmReason" placeholder="如：笔误，日期写错了" style="width:100%;"></div>' +
         '</div>' +
@@ -505,7 +556,10 @@
       document.getElementById("pmReasonWrap").style.display = isRevise ? "" : "none";
       document.getElementById("pmName").value = it ? (it.name || "") : "";
       document.getElementById("pmMonth").value = it ? (it.month || "") : curMonthStr();
-      document.getElementById("pmContent").value = it ? (it.content || "") : "";
+      var t = parseTasks(it);
+      document.getElementById("pmTask1").value = t[0] ? (t[0].content || "") : "";
+      document.getElementById("pmTask2").value = t[1] ? (t[1].content || "") : "";
+      if(!it) { document.getElementById("pmTask1").value = ""; document.getElementById("pmTask2").value = ""; }
       document.getElementById("pmReason").value = "";
       wrap.dataset.id = id || "";
       wrap.dataset.mode = mode || "add";
@@ -527,17 +581,25 @@
       var id = wrap.dataset.id, mode = wrap.dataset.mode || "add";
       var name = document.getElementById("pmName").value.trim();
       var month = document.getElementById("pmMonth").value.trim();
-      var content = document.getElementById("pmContent").value.trim();
+      var t1 = document.getElementById("pmTask1").value.trim();
+      var t2 = document.getElementById("pmTask2").value.trim();
       var reason = document.getElementById("pmReason").value.trim();
       if(!name){ alert("请填写姓名"); return; }
       if(!month){ alert("请选择月份"); return; }
-      if(!content){ alert("请填写计划内容"); return; }
+      if(!t1){ alert("请填写任务 1"); return; }
       if(mode === "revise" && !reason){ alert("申请修改必须填写修改原因"); return; }
 
       var old = id ? allPlans().find(function(x){ return x.id === id; }) : null;
       var item = Object.assign({}, old || {});
+      var prevTasks = parseTasks(old);
       item.id = id || ("MP-" + month + "-" + name + "-" + Date.now());
-      item.name = name; item.month = month; item.content = content;
+      item.name = name; item.month = month;
+      /* 任务模板：两个任务；重新编辑计划内容只更新 content，不动已填的检查记录 */
+      item.tasks = JSON.stringify([
+        { content: t1, mid: (prevTasks[0] && prevTasks[0].mid) || null, end: (prevTasks[0] && prevTasks[0].end) || null },
+        { content: t2, mid: (prevTasks[1] && prevTasks[1].mid) || null, end: (prevTasks[1] && prevTasks[1].end) || null }
+      ]);
+      item.content = "任务1：" + t1 + (t2 ? "\n任务2：" + t2 : "");  /* 兼容旧展示/导出 */
       if(!item.status) item.status = "draft";
       if(mode === "revise"){
         item.revising = true; item.reviseReason = reason; item.revisedAt = nowISO();
@@ -612,21 +674,155 @@
     }
     window.deletePlan = deletePlan;
 
+    /* ---------- 半月检查（每个任务一次） ---------- */
+    var midModal = document.createElement("div");
+    midModal.id = "midModal";
+    midModal.className = "modal";
+    midModal.innerHTML = '<div class="modal-box" style="max-width:480px;">' +
+      '<div class="modal-head"><b id="mmTitle">半月检查</b><button class="btn btn-sm btn-outline" onclick="closeMidModal()">关闭</button></div>' +
+      '<div class="modal-body">' +
+        '<p style="font-size:13px; color:var(--muted); margin:0 0 10px;">每半个月检查一次任务进展，如实填写即可；受阻也请如实记录，方便导师及时协调。</p>' +
+        '<div style="margin-bottom:8px; font-size:14px;"><b id="mmTaskText"></b></div>' +
+        '<label>进展状态</label>' +
+        '<select id="mmStatus" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">' +
+          '<option value="todo">未开始</option><option value="doing">进行中</option>' +
+          '<option value="done">已完成</option><option value="stuck">受阻（需协调）</option>' +
+        '</select>' +
+        '<label>说明（进展 / 卡在哪 / 需要什么支持）</label>' +
+        '<textarea id="mmNote" rows="3" placeholder="如：取样完成，室内测定排到下周。" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea>' +
+        '<div style="display:flex; gap:8px; margin-top:12px; align-items:center;">' +
+          '<input type="text" id="mmBy" placeholder="填写人姓名" style="width:150px;">' +
+          '<button class="btn btn-primary" onclick="submitMid()">保存</button>' +
+          '<button class="btn btn-outline" onclick="closeMidModal()">取消</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+    document.body.appendChild(midModal);
+    function openMidModal(id, taskIdx){
+      var it = allPlans().find(function(x){ return x.id === id; });
+      if(!it) return;
+      var t = parseTasks(it);
+      var i = taskIdx != null ? taskIdx : 0;
+      if(!t[i]) return;
+      document.getElementById("mmTitle").textContent = "半月检查 · " + (it.name||"") + " " + (it.month||"") + " · 任务" + (i+1);
+      document.getElementById("mmTaskText").textContent = t[i].content || "";
+      document.getElementById("mmStatus").value = (t[i].mid && t[i].mid.status) || "doing";
+      document.getElementById("mmNote").value = (t[i].mid && t[i].mid.note) || "";
+      document.getElementById("mmBy").value = (t[i].mid && t[i].mid.by) || it.name || "";
+      midModal.dataset.id = id; midModal.dataset.idx = String(i);
+      midModal.classList.add("open");
+    }
+    function closeMidModal(){ midModal.classList.remove("open"); }
+    function submitMid(){
+      var id = midModal.dataset.id, idx = Number(midModal.dataset.idx || 0);
+      var it = allPlans().find(function(x){ return x.id === id; });
+      if(!it) return;
+      var item = Object.assign({}, it);
+      delete item.__localIdx;
+      var t = parseTasks(item);
+      if(!t[idx]) { alert("任务数据异常，请刷新重试"); return; }
+      t[idx].mid = {
+        status: document.getElementById("mmStatus").value,
+        note: document.getElementById("mmNote").value.trim(),
+        by: document.getElementById("mmBy").value.trim() || it.name || "—",
+        at: nowISO()
+      };
+      item.tasks = JSON.stringify(t);
+      savePlanItem(item, id);
+      closeMidModal();
+    }
+    window.openMidModal = openMidModal; window.closeMidModal = closeMidModal; window.submitMid = submitMid;
+
+    /* 统一保存（云端优先，本机兜底），保存后刷新 */
+    function savePlanItem(item, id){
+      var arr = getLocalPlans();
+      var i = arr.findIndex(function(x){ return x.id === id; });
+      if(i >= 0) arr[i] = item; else arr.push(item);
+      saveLocalPlans(arr);
+      if(window.DB && DB.mode === "cloud"){
+        DB.upsert("plans", item).then(function(){ location.reload(); })
+          .catch(function(e){ alert("云端保存失败：" + e.message + "\n已暂存本机，恢复网络后重新保存一次即可同步全组。"); location.reload(); });
+        return;
+      }
+      location.reload();
+    }
+
+    /* ---------- 导师总表视图 ---------- */
+    var summaryOn = false;
+    function summaryViewOn(){ return summaryOn; }
+    window.summaryViewOn = summaryViewOn;
+    function toggleSummary(){
+      summaryOn = !summaryOn;
+      document.getElementById("planSummaryBtn").textContent = summaryOn ? "📋 卡片视图" : "📋 导师总表";
+      document.getElementById("planSummaryWrap").style.display = summaryOn ? "" : "none";
+      document.getElementById("planList").style.display = summaryOn ? "none" : "";
+      if(summaryOn) renderSummary();
+    }
+    window.toggleSummary = toggleSummary;
+    function renderSummary(){
+      var list = allPlans();
+      var sel = document.getElementById("planMonth").value;
+      var filtered = sel ? list.filter(function(x){ return x.month === sel; }) : list;
+      filtered.sort(function(a,b){
+        return (b.month||"").localeCompare(a.month||"") || String(a.name||"").localeCompare(String(b.name||""));
+      });
+      var midTxt = function(v){
+        return { todo:"未开始", doing:"进行中", done:"✅", stuck:"⛔受阻" }[v] || "—";
+      };
+      var endTxt = function(v){
+        return { done:"✅完成", partial:"🟡部分", none:"❌未完成" }[v] || "—";
+      };
+      var rows = filtered.map(function(it){
+        var t = parseTasks(it);
+        if(t.length){
+          return '<tr>' +
+            '<td style="white-space:nowrap;">' + esc(it.name || "—") + '</td>' +
+            '<td style="white-space:nowrap;">' + esc(it.month || "—") + '</td>' +
+            '<td>' + esc((t[0] && t[0].content) || "—") + '</td>' +
+            '<td style="white-space:nowrap; text-align:center;">' + midTxt(t[0] && t[0].mid && t[0].mid.status) + '</td>' +
+            '<td>' + (t[1] ? esc(t[1].content) : "—") + '</td>' +
+            '<td style="white-space:nowrap; text-align:center;">' + (t[1] ? midTxt(t[1].mid && t[1].mid.status) : "—") + '</td>' +
+            '<td style="white-space:nowrap;">' +
+              endTxt(t[0] && t[0].end && t[0].end.status) +
+              (t[1] ? ' / ' + endTxt(t[1].end && t[1].end.status) : "") +
+            '</td>' +
+          '</tr>';
+        }
+        /* 旧记录 */
+        return '<tr>' +
+          '<td style="white-space:nowrap;">' + esc(it.name || "—") + '</td>' +
+          '<td style="white-space:nowrap;">' + esc(it.month || "—") + '</td>' +
+          '<td colspan="3">' + esc(it.content || "—") + '</td>' +
+          '<td style="text-align:center;">—</td>' +
+          '<td style="white-space:nowrap;">' + endTxt(it.done) + (it.doneNote ? ' <span style="color:var(--muted); font-size:12px;">' + esc(it.doneNote) + '</span>' : "") + '</td>' +
+        '</tr>';
+      }).join("");
+      document.getElementById("planSummaryWrap").innerHTML =
+        '<div class="table-wrap"><table>' +
+          '<thead><tr><th>成员</th><th>月份</th><th>任务 1</th><th style="width:90px;">半月检查 1</th><th>任务 2</th><th style="width:90px;">半月检查 2</th><th style="width:130px;">月末完成</th></tr></thead>' +
+          '<tbody>' + (rows || '<tr><td colspan="7">' + emptyTip("暂无计划记录") + '</td></tr>') + '</tbody>' +
+        '</table></div>' +
+        '<p style="font-size:12.5px; color:var(--muted); margin-top:8px;">总表为只读视图，供导师快速浏览全组计划与进展；填写请回卡片视图操作。</p>';
+    }
+
     /* ---------- 完成情况填写（次月如实记录，不删计划） ---------- */
     var doneModal = document.createElement("div");
     doneModal.id = "doneModal";
     doneModal.className = "modal";
-    doneModal.innerHTML = '<div class="modal-box" style="max-width:480px;">' +
+    doneModal.innerHTML = '<div class="modal-box" style="max-width:520px;">' +
       '<div class="modal-head"><b id="dmTitle">填写完成情况</b><button class="btn btn-sm btn-outline" onclick="closeDoneModal()">关闭</button></div>' +
       '<div class="modal-body">' +
-        '<p style="font-size:13px; color:var(--muted); margin-bottom:10px;">请<b>如实</b>填写上月计划完成情况：完成、部分完成或未完成均可，说明写清原因与后续安排即可。如实记录不追责；未完成而删改计划才会被记录。</p>' +
-        '<div style="display:flex; gap:16px; margin-bottom:10px; font-size:14px;">' +
-          '<label><input type="radio" name="dmDone" value="done"> ✅ 已完成</label>' +
-          '<label><input type="radio" name="dmDone" value="partial"> 🟡 部分完成</label>' +
-          '<label><input type="radio" name="dmDone" value="none"> ❌ 未完成</label>' +
+        '<p style="font-size:13px; color:var(--muted); margin-bottom:10px;">请<b>如实</b>填写完成情况：完成、部分完成或未完成均可，说明写清原因与后续安排即可。如实记录不追责；未完成而删改计划才会被记录。</p>' +
+        '<div id="dmTasks"></div>' +
+        '<div id="dmLegacy" style="display:none;">' +
+          '<div style="display:flex; gap:16px; margin-bottom:10px; font-size:14px;">' +
+            '<label><input type="radio" name="dmDone" value="done"> ✅ 已完成</label>' +
+            '<label><input type="radio" name="dmDone" value="partial"> 🟡 部分完成</label>' +
+            '<label><input type="radio" name="dmDone" value="none"> ❌ 未完成</label>' +
+          '</div>' +
+          '<label>说明（原因 / 产出 / 后续安排）</label>' +
+          '<textarea id="dmNote" rows="4" placeholder="如：完成取样与指标测定，论文写作因试验延误顺延至下月。" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea>' +
         '</div>' +
-        '<label>说明（原因 / 产出 / 后续安排）</label>' +
-        '<textarea id="dmNote" rows="4" placeholder="如：完成取样与指标测定，论文写作因试验延误顺延至下月。" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea>' +
         '<div style="display:flex; gap:8px; margin-top:12px; align-items:center;">' +
           '<input type="text" id="dmBy" placeholder="填写人姓名" style="width:150px;">' +
           '<button class="btn btn-primary" onclick="submitDone()">保存</button>' +
@@ -640,10 +836,31 @@
       var it = allPlans().find(function(x){ return x.id === id; });
       if(!it) return;
       document.getElementById("dmTitle").textContent = "填写完成情况 · " + (it.name||"") + " " + (it.month||"");
-      var radios = document.querySelectorAll('input[name="dmDone"]');
-      radios.forEach(function(r){ r.checked = (r.value === (it.done || "")); });
-      document.getElementById("dmNote").value = it.doneNote || "";
+      var t = parseTasks(it);
+      var tasksWrap = document.getElementById("dmTasks");
+      var legacy = document.getElementById("dmLegacy");
       document.getElementById("dmBy").value = it.doneBy || it.name || "";
+      if(t.length){
+        legacy.style.display = "none";
+        tasksWrap.innerHTML = t.map(function(task, i){
+          var end = task.end || {};
+          return '<div style="border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px;">' +
+            '<b style="font-size:13.5px;">任务 ' + (i+1) + '：</b><span style="font-size:13.5px;">' + esc(task.content || "") + '</span>' +
+            '<div style="display:flex; gap:12px; margin-top:8px; font-size:13.5px; flex-wrap:wrap;">' +
+              '<label><input type="radio" name="dmEnd' + i + '" value="done"' + (end.status==="done"?" checked":"") + '> ✅ 完成</label>' +
+              '<label><input type="radio" name="dmEnd' + i + '" value="partial"' + (end.status==="partial"?" checked":"") + '> 🟡 部分</label>' +
+              '<label><input type="radio" name="dmEnd' + i + '" value="none"' + (end.status==="none"?" checked":"") + '> ❌ 未完成</label>' +
+            '</div>' +
+            '<textarea data-endnote="' + i + '" rows="2" placeholder="说明（原因 / 产出 / 后续安排）" style="width:100%; margin-top:6px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13.5px; resize:vertical;">' + esc(end.note || "") + '</textarea>' +
+          '</div>';
+        }).join("");
+      } else {
+        tasksWrap.innerHTML = "";
+        legacy.style.display = "";
+        var radios = document.querySelectorAll('input[name="dmDone"]');
+        radios.forEach(function(r){ r.checked = (r.value === (it.done || "")); });
+        document.getElementById("dmNote").value = it.doneNote || "";
+      }
       document.getElementById("doneModal").dataset.id = id;
       document.getElementById("doneModal").classList.add("open");
     }
@@ -655,26 +872,36 @@
     function submitDone(){
       var wrap = document.getElementById("doneModal");
       var id = wrap.dataset.id;
-      var done = "";
-      document.querySelectorAll('input[name="dmDone"]').forEach(function(r){ if(r.checked) done = r.value; });
-      if(!done){ alert("请选择完成状态（完成 / 部分完成 / 未完成）"); return; }
-      var note = document.getElementById("dmNote").value.trim();
-      var by = document.getElementById("dmBy").value.trim();
       var it = allPlans().find(function(x){ return x.id === id; });
       if(!it) return;
       var item = Object.assign({}, it);
       delete item.__localIdx;
-      item.done = done; item.doneNote = note; item.doneBy = by || it.name || "—"; item.doneAt = nowISO();
-      var arr = getLocalPlans();
-      var i = arr.findIndex(function(x){ return x.id === id; });
-      if(i >= 0) arr[i] = item; else arr.push(item);
-      saveLocalPlans(arr);
-      if(window.DB && DB.mode === "cloud"){
-        DB.upsert("plans", item).then(function(){ location.reload(); })
-          .catch(function(e){ alert("云端保存失败：" + e.message); location.reload(); });
-        return;
+      var t = parseTasks(item);
+      var by = document.getElementById("dmBy").value.trim() || it.name || "—";
+      if(t.length){
+        /* 任务模板：先校验再逐任务读取状态与说明 */
+        var statuses = [];
+        for(var i = 0; i < t.length; i++){
+          var st = "";
+          document.querySelectorAll('input[name="dmEnd' + i + '"]').forEach(function(r){ if(r.checked) st = r.value; });
+          if(!st){ alert("任务 " + (i+1) + " 请选择完成状态"); return; }
+          statuses.push(st);
+        }
+        t.forEach(function(task, i){
+          var noteEl = document.querySelector('textarea[data-endnote="' + i + '"]');
+          task.end = { status: statuses[i], note: noteEl ? noteEl.value.trim() : "", by: by, at: nowISO() };
+        });
+        item.tasks = JSON.stringify(t);
+        item.done = ""; item.doneNote = ""; /* 旧字段清空，避免双份展示 */
+      } else {
+        var done = "";
+        document.querySelectorAll('input[name="dmDone"]').forEach(function(r){ if(r.checked) done = r.value; });
+        if(!done){ alert("请选择完成状态（完成 / 部分完成 / 未完成）"); return; }
+        item.done = done; item.doneNote = document.getElementById("dmNote").value.trim();
       }
-      location.reload();
+      item.doneBy = by; item.doneAt = nowISO();
+      savePlanItem(item, id);
+      closeDoneModal();
     }
     window.submitDone = submitDone;
 
@@ -694,6 +921,6 @@
 
     renderPlans();
   </script>
-<script src="../assets/js/gate.js?v=4.1"></script>
+<script src="../assets/js/gate.js?v=4.2"></script>
 </body>
 </html>
