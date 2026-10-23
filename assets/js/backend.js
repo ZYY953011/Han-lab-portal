@@ -38,7 +38,8 @@ window.DB = (function () {
     achievements: { table: "lab_achievements", full: true, fields: ["id","title","type","year"] },
     resources: { table: "lab_resources", full: true, fields: ["id","title","category"] },
     expguide:  { table: "lab_expense_guides", full: true, fields: ["id","title","kind","sort"] },
-    reminders: { table: "lab_reminders", fields: ["id","title","date","note","link","source"] }
+    reminders: { table: "lab_reminders", fields: ["id","title","date","note","link","source"] },
+    notices:   { table: "lab_notices", full: true, fields: ["id","title"] }
   };
 
   var state = { mode: "local", checked: false, reason: "", listeners: [] };

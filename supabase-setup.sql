@@ -452,3 +452,23 @@ begin
     create policy "sample photos delete" on storage.objects for delete using (bucket_id = 'sample-photos');
   end if;
 end $$;
+
+-- ---------- 18. 组会汇报要求（v4.5） ----------
+-- 单条记录存法：id 固定为 meeting-rules，正文存 data->>body
+create table if not exists public.lab_notices (
+  id         text primary key,
+  title      text,
+  data       jsonb default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+alter table public.lab_notices enable row level security;
+
+drop policy if exists "notices read"   on public.lab_notices;
+drop policy if exists "notices insert" on public.lab_notices;
+drop policy if exists "notices update" on public.lab_notices;
+drop policy if exists "notices delete" on public.lab_notices;
+
+create policy "notices read"   on public.lab_notices for select using (true);
+create policy "notices insert" on public.lab_notices for insert with check (true);
+create policy "notices update" on public.lab_notices for update using (true);
+create policy "notices delete" on public.lab_notices for delete using (true);
