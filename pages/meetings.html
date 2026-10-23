@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>组会安排与记录 · 课题组管理平台</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=4.3">
+  <link rel="stylesheet" href="../assets/css/style.css?v=4.4">
 <script>document.documentElement.classList.add("gate-locked");</script>
 </head>
 <body>
@@ -45,7 +45,7 @@
         <button class="btn btn-outline btn-sm local-only-btn" onclick="exportPlans()">导出计划（JSON）</button>
       </div>
     </div>
-    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">一行一个成员：填两个任务的执行时间与内容；<b>完成情况在表格下拉里直接改</b>（选「部分完成 / 未完成」会请填一句说明）。所有人填完自然汇成总表，保存后全组实时可见。</p>
+    <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">一行一个成员：填两个任务的<b>计划时间（选日期）</b>与内容；<b>提交定稿后内容即锁定</b>，后续只能在表格下拉里填完成情况（选「部分完成 / 未完成」会请填一句说明）。所有人填完自然汇成总表，保存后全组实时可见。</p>
     <div id="planTableWrap" style="margin-bottom:12px;"></div>
 
     <div class="section-title" style="margin-top:18px;">组会日历（最近 / 即将）</div>
@@ -71,13 +71,13 @@
     </div>
   </div>
 
-  <script src="../assets/js/data/meetings.js?v=4.3"></script>
-  <script src="../assets/js/data/meeting-overrides.js?v=4.3"></script>
-  <script src="../assets/js/data/members.js?v=4.3"></script>
-  <script src="../assets/js/data/plan-overrides.js?v=4.3"></script>
-  <script src="../assets/js/config.js?v=4.3"></script>
-  <script src="../assets/js/app.js?v=4.3"></script>
-  <script src="../assets/js/backend.js?v=4.3"></script>
+  <script src="../assets/js/data/meetings.js?v=4.4"></script>
+  <script src="../assets/js/data/meeting-overrides.js?v=4.4"></script>
+  <script src="../assets/js/data/members.js?v=4.4"></script>
+  <script src="../assets/js/data/plan-overrides.js?v=4.4"></script>
+  <script src="../assets/js/config.js?v=4.4"></script>
+  <script src="../assets/js/app.js?v=4.4"></script>
+  <script src="../assets/js/backend.js?v=4.4"></script>
   <script>
     injectHeader("组会");
     document.getElementById("head").insertAdjacentHTML("afterend",
@@ -376,19 +376,23 @@
       return base;
     }
 
-    /* 任务解析：统一成 [{t, content, end:{status,note,by,at}}]（旧记录自动转换） */
+    /* 任务解析：统一成 [{from,to,content,end:{status,note,by,at}}]（旧记录自动转换） */
     function parseTasks(it){
       var t = [];
       try { var v = it && it.tasks ? JSON.parse(it.tasks) : []; if(Array.isArray(v)) t = v; } catch(e){}
       t = t.filter(function(x){ return x && typeof x === "object"; }).map(function(x){
-        return { t: String(x.t || ""), content: String(x.content || ""), mid: x.mid || null, end: x.end || null };
+        var from = String(x.from || ""), to = String(x.to || "");
+        var tDisp = String(x.t || "");
+        if(!tDisp && from) tDisp = to && to !== from ? (from + " ~ " + to) : from;
+        return { from: from, to: to, t: tDisp, content: String(x.content || ""), mid: x.mid || null, end: x.end || null };
       });
       if(!t.length && it && (it.content || it.done)){
-        t = [{ t: "", content: String(it.content || ""), mid: null, end: (it.done ? { status: it.done, note: it.doneNote || "", by: it.doneBy || "", at: it.doneAt || "" } : null) }];
+        t = [{ from: "", to: "", t: "", content: String(it.content || ""), mid: null, end: (it.done ? { status: it.done, note: it.doneNote || "", by: it.doneBy || "", at: it.doneAt || "" } : null) }];
       }
-      while(t.length < 2) t.push({ t: "", content: "", mid: null, end: null });
+      while(t.length < 2) t.push({ from: "", to: "", t: "", content: "", mid: null, end: null });
       return t;
     }
+    function isFinal(it){ return it && it.status === "final"; }
     function endBadge(v){
       if(v === "done") return "✅ 完成";
       if(v === "partial") return "🟡 部分完成";
@@ -415,6 +419,8 @@
 
       var rows = filtered.map(function(it){
         var t = parseTasks(it);
+        var fin = isFinal(it);
+        var timeDisp = function(task){ return task.from ? (task.to && task.to !== task.from ? task.from + " ~ " + task.to : task.from) : "—"; };
         var cell = function(task, idx){
           var val = task.end && task.end.status ? task.end.status : "";
           return '<td>' +
@@ -428,28 +434,33 @@
             (task.end && task.end.note ? '<div style="font-size:11.5px; color:var(--muted); margin-top:3px;">' + esc(task.end.note) + '</div>' : "") +
           '</td>';
         };
+        var actions = fin
+          ? '<span style="font-size:11.5px; color:var(--muted);">已定稿</span>'
+          : '<button class="btn btn-xs btn-outline" onclick="openPlanModal(\'' + esc(it.id) + '\')">编辑</button>' +
+            ' <button class="btn btn-xs btn-primary" onclick="finalizePlan(\'' + esc(it.id) + '\')">提交定稿</button>' +
+            ' <button class="btn btn-xs btn-danger" onclick="deletePlan(\'' + esc(it.id) + '\')">删除</button>';
+        var badge = fin
+          ? '<span class="badge badge-green" style="margin-left:4px;">已提交</span>'
+          : '<span class="badge badge-gray" style="margin-left:4px;">草稿</span>';
         return '<tr>' +
-          '<td style="white-space:nowrap;"><b>' + esc(it.name || "未署名") + '</b></td>' +
-          '<td>' + esc(t[0].t || "—") + '</td>' +
+          '<td style="white-space:nowrap;"><b>' + esc(it.name || "未署名") + '</b>' + badge + '</td>' +
+          '<td>' + esc(timeDisp(t[0])) + '</td>' +
           '<td>' + (t[0].content ? esc(t[0].content) : '<span style="color:var(--muted);">—</span>') + '</td>' +
           cell(t[0], 0) +
-          '<td>' + esc(t[1].t || "—") + '</td>' +
+          '<td>' + esc(timeDisp(t[1])) + '</td>' +
           '<td>' + (t[1].content ? esc(t[1].content) : '<span style="color:var(--muted);">—</span>') + '</td>' +
           cell(t[1], 1) +
-          '<td style="white-space:nowrap;">' +
-            '<button class="btn btn-xs btn-outline" onclick="openPlanModal(\'' + esc(it.id) + '\')">编辑</button>' +
-            ' <button class="btn btn-xs btn-danger" onclick="deletePlan(\'' + esc(it.id) + '\')">删除</button>' +
-          '</td>' +
+          '<td style="white-space:nowrap;">' + actions + '</td>' +
         '</tr>';
       }).join("");
 
       document.getElementById("planTableWrap").innerHTML =
         '<div class="table-wrap"><table>' +
           '<thead><tr>' +
-            '<th style="width:90px;">成员</th>' +
-            '<th style="width:110px;">执行时间 ①</th><th>计划内容 ①</th><th style="width:130px;">完成情况 ①</th>' +
-            '<th style="width:110px;">执行时间 ②</th><th>计划内容 ②</th><th style="width:130px;">完成情况 ②</th>' +
-            '<th style="width:110px;">操作</th>' +
+            '<th style="width:110px;">成员</th>' +
+            '<th style="width:150px;">计划时间 ①</th><th>计划内容 ①</th><th style="width:130px;">完成情况 ①</th>' +
+            '<th style="width:150px;">计划时间 ②</th><th>计划内容 ②</th><th style="width:130px;">完成情况 ②</th>' +
+            '<th style="width:150px;">操作</th>' +
           '</tr></thead>' +
           '<tbody>' + (rows || '<tr><td colspan="8">' + emptyTip("还没有计划。点右上角「＋ 添加我的计划」填写。") + '</td></tr>') + '</tbody>' +
         '</table></div>';
@@ -508,22 +519,27 @@
             '<input type="text" id="pmName" list="pmNameList" placeholder="填写人姓名" style="width:100%;">' +
             '<datalist id="pmNameList">' + memberNames.map(function(n){ return '<option value="' + esc(n) + '">'; }).join("") + '</datalist></div>' +
           '<div><label>月份 <span style="color:red">*</span></label><input type="month" id="pmMonth" style="width:100%;"></div>' +
-          '<div style="grid-column:1/-1; border-top:1px solid var(--border); padding-top:8px;"><label><b>任务 ①</b>（执行时间 + 内容）</label>' +
-            '<div style="display:flex; gap:6px;">' +
-              '<input type="text" id="pmTime1" placeholder="如 10 月上旬 / 10.1-10.15" style="flex:0 0 150px;">' +
-              '<textarea id="pmTask1" rows="2" placeholder="如：完成春玉米田间取样" style="flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea>' +
-            '</div></div>' +
+          '<div style="grid-column:1/-1; border-top:1px solid var(--border); padding-top:8px;"><label><b>任务 ①</b>（计划时间 + 内容）</label>' +
+            '<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">' +
+              '<input type="date" id="pmFrom1" style="flex:1;" title="开始日期">' +
+              '<span style="color:var(--muted);">至</span>' +
+              '<input type="date" id="pmTo1" style="flex:1;" title="结束日期">' +
+            '</div>' +
+            '<textarea id="pmTask1" rows="2" placeholder="如：完成春玉米田间取样" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea></div>' +
           '<div style="grid-column:1/-1;"><label><b>任务 ②</b>（可留空）</label>' +
-            '<div style="display:flex; gap:6px;">' +
-              '<input type="text" id="pmTime2" placeholder="如 10 月下旬" style="flex:0 0 150px;">' +
-              '<textarea id="pmTask2" rows="2" placeholder="如：撰写小论文引言" style="flex:1; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea>' +
-            '</div></div>' +
+            '<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">' +
+              '<input type="date" id="pmFrom2" style="flex:1;" title="开始日期">' +
+              '<span style="color:var(--muted);">至</span>' +
+              '<input type="date" id="pmTo2" style="flex:1;" title="结束日期">' +
+            '</div>' +
+            '<textarea id="pmTask2" rows="2" placeholder="如：撰写小论文引言" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; resize:vertical;"></textarea></div>' +
         '</div>' +
         '<div style="margin-top:14px;">' +
-          '<button class="btn btn-primary" id="pmSaveBtn" onclick="submitPlan()">保存</button>' +
+          '<button class="btn btn-primary" id="pmSaveBtn" onclick="submitPlan()">保存草稿</button>' +
+          '<button class="btn btn-outline" id="pmFinalBtn" onclick="submitPlan(true)">保存并提交定稿</button>' +
           '<button class="btn btn-outline" onclick="closePlanModal()" style="margin-left:8px;">取消</button>' +
         '</div>' +
-        '<p style="font-size:12px; color:var(--muted); margin-top:10px;">保存后全组实时可见；完成情况在总表下拉里直接改。</p>' +
+        '<p style="font-size:12px; color:var(--muted); margin-top:10px;">草稿可反复修改；<b>提交定稿后计划时间与内容即锁定</b>（不能再编辑/删除），只能后续在表格里填完成情况。</p>' +
       '</div>' +
     '</div>';
     document.body.appendChild(planModal);
@@ -531,13 +547,16 @@
     function openPlanModal(id){
       var wrap = document.getElementById("planModal");
       var it = id ? allPlans().find(function(x){ return x.id === id; }) : null;
-      document.getElementById("pmTitle").textContent = it ? "编辑计划 · " + (it.name || "") : "添加我的月度计划";
+      if(it && isFinal(it)){ alert("这条计划已提交定稿，时间与内容已锁定，不能再修改。\n后续只需在表格里填写完成情况。"); return; }
+      document.getElementById("pmTitle").textContent = it ? "编辑草稿 · " + (it.name || "") : "添加我的月度计划";
       document.getElementById("pmName").value = it ? (it.name || "") : "";
       document.getElementById("pmMonth").value = it ? (it.month || "") : curMonthStr();
-      var t = it ? parseTasks(it) : [{t:"",content:""},{t:"",content:""}];
-      document.getElementById("pmTime1").value = t[0].t || "";
+      var t = it ? parseTasks(it) : [{from:"",to:"",content:""},{from:"",to:"",content:""}];
+      document.getElementById("pmFrom1").value = t[0].from || "";
+      document.getElementById("pmTo1").value = t[0].to || "";
       document.getElementById("pmTask1").value = t[0].content || "";
-      document.getElementById("pmTime2").value = t[1].t || "";
+      document.getElementById("pmFrom2").value = t[1].from || "";
+      document.getElementById("pmTo2").value = t[1].to || "";
       document.getElementById("pmTask2").value = t[1].content || "";
       wrap.dataset.id = id || "";
       wrap.classList.add("open");
@@ -553,18 +572,23 @@
       return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
     }
 
-    function submitPlan(){
+    function submitPlan(andFinalize){
       var wrap = document.getElementById("planModal");
       var id = wrap.dataset.id;
       var name = document.getElementById("pmName").value.trim();
       var month = document.getElementById("pmMonth").value.trim();
-      var time1 = document.getElementById("pmTime1").value.trim();
+      var from1 = document.getElementById("pmFrom1").value;
+      var to1 = document.getElementById("pmTo1").value;
       var task1 = document.getElementById("pmTask1").value.trim();
-      var time2 = document.getElementById("pmTime2").value.trim();
+      var from2 = document.getElementById("pmFrom2").value;
+      var to2 = document.getElementById("pmTo2").value;
       var task2 = document.getElementById("pmTask2").value.trim();
       if(!name){ alert("请填写姓名"); return; }
       if(!month){ alert("请选择月份"); return; }
       if(!task1){ alert("请填写任务 ① 的计划内容"); return; }
+      if(from1 && to1 && to1 < from1){ alert("任务 ① 的结束日期不能早于开始日期"); return; }
+      if(!task2 && (from2 || to2)){ alert("任务 ② 未填内容，请清空其日期或补上内容"); return; }
+      if(task2 && from2 && to2 && to2 < from2){ alert("任务 ② 的结束日期不能早于开始日期"); return; }
 
       var old = id ? allPlans().find(function(x){ return x.id === id; }) : null;
       var item = Object.assign({}, old || {});
@@ -572,21 +596,41 @@
       item.id = id || ("MP-" + month + "-" + name + "-" + Date.now());
       item.name = name; item.month = month;
       item.tasks = JSON.stringify([
-        { t: time1, content: task1, end: (prev[0] && prev[0].end) || null },
-        { t: time2, content: task2, end: (prev[1] && prev[1].end) || null }
+        { from: from1, to: to1, content: task1, end: (prev[0] && prev[0].end) || null },
+        { from: from2, to: to2, content: task2, end: (prev[1] && prev[1].end) || null }
       ]);
       item.content = "任务1：" + task1 + (task2 ? "\n任务2：" + task2 : "");
+      item.status = andFinalize ? "final" : "draft";
+      item.finalAt = andFinalize ? nowISO() : "";
 
       var btn = document.getElementById("pmSaveBtn");
-      btn.disabled = true; btn.textContent = "保存中…";
-      savePlanItem(item, item.id).then(function(){ btn.disabled = false; btn.textContent = "保存"; closePlanModal(); });
+      var btnF = document.getElementById("pmFinalBtn");
+      btn.disabled = true; btnF.disabled = true;
+      savePlanItem(item, item.id).then(function(){
+        btn.disabled = false; btnF.disabled = false;
+        closePlanModal();
+        if(andFinalize && !confirm("已提交定稿：计划时间与内容已锁定，后续只能填写完成情况。\n现在查看总表吗？")) return;
+      });
     }
     window.submitPlan = submitPlan;
+
+    /* 表格上的「提交定稿」 */
+    function finalizePlan(id){
+      var it = allPlans().find(function(x){ return x.id === id; });
+      if(!it || isFinal(it)) return;
+      if(!confirm("提交定稿后，计划时间与内容将锁定（不能再编辑/删除），全组与导师都能看到。\n确定提交吗？")) return;
+      var item = Object.assign({}, it);
+      delete item.__localIdx;
+      item.status = "final"; item.finalAt = nowISO();
+      savePlanItem(item, id);
+    }
+    window.finalizePlan = finalizePlan;
 
     function deletePlan(id){
       var it = allPlans().find(function(x){ return x.id === id; });
       if(!it) return;
-      if(!confirm("确定删除 " + (it.name || "") + " " + (it.month || "") + " 的计划吗？删除后全组不再显示。")) return;
+      if(isFinal(it)){ alert("已提交定稿的计划不能删除（内容已锁定）。"); return; }
+      if(!confirm("确定删除 " + (it.name || "") + " " + (it.month || "") + " 的草稿计划吗？")) return;
       if(window.DB && DB.mode === "cloud"){
         DB.remove("plans", id).then(function(){ location.reload(); })
           .catch(function(e){ alert("云端删除失败：" + e.message); });
@@ -620,6 +664,6 @@
 
     renderPlans();
   </script>
-<script src="../assets/js/gate.js?v=4.3"></script>
+<script src="../assets/js/gate.js?v=4.4"></script>
 </body>
 </html>
