@@ -26,6 +26,18 @@
       </div>
     </div>
 
+    <!-- 组会分组管理：每组 1 名博士 + 多名硕士 -->
+    <div class="card" id="groupCard" style="margin-bottom:14px;">
+      <div class="section-title" style="margin-top:0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span>组会分组管理</span>
+        <button class="btn btn-primary btn-sm" onclick="openGroupEditor()">＋ 新增分组</button>
+      </div>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 12px;">
+        每组设置 1 名博士负责人，并配置若干名硕士成员。保存后全组实时可见。
+      </p>
+      <div id="groupList"></div>
+    </div>
+
     <div class="note-box" style="margin-bottom:14px;">💡 组会信息只保留最需要发布的内容：时间、地点、汇报人、汇报材料、发布时间和发布人。</div>
 
     <div class="card" style="margin-bottom:14px;">
@@ -76,6 +88,42 @@
     </div>
   </main>
 
+  <!-- 组会分组编辑弹窗 -->
+  <div class="modal" id="groupEditorModal">
+    <div class="modal-box" style="max-width:760px;">
+      <div class="modal-head">
+        <b id="groupEditorTitle">新增分组</b>
+        <button class="btn btn-sm btn-outline" onclick="closeGroupEditor()">关闭</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="groupEditId" value="">
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+          <div>
+            <label>分组名称 <span style="color:red">*</span></label>
+            <input type="text" id="groupName" placeholder="如：第一组 / 生物炭组" style="width:100%;">
+          </div>
+          <div>
+            <label>博士负责人 <span style="color:red">*</span></label>
+            <select id="groupDoctor" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fff;"></select>
+          </div>
+        </div>
+
+        <div>
+          <label style="display:block; margin-bottom:8px;">硕士成员 <span style="color:red">*</span></label>
+          <div id="groupMasterChoices" style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; max-height:300px; overflow:auto; padding:10px; border:1px solid var(--border); border-radius:10px; background:var(--bg);"></div>
+          <div style="font-size:12px; color:var(--muted); margin-top:6px;">仅列出成员库中当前“在籍在校”的硕士生。</div>
+        </div>
+
+        <div style="margin-top:16px; display:flex; gap:8px; align-items:center;">
+          <button class="btn btn-primary" onclick="saveMeetingGroup()">保存分组</button>
+          <button class="btn btn-outline" onclick="closeGroupEditor()">取消</button>
+          <span style="font-size:12.5px; color:var(--muted);">同一成员默认不能重复加入多个组。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 导出弹窗 -->
   <div class="modal" id="mtExportWrap">
     <div class="modal-box" style="max-width:720px;">
@@ -123,6 +171,7 @@
           try { if(typeof renderMeetings === "function") renderMeetings(); } catch(e){}
           try { if(typeof renderPlans === "function") renderPlans(); } catch(e){}
           try { if(typeof renderRules === "function") renderRules(); } catch(e){}
+          try { if(typeof renderMeetingGroups === "function") renderMeetingGroups(); } catch(e){}
         });
     }).catch(function(){});
     document.getElementById("head").innerHTML = pageHead(
@@ -679,6 +728,247 @@
     }
     window.exportPlans = exportPlans;
 
+    /* ---------- 组会分组管理：1 名博士 + 多名硕士 ---------- */
+    var GROUP_NOTICE_ID = "meeting-groups";
+
+    function groupNoticeItem(){
+      var arr = (window.DATA && window.DATA.notices) || [];
+      return arr.find(function(n){ return n && n.id === GROUP_NOTICE_ID; }) || null;
+    }
+
+    function getMeetingGroups(){
+      var it = groupNoticeItem();
+      if(!it || !Array.isArray(it.groups)) return [];
+      return it.groups.slice();
+    }
+
+    function activeDoctors(){
+      return (window.DATA.members || []).filter(function(m){
+        return m && m.role === "博士生" && m.status === "在籍在校";
+      }).sort(function(a,b){
+        return String(a.grade||"").localeCompare(String(b.grade||"")) || String(a.name||"").localeCompare(String(b.name||""));
+      });
+    }
+
+    function activeMasters(){
+      return (window.DATA.members || []).filter(function(m){
+        return m && m.role === "硕士生" && m.status === "在籍在校";
+      }).sort(function(a,b){
+        return String(a.grade||"").localeCompare(String(b.grade||"")) || String(a.name||"").localeCompare(String(b.name||""));
+      });
+    }
+
+    function memberById(id){
+      return (window.DATA.members || []).find(function(m){ return m && m.id === id; }) || null;
+    }
+
+    function memberLabel(m){
+      if(!m) return "—";
+      var parts = [m.name];
+      if(m.grade) parts.push(m.grade);
+      return parts.join(" · ");
+    }
+
+    function renderMeetingGroups(){
+      var wrap = document.getElementById("groupList");
+      if(!wrap) return;
+
+      var groups = getMeetingGroups();
+      if(!groups.length){
+        wrap.innerHTML =
+          '<div style="padding:18px; border:1px dashed var(--border); border-radius:10px; color:var(--muted); text-align:center;">' +
+          '暂未设置组会分组。点击右上角「＋ 新增分组」开始设置。' +
+          '</div>';
+        return;
+      }
+
+      wrap.innerHTML = '<div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;">' +
+        groups.map(function(g, idx){
+          var doctor = memberById(g.doctorId);
+          var masters = (g.masterIds || []).map(memberById).filter(Boolean);
+
+          var masterTags = masters.length
+            ? masters.map(function(m){
+                return '<span class="tag" style="margin:3px 4px 3px 0; background:#eef5ff; color:var(--primary-dark);">' +
+                  esc(m.name) + (m.grade ? ' · ' + esc(m.grade) : '') +
+                '</span>';
+              }).join("")
+            : '<span style="color:var(--muted); font-size:13px;">暂无硕士成员</span>';
+
+          return '<div style="border:1px solid var(--border); border-left:4px solid var(--primary); border-radius:12px; padding:14px; background:#fff;">' +
+            '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">' +
+              '<div>' +
+                '<div style="font-size:16px; font-weight:700; color:var(--primary-dark);">' + esc(g.name || ("第" + (idx+1) + "组")) + '</div>' +
+                '<div style="margin-top:8px; font-size:13px;"><b>博士负责人：</b>' +
+                  (doctor
+                    ? '<span class="badge badge-info">' + esc(doctor.name) + (doctor.grade ? ' · ' + esc(doctor.grade) : '') + '</span>'
+                    : '<span style="color:#b45309;">成员信息缺失</span>') +
+                '</div>' +
+              '</div>' +
+              '<div style="display:flex; gap:6px;">' +
+                '<button class="btn btn-xs btn-outline" onclick="openGroupEditor(\\'' + esc(g.id) + '\\')">编辑</button>' +
+                '<button class="btn btn-xs btn-danger" onclick="deleteMeetingGroup(\\'' + esc(g.id) + '\\')">删除</button>' +
+              '</div>' +
+            '</div>' +
+            '<div style="margin-top:10px; font-size:13px;"><b>硕士成员：</b></div>' +
+            '<div style="margin-top:4px;">' + masterTags + '</div>' +
+          '</div>';
+        }).join("") +
+      '</div>';
+    }
+
+    function populateGroupEditor(group){
+      var doctorSel = document.getElementById("groupDoctor");
+      var doctors = activeDoctors();
+      doctorSel.innerHTML = '<option value="">请选择博士负责人</option>' +
+        doctors.map(function(m){
+          var selected = group && group.doctorId === m.id ? ' selected' : '';
+          return '<option value="' + esc(m.id) + '"' + selected + '>' + esc(memberLabel(m)) + '</option>';
+        }).join("");
+
+      var selectedMasters = group && Array.isArray(group.masterIds) ? group.masterIds : [];
+      var masters = activeMasters();
+      document.getElementById("groupMasterChoices").innerHTML = masters.map(function(m){
+        var checked = selectedMasters.indexOf(m.id) >= 0 ? ' checked' : '';
+        return '<label style="display:flex; gap:7px; align-items:flex-start; padding:7px 8px; background:#fff; border:1px solid var(--border); border-radius:8px; cursor:pointer;">' +
+          '<input type="checkbox" class="group-master-check" value="' + esc(m.id) + '"' + checked + ' style="width:auto; margin-top:3px;">' +
+          '<span><b>' + esc(m.name) + '</b>' + (m.grade ? '<br><span style="font-size:11.5px; color:var(--muted);">' + esc(m.grade) + '</span>' : '') + '</span>' +
+        '</label>';
+      }).join("");
+    }
+
+    function openGroupEditor(id){
+      var groups = getMeetingGroups();
+      var group = id ? groups.find(function(g){ return g.id === id; }) : null;
+
+      document.getElementById("groupEditId").value = group ? group.id : "";
+      document.getElementById("groupName").value = group ? (group.name || "") : "";
+      document.getElementById("groupEditorTitle").textContent = group ? "编辑分组" : "新增分组";
+
+      populateGroupEditor(group || null);
+      document.getElementById("groupEditorModal").classList.add("open");
+    }
+
+    function closeGroupEditor(){
+      document.getElementById("groupEditorModal").classList.remove("open");
+      document.getElementById("groupEditId").value = "";
+      document.getElementById("groupName").value = "";
+    }
+
+    function usedMemberIdsExcept(groups, editId){
+      var used = {};
+      groups.forEach(function(g){
+        if(g.id === editId) return;
+        if(g.doctorId) used[g.doctorId] = true;
+        (g.masterIds || []).forEach(function(id){ used[id] = true; });
+      });
+      return used;
+    }
+
+    function saveMeetingGroup(){
+      var editId = document.getElementById("groupEditId").value.trim();
+      var name = document.getElementById("groupName").value.trim();
+      var doctorId = document.getElementById("groupDoctor").value;
+      var masterIds = Array.prototype.slice.call(document.querySelectorAll(".group-master-check:checked"))
+        .map(function(el){ return el.value; });
+
+      if(!name){ alert("请填写分组名称"); return; }
+      if(!doctorId){ alert("请选择 1 名博士负责人"); return; }
+      if(!masterIds.length){ alert("请至少选择 1 名硕士成员"); return; }
+
+      var groups = getMeetingGroups();
+      var used = usedMemberIdsExcept(groups, editId);
+
+      if(used[doctorId]){
+        var d = memberById(doctorId);
+        alert("博士负责人「" + (d ? d.name : doctorId) + "」已经在其他分组中，请避免重复分组。");
+        return;
+      }
+
+      var duplicatedMasters = masterIds.filter(function(id){ return used[id]; });
+      if(duplicatedMasters.length){
+        var names = duplicatedMasters.map(function(id){
+          var m = memberById(id); return m ? m.name : id;
+        });
+        alert("以下硕士成员已经在其他分组中：\n" + names.join("、") + "\n\n请先从原分组移除后再添加。");
+        return;
+      }
+
+      var group = {
+        id: editId || ("MG-" + Date.now()),
+        name: name,
+        doctorId: doctorId,
+        masterIds: masterIds,
+        updatedAt: new Date().toISOString()
+      };
+
+      if(editId){
+        groups = groups.map(function(g){ return g.id === editId ? group : g; });
+      }else{
+        groups.push(group);
+      }
+
+      var item = {
+        id: GROUP_NOTICE_ID,
+        title: "组会分组管理",
+        groups: groups,
+        updatedAt: new Date().toISOString()
+      };
+
+      if(!window.DB){
+        alert("数据模块尚未加载完成，请刷新页面后重试。");
+        return;
+      }
+
+      DB.upsert("notices", item).then(function(res){
+        window.DATA = window.DATA || {};
+        window.DATA.notices = (window.DATA.notices || []).filter(function(n){ return n.id !== GROUP_NOTICE_ID; });
+        window.DATA.notices.push((res && res.item) ? res.item : item);
+        renderMeetingGroups();
+        closeGroupEditor();
+
+        if(res && res.mode === "local"){
+          alert("⚠ 当前未连接云端，本次分组只保存在这台设备中，其他成员暂时看不到。");
+        }
+      }).catch(function(e){
+        alert("分组保存失败：" + (e && e.message ? e.message : e));
+      });
+    }
+
+    function deleteMeetingGroup(id){
+      var groups = getMeetingGroups();
+      var g = groups.find(function(x){ return x.id === id; });
+      if(!g) return;
+      if(!confirm("确定删除分组「" + (g.name || "未命名分组") + "」吗？")) return;
+
+      groups = groups.filter(function(x){ return x.id !== id; });
+      var item = {
+        id: GROUP_NOTICE_ID,
+        title: "组会分组管理",
+        groups: groups,
+        updatedAt: new Date().toISOString()
+      };
+
+      DB.upsert("notices", item).then(function(res){
+        window.DATA = window.DATA || {};
+        window.DATA.notices = (window.DATA.notices || []).filter(function(n){ return n.id !== GROUP_NOTICE_ID; });
+        window.DATA.notices.push((res && res.item) ? res.item : item);
+        renderMeetingGroups();
+
+        if(res && res.mode === "local"){
+          alert("⚠ 当前未连接云端，本次删除只保存在这台设备中。");
+        }
+      }).catch(function(e){
+        alert("删除分组失败：" + (e && e.message ? e.message : e));
+      });
+    }
+
+    window.renderMeetingGroups = renderMeetingGroups;
+    window.openGroupEditor = openGroupEditor;
+    window.closeGroupEditor = closeGroupEditor;
+    window.saveMeetingGroup = saveMeetingGroup;
+    window.deleteMeetingGroup = deleteMeetingGroup;
+
     /* ---------- 组会汇报要求（云端单条记录，页面上直接编辑） ---------- */
     var NOTICE_ID = "meeting-rules";
     var NOTICE_DEFAULT = "暂未填写。点右上角「✏️ 编辑要求」，写下组会汇报的时间、时长、PPT 要求等，保存后全组可见。";
@@ -713,81 +1003,20 @@
     function cancelRulesEditor(){
       document.getElementById("rulesEditor").style.display = "none";
     }
-function saveRules(){
-  var val = document.getElementById("rulesText").value.trim();
-
-  if(!val){
-    alert("请填写组会汇报要求。");
-    return;
-  }
-
-if(!window.DB){
-  alert("❌ 数据模块尚未加载完成，请刷新页面后重试。");
-  return;
-}
-
-if(DB.mode !== "cloud"){
-  alert(
-    "⚠️ 当前没有连接到云端数据库。\n\n" +
-    "为避免出现“只有你自己能看到”的情况，" +
-    "本次修改没有保存。\n\n" +
-    "请检查网络或 Supabase 连接后重新尝试。"
-  );
-  return;
-}
-  var item = {
-    id: NOTICE_ID,
-    title: "组会汇报要求",
-    body: val,
-    updatedAt: new Date().toISOString()
-  };
-
-  DB.upsert("notices", item).then(function(result){
-
-    // 更新当前页面中的缓存
-    window.DATA = window.DATA || {};
-    window.DATA.notices = (window.DATA.notices || []).filter(function(n){
-      return n.id !== NOTICE_ID;
-    });
-    window.DATA.notices.push(item);
-
-    // 重新显示内容
-    renderRules();
-    cancelRulesEditor();
-
-    // 判断究竟保存到了哪里
-    if(result && result.mode === "cloud"){
-
-      alert(
-        "✅ 组会汇报要求已保存到云端。\n\n" +
-        "全组成员刷新页面后即可看到最新内容。"
-      );
-
-    }else{
-
-      alert(
-        "⚠️ 当前未连接云端数据库。\n\n" +
-        "本次内容只保存在这台设备的浏览器中，" +
-        "其他成员暂时看不到。\n\n" +
-        "请检查 Supabase 连接后再重新保存。"
-      );
+    function saveRules(){
+      var val = document.getElementById("rulesText").value.trim();
+      if(!val){ alert("请填写内容；如果想清空要求，直接删掉全部文字后保存即可恢复默认提示。"); return; }
+      var item = { id: NOTICE_ID, title: "组会汇报要求", body: val, updatedAt: new Date().toISOString() };
+      DB.upsert("notices", item).then(function(){
+        window.DATA = window.DATA || {};
+        window.DATA.notices = (window.DATA.notices || []).filter(function(n){ return n.id !== NOTICE_ID; });
+        window.DATA.notices.push(item);
+        renderRules();
+        cancelRulesEditor();
+      }).catch(function(e){
+        alert("保存失败：" + e.message + "\n\n已确认云端数据库执行过最新版 supabase-setup.sql 吗？");
+      });
     }
-
-  }).catch(function(e){
-
-    alert(
-      "❌ 组会汇报要求保存失败。\n\n" +
-      "错误信息：\n" +
-      e.message +
-      "\n\n" +
-      "请检查：\n" +
-      "1. Supabase 是否正常连接；\n" +
-      "2. 是否已经执行最新版 supabase-setup.sql；\n" +
-      "3. lab_notices 表是否存在。"
-    );
-
-  });
-}
     window.renderRules = renderRules;
     window.openRulesEditor = openRulesEditor;
     window.cancelRulesEditor = cancelRulesEditor;
@@ -795,6 +1024,7 @@ if(DB.mode !== "cloud"){
 
     renderPlans();
     renderRules();
+    renderMeetingGroups();
   </script>
 <script src="../assets/js/gate.js?v=4.5"></script>
 </body>

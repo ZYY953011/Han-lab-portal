@@ -53,6 +53,7 @@
     );
 
     var projects = window.DATA.projects || [];
+    var editingProjectId = null; // 编辑已有项目时锁定原始内部ID，防止误改后生成重复项目
 
     function formatDate(d){
       if(!d) return "";
@@ -219,7 +220,7 @@
       <div class="modal-head"><b id="apTitle">添加新项目</b><button class="btn btn-sm btn-outline" onclick="closeAddProjectModal()">关闭</button></div>
       <div class="modal-body">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-          <div><label>项目编号 <span style="color:red">*</span></label><input type="text" id="apId" placeholder="如 P3"></div>
+          <div><label>系统内部 ID <span style="color:red">*</span></label><input type="text" id="apId" placeholder="如 P3"><div style="font-size:11px;color:var(--muted);margin-top:4px;">系统唯一标识；编辑已有项目时不可修改</div></div>
           <div><label>项目名称 <span style="color:red">*</span></label><input type="text" id="apName" placeholder="完整项目名称"></div>
           <div style="grid-column:1/-1;"><label>项目简称</label><input type="text" id="apShortName" placeholder="列表卡片显示，可不填"></div>
           <div><label>负责人 <span style="color:red">*</span></label><input type="text" id="apLeader" placeholder="姓名"></div>
@@ -266,10 +267,20 @@
       document.getElementById("apPinned").checked = false;
       document.getElementById("apTitle").textContent = "添加新项目";
       document.getElementById("addProjectModal").dataset.mode = "add";
+      editingProjectId = null;
+      var idInput = document.getElementById("apId");
+      idInput.readOnly = false;
+      idInput.style.background = "";
+      idInput.style.color = "";
     }
 
     function openAddProjectModal(){
       resetProjectForm();
+      editingProjectId = null;
+      var idInput = document.getElementById("apId");
+      idInput.readOnly = false;
+      idInput.style.background = "";
+      idInput.style.color = "";
       document.getElementById("addProjectModal").classList.add("open");
     }
     window.openAddProjectModal = openAddProjectModal;
@@ -277,11 +288,20 @@
     function openEditProjectModal(id){
       var p = projects.find(function(x){ return x.id === id; });
       if(!p) return;
-      document.getElementById("apId").value = p.id || "";
+
+      // 记录真正被编辑的原始项目ID。保存时始终使用它，不能被表单内容改变。
+      editingProjectId = id;
+
+      var idInput = document.getElementById("apId");
+      idInput.value = p.id || "";
+      idInput.readOnly = true;
+      idInput.style.background = "#f1f3f5";
+      idInput.style.color = "#777";
+
       document.getElementById("apName").value = p.name || "";
       document.getElementById("apShortName").value = p.shortName || "";
       document.getElementById("apLeader").value = p.leader || "";
-      document.getElementById("apMembers").value = (p.members || []).join("。");
+      document.getElementById("apMembers").value = (p.members || []).join("，");
       document.getElementById("apSource").value = (p.source || "").replace(/^（待补充：.*$/,"");
       document.getElementById("apCode").value = (p.code || "").replace(/^（待补充：.*$/,"");
       document.getElementById("apFiscalCode").value = (p.fiscalCode || "").replace(/^（待补充：.*$/,"");
@@ -309,10 +329,27 @@
       var saveBtn = document.getElementById("apSaveBtn");
       var restoreBtn = function(){ if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = "保存"; } };
       try {
-      var id = document.getElementById("apId").value.trim();
+      var mode = document.getElementById("addProjectModal").dataset.mode;
+
+      // 编辑模式必须沿用原项目内部ID；只有新增模式才读取输入框中的ID。
+      var id = (mode === "edit") ? editingProjectId : document.getElementById("apId").value.trim();
+
       var name = document.getElementById("apName").value.trim();
       var leader = document.getElementById("apLeader").value.trim();
-      if(!id || !name || !leader){ alert("请填写项目编号、项目名称和负责人"); return; }
+
+      if(!id || !name || !leader){
+        alert("请填写系统内部 ID、项目名称和负责人");
+        return;
+      }
+
+      // 新增项目时，内部ID不能与已有项目重复。
+      if(mode === "add"){
+        var duplicated = projects.some(function(x){ return x.id === id; });
+        if(duplicated){
+          alert("系统内部 ID 已存在：" + id + "\n\n请使用新的 ID，例如 P12、P13。");
+          return;
+        }
+      }
 
       var membersStr = document.getElementById("apMembers").value.trim();
       var members = membersStr ? membersStr.split(/[,，]/).map(function(s){ return s.trim(); }).filter(Boolean) : [];
@@ -335,11 +372,17 @@
         pinned: document.getElementById("apPinned").checked
       };
 
-      var mode = document.getElementById("addProjectModal").dataset.mode;
       var existing = projects.find(function(x){ return x.id === id; });
       var p;
-      if(mode === "edit" && existing){
-        // 编辑模式：保留原项目的 goal/okr/设置等字段
+
+      // 编辑模式必须找到原记录；找不到时停止，绝不退化为新建项目。
+      if(mode === "edit" && !existing){
+        alert("未找到原项目记录，已停止保存。\n\n请刷新页面后重新编辑，避免生成重复项目。");
+        return;
+      }
+
+      if(mode === "edit"){
+        // 编辑模式：保留原项目的 goal/okr/设置、资料关联等字段
         p = Object.assign({}, existing, updates);
       } else {
         p = Object.assign({}, updates, {
