@@ -33,7 +33,7 @@
         <button class="btn btn-primary btn-sm" onclick="openGroupEditor()">＋ 新增分组</button>
       </div>
       <p style="font-size:13px; color:var(--muted); margin:0 0 12px;">
-        每组设置 1 名博士负责人，并配置若干名硕士成员。保存后全组实时可见。
+        每组设置 1 名负责人（博士后或博士生），并配置若干名组内成员（硕士生或博士生）。保存后全组实时可见。
       </p>
       <div id="groupList"></div>
     </div>
@@ -104,21 +104,21 @@
             <input type="text" id="groupName" placeholder="如：第一组 / 生物炭组" style="width:100%;">
           </div>
           <div>
-            <label>博士负责人 <span style="color:red">*</span></label>
+            <label>负责人（博士后 / 博士生） <span style="color:red">*</span></label>
             <select id="groupDoctor" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fff;"></select>
           </div>
         </div>
 
         <div>
-          <label style="display:block; margin-bottom:8px;">硕士成员 <span style="color:red">*</span></label>
+          <label style="display:block; margin-bottom:8px;">组内成员（硕士生 / 博士生） <span style="color:red">*</span></label>
           <div id="groupMasterChoices" style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; max-height:300px; overflow:auto; padding:10px; border:1px solid var(--border); border-radius:10px; background:var(--bg);"></div>
-          <div style="font-size:12px; color:var(--muted); margin-top:6px;">仅列出成员库中当前“在籍在校”的硕士生。</div>
+          <div style="font-size:12px; color:var(--muted); margin-top:6px;">组内成员列出当前“在籍在校”的硕士生和博士生；已选为本组负责人的成员会自动从组员候选中排除。</div>
         </div>
 
         <div style="margin-top:16px; display:flex; gap:8px; align-items:center;">
           <button class="btn btn-primary" onclick="saveMeetingGroup()">保存分组</button>
           <button class="btn btn-outline" onclick="closeGroupEditor()">取消</button>
-          <span style="font-size:12.5px; color:var(--muted);">同一成员默认不能重复加入多个组。</span>
+          <span style="font-size:12.5px; color:var(--muted);">同一成员默认不能重复加入多个组；负责人也不能同时作为本组普通成员。</span>
         </div>
       </div>
     </div>
@@ -742,19 +742,34 @@
       return it.groups.slice();
     }
 
-    function activeDoctors(){
+    function groupLeaderCandidates(){
       return (window.DATA.members || []).filter(function(m){
-        return m && m.role === "博士生" && m.status === "在籍在校";
+        if(!m) return false;
+        // 博士后通常不使用“在籍在校”状态，因此全部纳入负责人候选；
+        // 博士生仅纳入当前在籍在校成员。
+        return m.role === "博士后" || (m.role === "博士生" && m.status === "在籍在校");
       }).sort(function(a,b){
-        return String(a.grade||"").localeCompare(String(b.grade||"")) || String(a.name||"").localeCompare(String(b.name||""));
+        var roleOrder = { "博士后": 0, "博士生": 1 };
+        var ra = roleOrder[a.role] !== undefined ? roleOrder[a.role] : 9;
+        var rb = roleOrder[b.role] !== undefined ? roleOrder[b.role] : 9;
+        return ra - rb ||
+          String(a.grade||"").localeCompare(String(b.grade||"")) ||
+          String(a.name||"").localeCompare(String(b.name||""));
       });
     }
 
-    function activeMasters(){
+    function groupMemberCandidates(){
       return (window.DATA.members || []).filter(function(m){
-        return m && m.role === "硕士生" && m.status === "在籍在校";
+        return m &&
+          (m.role === "硕士生" || m.role === "博士生") &&
+          m.status === "在籍在校";
       }).sort(function(a,b){
-        return String(a.grade||"").localeCompare(String(b.grade||"")) || String(a.name||"").localeCompare(String(b.name||""));
+        var roleOrder = { "博士生": 0, "硕士生": 1 };
+        var ra = roleOrder[a.role] !== undefined ? roleOrder[a.role] : 9;
+        var rb = roleOrder[b.role] !== undefined ? roleOrder[b.role] : 9;
+        return ra - rb ||
+          String(a.grade||"").localeCompare(String(b.grade||"")) ||
+          String(a.name||"").localeCompare(String(b.name||""));
       });
     }
 
@@ -765,6 +780,7 @@
     function memberLabel(m){
       if(!m) return "—";
       var parts = [m.name];
+      if(m.role) parts.push(m.role);
       if(m.grade) parts.push(m.grade);
       return parts.join(" · ");
     }
@@ -790,18 +806,18 @@
           var masterTags = masters.length
             ? masters.map(function(m){
                 return '<span class="tag" style="margin:3px 4px 3px 0; background:#eef5ff; color:var(--primary-dark);">' +
-                  esc(m.name) + (m.grade ? ' · ' + esc(m.grade) : '') +
+                  esc(m.name) + (m.role ? ' · ' + esc(m.role) : '') + (m.grade ? ' · ' + esc(m.grade) : '') +
                 '</span>';
               }).join("")
-            : '<span style="color:var(--muted); font-size:13px;">暂无硕士成员</span>';
+            : '<span style="color:var(--muted); font-size:13px;">暂无组内成员</span>';
 
           return '<div style="border:1px solid var(--border); border-left:4px solid var(--primary); border-radius:12px; padding:14px; background:#fff;">' +
             '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">' +
               '<div>' +
                 '<div style="font-size:16px; font-weight:700; color:var(--primary-dark);">' + esc(g.name || ("第" + (idx+1) + "组")) + '</div>' +
-                '<div style="margin-top:8px; font-size:13px;"><b>博士负责人：</b>' +
+                '<div style="margin-top:8px; font-size:13px;"><b>负责人：</b>' +
                   (doctor
-                    ? '<span class="badge badge-info">' + esc(doctor.name) + (doctor.grade ? ' · ' + esc(doctor.grade) : '') + '</span>'
+                    ? '<span class="badge badge-info">' + esc(doctor.name) + (doctor.role ? ' · ' + esc(doctor.role) : '') + (doctor.grade ? ' · ' + esc(doctor.grade) : '') + '</span>'
                     : '<span style="color:#b45309;">成员信息缺失</span>') +
                 '</div>' +
               '</div>' +
@@ -810,31 +826,55 @@
                 '<button class="btn btn-xs btn-danger" onclick="deleteMeetingGroup(\'' + esc(g.id) + '\')">删除</button>' +
               '</div>' +
             '</div>' +
-            '<div style="margin-top:10px; font-size:13px;"><b>硕士成员：</b></div>' +
+            '<div style="margin-top:10px; font-size:13px;"><b>组内成员：</b></div>' +
             '<div style="margin-top:4px;">' + masterTags + '</div>' +
           '</div>';
         }).join("") +
       '</div>';
     }
 
+    function renderGroupMemberChoices(selectedIds){
+      var doctorId = document.getElementById("groupDoctor").value;
+      var selected = Array.isArray(selectedIds) ? selectedIds.slice() :
+        Array.prototype.slice.call(document.querySelectorAll(".group-master-check:checked"))
+          .map(function(el){ return el.value; });
+
+      var members = groupMemberCandidates().filter(function(m){
+        return m.id !== doctorId;
+      });
+
+      document.getElementById("groupMasterChoices").innerHTML = members.map(function(m){
+        var checked = selected.indexOf(m.id) >= 0 ? ' checked' : '';
+        return '<label style="display:flex; gap:7px; align-items:flex-start; padding:7px 8px; background:#fff; border:1px solid var(--border); border-radius:8px; cursor:pointer;">' +
+          '<input type="checkbox" class="group-master-check" value="' + esc(m.id) + '"' + checked + ' style="width:auto; margin-top:3px;">' +
+          '<span><b>' + esc(m.name) + '</b>' +
+          '<br><span style="font-size:11.5px; color:var(--muted);">' +
+          esc(m.role || "") + (m.grade ? ' · ' + esc(m.grade) : '') +
+          '</span></span>' +
+        '</label>';
+      }).join("");
+    }
+
     function populateGroupEditor(group){
       var doctorSel = document.getElementById("groupDoctor");
-      var doctors = activeDoctors();
-      doctorSel.innerHTML = '<option value="">请选择博士负责人</option>' +
-        doctors.map(function(m){
+      var leaders = groupLeaderCandidates();
+
+      doctorSel.innerHTML = '<option value="">请选择负责人</option>' +
+        leaders.map(function(m){
           var selected = group && group.doctorId === m.id ? ' selected' : '';
           return '<option value="' + esc(m.id) + '"' + selected + '>' + esc(memberLabel(m)) + '</option>';
         }).join("");
 
-      var selectedMasters = group && Array.isArray(group.masterIds) ? group.masterIds : [];
-      var masters = activeMasters();
-      document.getElementById("groupMasterChoices").innerHTML = masters.map(function(m){
-        var checked = selectedMasters.indexOf(m.id) >= 0 ? ' checked' : '';
-        return '<label style="display:flex; gap:7px; align-items:flex-start; padding:7px 8px; background:#fff; border:1px solid var(--border); border-radius:8px; cursor:pointer;">' +
-          '<input type="checkbox" class="group-master-check" value="' + esc(m.id) + '"' + checked + ' style="width:auto; margin-top:3px;">' +
-          '<span><b>' + esc(m.name) + '</b>' + (m.grade ? '<br><span style="font-size:11.5px; color:var(--muted);">' + esc(m.grade) + '</span>' : '') + '</span>' +
-        '</label>';
-      }).join("");
+      var selectedMembers = group && Array.isArray(group.masterIds) ? group.masterIds : [];
+      renderGroupMemberChoices(selectedMembers);
+
+      // 负责人发生变化时，保留当前已勾选成员，但自动排除新负责人本人。
+      doctorSel.onchange = function(){
+        var currentSelected = Array.prototype.slice.call(document.querySelectorAll(".group-master-check:checked"))
+          .map(function(el){ return el.value; })
+          .filter(function(id){ return id !== doctorSel.value; });
+        renderGroupMemberChoices(currentSelected);
+      };
     }
 
     function openGroupEditor(id){
@@ -873,15 +913,20 @@
         .map(function(el){ return el.value; });
 
       if(!name){ alert("请填写分组名称"); return; }
-      if(!doctorId){ alert("请选择 1 名博士负责人"); return; }
-      if(!masterIds.length){ alert("请至少选择 1 名硕士成员"); return; }
+      if(!doctorId){ alert("请选择 1 名负责人（博士后或博士生）"); return; }
+      if(!masterIds.length){ alert("请至少选择 1 名组内成员（硕士生或博士生）"); return; }
+
+      if(masterIds.indexOf(doctorId) >= 0){
+        alert("负责人不能同时作为本组普通成员，请调整选择。");
+        return;
+      }
 
       var groups = getMeetingGroups();
       var used = usedMemberIdsExcept(groups, editId);
 
       if(used[doctorId]){
         var d = memberById(doctorId);
-        alert("博士负责人「" + (d ? d.name : doctorId) + "」已经在其他分组中，请避免重复分组。");
+        alert("负责人「" + (d ? d.name : doctorId) + "」已经在其他分组中，请避免重复分组。");
         return;
       }
 
@@ -890,7 +935,7 @@
         var names = duplicatedMasters.map(function(id){
           var m = memberById(id); return m ? m.name : id;
         });
-        alert("以下硕士成员已经在其他分组中：\n" + names.join("、") + "\n\n请先从原分组移除后再添加。");
+        alert("以下组内成员已经在其他分组中：\n" + names.join("、") + "\n\n请先从原分组移除后再添加。");
         return;
       }
 
