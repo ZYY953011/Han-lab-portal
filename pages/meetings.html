@@ -713,20 +713,81 @@
     function cancelRulesEditor(){
       document.getElementById("rulesEditor").style.display = "none";
     }
-    function saveRules(){
-      var val = document.getElementById("rulesText").value.trim();
-      if(!val){ alert("请填写内容；如果想清空要求，直接删掉全部文字后保存即可恢复默认提示。"); return; }
-      var item = { id: NOTICE_ID, title: "组会汇报要求", body: val, updatedAt: new Date().toISOString() };
-      DB.upsert("notices", item).then(function(){
-        window.DATA = window.DATA || {};
-        window.DATA.notices = (window.DATA.notices || []).filter(function(n){ return n.id !== NOTICE_ID; });
-        window.DATA.notices.push(item);
-        renderRules();
-        cancelRulesEditor();
-      }).catch(function(e){
-        alert("保存失败：" + e.message + "\n\n已确认云端数据库执行过最新版 supabase-setup.sql 吗？");
-      });
+function saveRules(){
+  var val = document.getElementById("rulesText").value.trim();
+
+  if(!val){
+    alert("请填写组会汇报要求。");
+    return;
+  }
+
+if(!window.DB){
+  alert("❌ 数据模块尚未加载完成，请刷新页面后重试。");
+  return;
+}
+
+if(DB.mode !== "cloud"){
+  alert(
+    "⚠️ 当前没有连接到云端数据库。\n\n" +
+    "为避免出现“只有你自己能看到”的情况，" +
+    "本次修改没有保存。\n\n" +
+    "请检查网络或 Supabase 连接后重新尝试。"
+  );
+  return;
+}
+  var item = {
+    id: NOTICE_ID,
+    title: "组会汇报要求",
+    body: val,
+    updatedAt: new Date().toISOString()
+  };
+
+  DB.upsert("notices", item).then(function(result){
+
+    // 更新当前页面中的缓存
+    window.DATA = window.DATA || {};
+    window.DATA.notices = (window.DATA.notices || []).filter(function(n){
+      return n.id !== NOTICE_ID;
+    });
+    window.DATA.notices.push(item);
+
+    // 重新显示内容
+    renderRules();
+    cancelRulesEditor();
+
+    // 判断究竟保存到了哪里
+    if(result && result.mode === "cloud"){
+
+      alert(
+        "✅ 组会汇报要求已保存到云端。\n\n" +
+        "全组成员刷新页面后即可看到最新内容。"
+      );
+
+    }else{
+
+      alert(
+        "⚠️ 当前未连接云端数据库。\n\n" +
+        "本次内容只保存在这台设备的浏览器中，" +
+        "其他成员暂时看不到。\n\n" +
+        "请检查 Supabase 连接后再重新保存。"
+      );
     }
+
+  }).catch(function(e){
+
+    alert(
+      "❌ 组会汇报要求保存失败。\n\n" +
+      "错误信息：\n" +
+      e.message +
+      "\n\n" +
+      "请检查：\n" +
+      "1. Supabase 是否正常连接；\n" +
+      "2. 是否已经执行最新版 supabase-setup.sql；\n" +
+      "3. lab_notices 表是否存在。"
+    );
+
+  });
+}
     window.renderRules = renderRules;
     window.openRulesEditor = openRulesEditor;
     window.cancelRulesEditor = cancelRulesEditor;

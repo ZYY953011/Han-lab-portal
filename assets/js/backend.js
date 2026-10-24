@@ -153,20 +153,42 @@ window.DB = (function () {
   }
 
   /* ---------- 本地草稿回退实现（与原有逻辑一致） ---------- */
-  var LOCAL_KEY = {
-    meetings: "meeting-local", plans: "plan-items", expenses: "exp-local",
-    equipment: "equip-items", datasets: "ds-items",
-    projects: "proj-projects", methods: "method-local", samples: "sample-local",
-    reminders: "remind-local", members: "member-items", achievements: "achv-items",
-    resources: "resource-local", expguide: "expguide-local"
-  };
-  var LOCAL_DEL = {
-    meetings: "meeting-deleted", plans: "plan-deleted", expenses: "exp-deleted",
-    equipment: "equip-deleted", datasets: "ds-deleted",
-    projects: "proj-deleted", methods: "method-deleted", samples: "sample-deleted",
-    reminders: "remind-deleted", members: "member-deleted", achievements: "achv-deleted",
-    resources: "resource-deleted", expguide: "expguide-deleted"
-  };
+var LOCAL_KEY = {
+  meetings: "meeting-local",
+  plans: "plan-items",
+  expenses: "exp-local",
+  equipment: "equip-items",
+  datasets: "ds-items",
+  projects: "proj-projects",
+  methods: "method-local",
+  samples: "sample-local",
+  reminders: "remind-local",
+  members: "member-items",
+  achievements: "achv-items",
+  resources: "resource-local",
+  expguide: "expguide-local",
+
+  // v4.5：组会汇报要求
+  notices: "notice-items"
+};
+var LOCAL_DEL = {
+  meetings: "meeting-deleted",
+  plans: "plan-deleted",
+  expenses: "exp-deleted",
+  equipment: "equip-deleted",
+  datasets: "ds-deleted",
+  projects: "proj-deleted",
+  methods: "method-deleted",
+  samples: "sample-deleted",
+  reminders: "remind-deleted",
+  members: "member-deleted",
+  achievements: "achv-deleted",
+  resources: "resource-deleted",
+  expguide: "expguide-deleted",
+
+  // v4.5：组会汇报要求
+  notices: "notice-deleted"
+};
   function lget(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function lset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
