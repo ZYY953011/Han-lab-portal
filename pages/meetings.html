@@ -70,6 +70,7 @@
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <select id="planMonth" onchange="renderPlans()" style="padding:6px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:#fff;"></select>
         <button class="btn btn-primary btn-sm" onclick="openPlanModal()">＋ 添加我的计划</button>
+        <button class="btn btn-outline btn-sm" onclick="exportPlansPDF()">📄 导出 PDF</button>
         <button class="btn btn-outline btn-sm local-only-btn" onclick="exportPlans()">导出计划（JSON）</button>
       </div>
     </div>
@@ -713,6 +714,109 @@
       location.reload();
     }
     window.deletePlan = deletePlan;
+
+    /* ---------- 月度计划导出 PDF（只读，不写数据库） ----------
+     * 说明：
+     * 1. 只读取 allPlans() 当前已有数据，不调用 DB.upsert / DB.remove；
+     * 2. 当前选择某个月份时只导出该月份；“全部月份”则导出全部；
+     * 3. 打开浏览器打印窗口后选择“另存为 PDF”即可。
+     * ---------------------------------------------------------- */
+    function exportPlansPDF(){
+      var sel = document.getElementById("planMonth");
+      var month = sel ? sel.value : "";
+      var list = allPlans();
+
+      if(month){
+        list = list.filter(function(x){ return x.month === month; });
+      }
+
+      list.sort(function(a,b){
+        return (b.month||"").localeCompare(a.month||"") ||
+          String(a.name||"").localeCompare(String(b.name||""));
+      });
+
+      if(!list.length){
+        alert(month ? ("当前月份 " + month + " 暂无计划可导出。") : "暂无月度计划可导出。");
+        return;
+      }
+
+      function htmlText(v){
+        return esc(String(v == null ? "" : v)).replace(/\n/g, "<br>");
+      }
+
+      function timeDisp(task){
+        if(!task || !task.from) return "—";
+        return task.to && task.to !== task.from ? (task.from + " ~ " + task.to) : task.from;
+      }
+
+      function statusText(task){
+        if(!task || !task.end || !task.end.status) return "未填写";
+        var s = task.end.status;
+        var label = s === "done" ? "完成" : (s === "partial" ? "部分完成" : (s === "none" ? "未完成" : s));
+        var note = task.end.note ? ("<div class='note'>" + htmlText(task.end.note) + "</div>") : "";
+        return htmlText(label) + note;
+      }
+
+      var rows = list.map(function(it){
+        var t = parseTasks(it);
+        var state = isFinal(it) ? "已提交" : "草稿";
+        return "<tr>" +
+          "<td><b>" + htmlText(it.name || "未署名") + "</b><div class='sub'>" + htmlText(it.month || "—") + " · " + state + "</div></td>" +
+          "<td>" + htmlText(timeDisp(t[0])) + "</td>" +
+          "<td class='content'>" + (t[0].content ? htmlText(t[0].content) : "—") + "</td>" +
+          "<td>" + statusText(t[0]) + "</td>" +
+          "<td>" + htmlText(timeDisp(t[1])) + "</td>" +
+          "<td class='content'>" + (t[1].content ? htmlText(t[1].content) : "—") + "</td>" +
+          "<td>" + statusText(t[1]) + "</td>" +
+        "</tr>";
+      }).join("");
+
+      var scopeTitle = month ? (month + " 月度计划") : "成员月度计划（全部月份）";
+      var generated = new Date().toLocaleString("zh-CN");
+
+      var doc = "<!DOCTYPE html><html lang='zh-CN'><head><meta charset='UTF-8'>" +
+        "<title>" + htmlText(scopeTitle) + "</title>" +
+        "<style>" +
+          "@page{size:A4 landscape;margin:10mm;}" +
+          "*{box-sizing:border-box;}" +
+          "body{font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;color:#1f2937;margin:0;font-size:10.5pt;}" +
+          "h1{font-size:18pt;margin:0 0 4mm;color:#174f8a;}" +
+          ".meta{color:#6b7280;margin-bottom:5mm;font-size:9pt;}" +
+          "table{width:100%;border-collapse:collapse;table-layout:fixed;}" +
+          "th,td{border:1px solid #cfd8e3;padding:6px 7px;vertical-align:top;word-break:break-word;}" +
+          "th{background:#edf4fb;color:#174f8a;font-weight:700;text-align:left;}" +
+          "th:nth-child(1){width:11%;}" +
+          "th:nth-child(2),th:nth-child(5){width:12%;}" +
+          "th:nth-child(3),th:nth-child(6){width:22%;}" +
+          "th:nth-child(4),th:nth-child(7){width:10.5%;}" +
+          "tr{break-inside:avoid;page-break-inside:avoid;}" +
+          ".content{white-space:normal;line-height:1.55;}" +
+          ".sub{font-size:8.5pt;color:#6b7280;margin-top:2px;}" +
+          ".note{margin-top:3px;color:#6b7280;font-size:8.5pt;line-height:1.35;}" +
+          ".footer{margin-top:4mm;color:#9ca3af;font-size:8pt;}" +
+          "@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}" +
+        "</style></head><body>" +
+        "<h1>" + htmlText(scopeTitle) + "</h1>" +
+        "<div class='meta'>课题组科研与学生培养管理平台 · 导出时间：" + htmlText(generated) + " · 共 " + list.length + " 条记录</div>" +
+        "<table><thead><tr>" +
+          "<th>成员</th>" +
+          "<th>计划时间 ①</th><th>计划内容 ①</th><th>完成情况 ①</th>" +
+          "<th>计划时间 ②</th><th>计划内容 ②</th><th>完成情况 ②</th>" +
+        "</tr></thead><tbody>" + rows + "</tbody></table>" +
+        "<div class='footer'>本 PDF 为当前页面数据的只读导出，不会修改或覆盖网站中的任何记录。</div>" +
+        "<script>window.onload=function(){setTimeout(function(){window.print();},250)};<\/script>" +
+        "</body></html>";
+
+      var w = window.open("", "_blank");
+      if(!w){
+        alert("浏览器阻止了导出窗口。请允许本站弹出窗口后重新点击“导出 PDF”。");
+        return;
+      }
+      w.document.open();
+      w.document.write(doc);
+      w.document.close();
+    }
+    window.exportPlansPDF = exportPlansPDF;
 
     /* ---------- 导出（备用：自动同步失败时供排查） ---------- */
     function exportPlans(){
